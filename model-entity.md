@@ -2,13 +2,13 @@
 All documented entities are Telegram accounts.
 
 A telegram_account can be one of:
-- channel
-- group
-- user
+- `channel`
+- `group`
+- `user`
 
-Each entity is identified primarily by its Telegram numeric ID.
+Each entity is identified primarily by its Telegram numeric `ID`.
 
-Usernames, names, bios and invitation links are considered mutable
+Usernames (`@`), names, bios and invitation links are considered mutable
 and secondary.
 
 ## Roles
