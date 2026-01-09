@@ -11,4 +11,18 @@ Each report links to:
 - involved Telegram accounts
 - supporting evidence or email chains (`.eml` if available)
 
-Reports document action, not outcome.
+Reports document action, not enforcement or platform response.
+
+---
+
+Reports are created in response to documented harm.
+
+See:
+- [Incidents](incidents.md)
+
+---
+
+Moderation behavior is observed, not documented.
+
+See:
+- [Moderation](moderation.md)

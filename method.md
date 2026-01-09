@@ -40,3 +40,11 @@ Statuses reflect observation, not platform metadata.
 - `deleted`: "Deleted User"
 
 Exact ban dates are usually unknown and are not inferred.
+
+---
+
+This documentation method directly produces a graph.
+
+See:
+- [Graph Construction](graph.md)
+- [Visualization](visualization.md)

@@ -7,3 +7,9 @@ Entities are documented based on:
 - explicit call to action
 
 All public examples are anonymized.
+
+Ethical constraints directly inform the documented actions.
+
+See:
+- [Actions Following Observation](actions.md)
+- [Scope](scope.md)

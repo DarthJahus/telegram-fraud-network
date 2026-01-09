@@ -10,3 +10,10 @@ An incident file may contain:
 - reporting status (reported / not reported) and link to report
 
 Incidents are distinct from channels. They document harm, not infrastructure.
+
+---
+
+Incidents may result in external reports.
+
+See:
+- [Reports](reports.md)

@@ -9,3 +9,12 @@ Based on repeated observations:
 - Sanctions appear to be applied per entity instance, not accumulated across related accounts.
 
 These observations are empirical and based solely on public behavior.
+
+---
+
+Observed moderation behavior is interpreted through graph persistence
+and reconfiguration.
+
+See:
+- [Graph Construction](graph.md)
+- [Visualization](visualization.md)
