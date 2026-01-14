@@ -10,11 +10,11 @@ Each documented entity is tagged according to observed activity.
 Common tags include:
 - #bankaccounts — sale of compromised or stolen bank accounts, often with
   associated methods (2FA bypass, cash-out tutorials, tooling)
-- #checks — sale of bank checks (mostly USA-based), often partially blurred,
+- #checking — sale of bank checks (mostly USA-based), often partially blurred,
   frequently linked to ATM or mobile deposit cash-out methods
-- #firearms — sale or exposure of firearms or related materials
 - #investment_scam — cryptocurrency, forex, or "pay and receive double"
   investment fraud schemes
+- #backup — channel or group used as dorment or redirection hub
 
 Tags are descriptive, not accusatory.
 

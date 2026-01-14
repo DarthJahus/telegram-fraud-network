@@ -10,6 +10,8 @@ The focus is not on automation or scraping, but on:
 The repository also provides a reproducible documentation method
 that can be used by researchers, journalists, or investigators.
 
+![[_/Stats 2026-01-14.png]]
+
 ## Repository Structure and Method Overview
 This repository is organized around a documented observation workflow.
 

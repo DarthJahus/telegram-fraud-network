@@ -5,6 +5,7 @@ The graph emerges from observed relations:
 - bio links
 - invitation links
 - forwards
+- chat groups linked to channels (`discussion`/`linked channel`)
 
 No inferred or speculative links are added.
 
@@ -13,7 +14,6 @@ All links are directional.
 
 Links represent how an entity was discovered from another entity.
 Reverse or inferred relationships are not added unless explicitly observed.
-
 
 ## Emergent Structure
 The graph is not designed top-down.
