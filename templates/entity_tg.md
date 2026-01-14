@@ -12,15 +12,10 @@ bio: `@`
 mobile: `+`
 
 activity: #
-created: `@` ([link](https://id/c/1))
+created: `@` ([link](https://t.me/ID/c/1))
 
 linked channel: `@`
 discussion: `@`
 subscribers: 
 members: 
 joined: 
-
-
-
-
-
