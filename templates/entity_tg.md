@@ -1,21 +1,21 @@
-id: `ID`
+id: `ID`  
 status:
 - `active`, `{{date}} {{time}}`
 
-type: `user|channel|group`
-discovered: `{{date}} {{time}}`
-invite: 
+type: `user|channel|group`  
+discovered: `{{date}} {{time}}`  
+invite:  
 
-username: `@` ([link](https://t.me/@))
-name: `@`
-bio: `@`
-mobile: `+`
+username: `@` ([link](https://t.me/@))  
+name: `@`  
+bio: `@`  
+mobile: `+`  
 
-activity: #
-created: `@` ([link](https://t.me/ID/c/1))
+activity: #  
+created: `@` ([link](https://t.me/ID/c/1))  
 
-linked channel: `@`
-discussion: `@`
-subscribers: 
-members: 
-joined: 
+linked channel: `@`  
+discussion: `@`  
+subscribers:   
+members:   
+joined:   
