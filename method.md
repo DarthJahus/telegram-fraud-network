@@ -6,7 +6,8 @@
 ## Minimal Information
 Each entity file may contain:
 - Telegram ID (or invitation link placeholder)
-- type: `channel` | `group` | `user`
+- type: `channel` | `group` | `user` | `bot` | `website`
+- discovered: date and time when the entity was first observed
 - functional Telegram link
 - links to:
 - owner / admin (if visible)
@@ -17,29 +18,32 @@ Each entity file may contain:
 Backups are created only when necessary.
 
 Typical cases include:
-- unmasked personal data
-- identity documents
-- weapons / firearms
-- explicit illegal instructions
+- **Incidents**: unmasked personal data or identity documents (when victim is identifiable)
+- **Pre-migration signals**: entity preparing to delete content or migrate
+- **High-severity content**: weapons/firearms, explicit illegal instructions
 
 For each backup:
-- the backup folder is recorded
+- the backup folder is recorded with date
+- reason for backup is noted
 
 For each incident:
 - the media file is noted
 - a direct Telegram link to the source message is included:
-(`t.me/c/<id>/<msg_id>`)
+  (`t.me/c/<id>/<msg_id>`)
+- victim identifiability is assessed
 
 Backups are evidentiary, not archival.
 
 ## Status Tracking
 Statuses reflect observation, not platform metadata.
 
-- `active`: entity confirmed active at a given date (when checked)
-- `banned`: entity observed as unavailable, with date of observation
-- `deleted`: "Deleted User"
+- `active`: entity confirmed active at a given date and time (when checked)
+- `banned`: entity observed as unavailable, with date and time of observation
+- `deleted`: Deleted User or Bot, with date and time of observation
 
 Exact ban dates are usually unknown and are not inferred.
+
+The `discovered` timestamp typically coincides with reporting, as entities are reported immediately upon discovery. Combined with `created` and `status` dates, this enables rough assessment of moderation response times.
 
 ---
 

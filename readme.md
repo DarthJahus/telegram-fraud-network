@@ -10,7 +10,51 @@ The focus is not on automation or scraping, but on:
 The repository also provides a reproducible documentation method
 that can be used by researchers, journalists, or investigators.
 
-![Statistics](_/Stats%202026-01-14.png)
+## Info
+### Project Timeline
+- **Start date**: December 21, 2024
+- **Observation method**: Manual OSINT, no automation
+- **Current scope**: See statistics for (reasonably) up-to-date metrics
+
+### Statistics
+```vb
+──────────────────────────────────────────────────
+📊 GLOBAL OVERVIEW
+──────────────────────────────────────────────────
+📁 Total entries        :  220
+🔨 Banned               :    -
+🗑️ Deleted              :    -
+🔴 Active               :    -   -%
+
+──────────────────────────────────────────────────
+🧩 ENTRY TYPES
+──────────────────────────────────────────────────
+User      : 104 •    - 🗑️   -%
+Group     :  14 •    - 🔨   -%
+Channel   :  46 •    - 🔨   -%
+Bot       :   3 •    - 🗑️   -%
+Website   :   3 •    - 🔨   -%
+Unknown   :  50 •    - 🔨   -%
+
+──────────────────────────────────────────────────
+🏷️  TAG ANALYSIS
+──────────────────────────────────────────────────
+💳 FINANCIAL FRAUD
+  #bankaccounts        25   11.4%
+  #checking            20    9.1%
+  #carding              8    3.6%
+
+⛏  CRYPTO / SCAMS
+  #crypto               7    3.2%
+  #investment_scam      5    2.3%
+
+🧰 INFRA / NOISE
+  #hub                  5    2.3%
+  #backup               8    3.6%
+
+📦 OTHER TAGS
+  #spam                 4    1.8%
+```
 
 ## Repository Structure and Method Overview
 This repository is organized around a documented observation workflow.

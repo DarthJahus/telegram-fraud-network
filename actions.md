@@ -6,6 +6,7 @@ mechanisms.
 
 ### Activity Classification
 Each documented entity is tagged according to observed activity.
+Multiple tags may apply to a single entity when different activity types coexist.
 
 Common tags include:
 - #bankaccounts — sale of compromised or stolen bank accounts, often with
@@ -14,9 +15,19 @@ Common tags include:
   frequently linked to ATM or mobile deposit cash-out methods
 - #investment_scam — cryptocurrency, forex, or "pay and receive double"
   investment fraud schemes
-- #backup — channel or group used as dorment or redirection hub
+- #backup — channel or group used as dorment or inactive redirection hub
+- #hub — channel or group whose primary function is redirection
 
 Tags are descriptive, not accusatory.
+
+#### Hub Definition
+A hub is a channel or group whose primary function is redirection:
+- forwards users to other channels, groups, or sellers
+- acts as a distribution or aggregation point
+- minimal direct illegal activity posting
+- high outbound link density
+
+Hubs are distinguished from backup channels by their active redirection role.
 
 ### Telegram Reporting
 All observed illegal activity is reported to Telegram via the application
@@ -47,6 +58,14 @@ IC3 reports are linked to:
 - the involved Telegram accounts
 - the observation date
 - evidence is preserved
+
+#### IC3 Reporting Criteria
+An IC3 report is submitted when:
+- a physical person (victim) is clearly identifiable
+- personal information is exposed (name, address, documents, financial data)
+- the exposure constitutes potential fraud or identity theft
+
+Generic data dumps or anonymized information do not trigger IC3 reports.
 
 ### External Infrastructure
 When a website is involved:
