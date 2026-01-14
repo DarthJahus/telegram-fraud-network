@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this methodology, please cite it as below."
+authors:
+  - family-names: "Jahus"
+title: "Telegram Fraud Network - A manual OSINT methodology"
+date-released: 2026-01-14
+url: "https://github.com/DarthJahus/telegram-fraud-network"
+license: CC-BY-4.0
+type: dataset
+repository-code: "https://github.com/DarthJahus/telegram-fraud-network"
+keywords:
+  - OSINT
+  - Telegram
+  - fraud
+  - cybercrime
+  - network-analysis
+  - methodology

@@ -78,3 +78,15 @@ This structure reflects the separation between:
 - observation
 - documentation
 - action
+
+## Contributing
+Feedback on methodology is welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Pull requests for documentation improvements are accepted.
+
+For discussions, use the [Discussions](https://github.com/DarthJahus/telegram-fraud-network/discussions) tab.
+
+## Citation
+If you use this methodology in your research, please cite this repository. 
+
+See [CITATION.cff](CITATION.cff) or use GitHub's "Cite this repository" button.
