@@ -12,7 +12,7 @@ that can be used by researchers, journalists, or investigators.
 
 ## Info
 ### Project Timeline
-- **Start date**: December 21, 2024
+- **Start date**: December 21, 2025
 - **Observation method**: Manual OSINT, no automation
 - **Current scope**: See statistics for (reasonably) up-to-date metrics
 
