@@ -256,10 +256,11 @@ def should_skip_entity(content, skip_time_seconds, skip_statuses):
 
     # Check if we should skip based on status
     if skip_statuses and last_status in skip_statuses:
-        return (True, f"last status is '{last_status}'")
+        return (True, f"last status is '{last_status}' (exception)")
 
     # Check if we should skip based on time
-    if skip_time_seconds is not None:
+    # IMPORTANT: Never skip 'unknown' status based on time (always re-check)
+    if skip_time_seconds is not None and last_status != 'unknown':
         time_since_check = datetime.now() - last_datetime
         if time_since_check.total_seconds() < skip_time_seconds:
             hours = int(time_since_check.total_seconds() / 3600)
@@ -267,7 +268,6 @@ def should_skip_entity(content, skip_time_seconds, skip_statuses):
             return (True, f"checked {hours}h {mins}m ago (status: {last_status})")
 
     return (False, None)
-
 
 # ============================================
 # MARKDOWN FILE UPDATING
@@ -278,105 +278,84 @@ def update_status_in_md(file_path, new_status, restriction_details=None):
     Updates the status block in a markdown file by adding a new status entry.
     Keeps a maximum of MAX_STATUS_ENTRIES entries.
     When pruning, removes the middle entry to preserve both recent and oldest entries.
-
-    Format:
-    status:
-    - `active`, `2026-01-19 14:32`
-
-    Or with restriction details:
-    status:
-    - `banned`, `2026-01-19 14:32`
-      - reason: `copyright violation`
-      - text: `This content violates copyright...`
-
-    Args:
-        file_path (Path): Path to the markdown file
-        new_status (str): New status to add
-        restriction_details (dict): Optional dict with 'platform', 'reason', 'text'
-
-    Returns:
-        bool: True if successful, False otherwise
     """
     with open(file_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
 
-    status_block_found = False
-    status_block_line = -1
-
-    # Find the status: block
+    # 1. Find the status: block
+    status_line_idx = None
     for i, line in enumerate(lines):
         if re.match(r'^status:\s*$', line.strip()):
-            status_block_found = True
-            status_block_line = i
+            status_line_idx = i
             break
 
-    if not status_block_found:
-        print(f"    ⚠️  No 'status:' block found in {file_path.name}")
+    if status_line_idx is None:
+        print(f"  ⚠️  No 'status:' block found in {file_path.name}")
         return False
 
-    # Create new status line(s)
-    now = datetime.now()
-    date_str = now.strftime('%Y-%m-%d')
-    time_str = now.strftime('%H:%M')
+    # 2. Find the next field (end of status block)
+    next_field_idx = None
+    for i in range(status_line_idx + 1, len(lines)):
+        # Next field starts with word characters followed by ':'
+        if re.match(r'^[a-z_]+:\s', lines[i]):
+            next_field_idx = i
+            break
 
-    new_status_lines = []
-    new_status_lines.append(f"- `{new_status}`, `{date_str} {time_str}`\n")
+    # If no next field found, status block goes to end of file
+    if next_field_idx is None:
+        next_field_idx = len(lines)
 
-    # Add restriction details if present
-    if restriction_details:
-        if 'reason' in restriction_details and restriction_details['reason']:
-            new_status_lines.append(f"  - reason: `{restriction_details['reason']}`\n")
-        if 'text' in restriction_details and restriction_details['text']:
-            # Escape backticks in text to avoid breaking markdown
-            text = restriction_details['text'].replace('`', "'")
-            new_status_lines.append(f"  - text: `{text}`\n")
-
-    # Reconstruct file
-    new_lines = lines[:status_block_line + 1]
-    new_lines.extend(new_status_lines)
-
-    # Collect existing status entries (each entry can have multiple lines)
+    # 3. Extract existing status entries from the block
+    status_block_lines = lines[status_line_idx + 1:next_field_idx]
     existing_entries = []
     current_entry = []
-    i = status_block_line + 1
 
-    while i < len(lines):
-        line = lines[i]
-
-        # Check if this is a new status entry (starts with "- `")
-        if re.match(r'^\s*-\s*`', line):
+    for line in status_block_lines:
+        # Check if this is a new status entry (has date/time)
+        if re.match(r'^\s*-\s*`[^`]+`,\s*`\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}`', line):
             # Save previous entry if exists
             if current_entry:
                 existing_entries.append(current_entry)
             # Start new entry
             current_entry = [line]
-        # Check if this is a sub-item (starts with "  - ")
+        # Check if this is a sub-item (part of current entry)
         elif re.match(r'^\s{2,}-\s', line) and current_entry:
-            # Part of current entry
             current_entry.append(line)
-        else:
-            # End of status block
-            if current_entry:
-                existing_entries.append(current_entry)
-            # Add remaining lines
-            new_lines.extend(lines[i:])
-            break
+        # Else: ignore malformed lines
 
-        i += 1
-
-    # If status block was at the end of file
-    if current_entry and i >= len(lines):
+    # Don't forget the last entry
+    if current_entry:
         existing_entries.append(current_entry)
 
-    # If we've reached the limit, remove the middle entry
+    # 4. Create new status entry
+    now = datetime.now()
+    date_str = now.strftime('%Y-%m-%d')
+    time_str = now.strftime('%H:%M')
+
+    new_entry = [f"- `{new_status}`, `{date_str} {time_str}`\n"]
+
+    if restriction_details:
+        if 'reason' in restriction_details and restriction_details['reason']:
+            new_entry.append(f"  - reason: `{restriction_details['reason']}`\n")
+        if 'text' in restriction_details and restriction_details['text']:
+            text = restriction_details['text'].replace('`', "'")
+            new_entry.append(f"  - text: `{text}`\n")
+
+    # 5. Prune old entries if needed
     if len(existing_entries) >= MAX_STATUS_ENTRIES - 1:
         middle_index = len(existing_entries) // 2
         existing_entries.pop(middle_index)
 
-    for entry in existing_entries:
+    # 6. Reconstruct file: before + status: + new entry + old entries + after
+    new_lines = []
+    new_lines.extend(lines[:status_line_idx + 1])  # Everything before and including 'status:'
+    new_lines.extend(new_entry)  # New status entry
+    for entry in existing_entries:  # Existing entries
         new_lines.extend(entry)
+    new_lines.append('\n')
+    new_lines.extend(lines[next_field_idx:])  # Everything after status block
 
-    # Write back
+    # 7. Write back
     with open(file_path, 'w', encoding='utf-8') as f:
         f.writelines(new_lines)
 
@@ -666,16 +645,16 @@ Examples:
                 print(f"  ⚠️  Expected ID: {expected_id}, found ID: {actual_id} ❕")
 
             if last_status is not None and last_status != status:
-                print(f"    🔄 STATUS CHANGE: {last_status} → {status} ❕")
+                print(f"  🔄 STATUS CHANGE: {last_status} → {status} ❕")
 
             # Print restriction details if present
             if restriction_details:
                 if 'reason' in restriction_details:
-                    print(f"    📋 Reason: {restriction_details['reason']}")
+                    print(f"  📋 Reason: {restriction_details['reason']}")
                 if 'text' in restriction_details:
                     text_preview = restriction_details['text'][:60] + '...' if len(
                         restriction_details['text']) > 60 else restriction_details['text']
-                    print(f"    💬 Text: {text_preview}")
+                    print(f"  💬 Text: {text_preview}")
 
             # Store result for dry-run summary
             now = datetime.now()
@@ -695,17 +674,17 @@ Examples:
             # Update .md file (only if NOT dry-run)
             if not args.dry_run:
                 if update_status_in_md(md_file, status, restriction_details):
-                    print(f"    💾 File updated")
+                    print(f"  💾 File updated")
             else:
                 # Show what WOULD be written
                 date_str = now.strftime('%Y-%m-%d')
                 time_str = now.strftime('%H:%M')
-                print(f"    🔍 Would add: - `{status}`, `{date_str} {time_str}`")
+                print(f"  🔍 Would add: - `{status}`, `{date_str} {time_str}`")
                 if restriction_details:
                     if 'reason' in restriction_details:
-                        print(f"               - reason: `{restriction_details['reason']}`")
+                        print(f"             - reason: `{restriction_details['reason']}`")
                     if 'text' in restriction_details:
-                        print(f"               - text: `{restriction_details['text'][:50]}...`")
+                        print(f"             - text: `{restriction_details['text'][:50]}...`")
 
             # Sleep between checks to avoid rate limiting
             if md_file != md_files[-1]:  # Don't sleep after last file
@@ -724,10 +703,10 @@ Examples:
     print(f"🔨 Banned:      {stats['banned']}")
     print(f"🗑️ Deleted:     {stats['deleted']}")
     print(f"⚠️ ID Mismatch: {stats['id_mismatch']}")
-    print(f"❓ Unknown :     {stats['unknown']}")
+    print(f"❓ Unknown:     {stats['unknown']}")
     print(f"❌ Errors:      {stats['error']}")
     print()
-    print(f"⏭️ Skipped (total):       {stats['skipped']}")
+    print(f"⏭️ Skipped (total):      {stats['skipped']}")
     if stats['skipped_time'] > 0:
         print(f"   └─ Recently checked:  {stats['skipped_time']}")
     if stats['skipped_status'] > 0:
