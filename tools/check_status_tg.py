@@ -39,7 +39,7 @@ MAX_STATUS_ENTRIES = 10  # maximum number of status entries to keep
 # ENTITY STATUS CHECKING
 # ============================================
 
-def check_entity_status(client, identifier, is_invite=False):
+def check_entity_status(client, identifier, is_invite=False, expected_id=None):
     """
     Checks the status of a Telegram entity.
 
@@ -47,16 +47,19 @@ def check_entity_status(client, identifier, is_invite=False):
         client: TelegramClient instance
         identifier (str): Username or invite hash
         is_invite (bool): Whether the identifier is an invite link
+        expected_id (int, optional): Expected entity ID for verification
 
     Returns:
-        tuple: (status, restriction_details) where:
-            - status: 'active', 'banned', 'deleted', 'unknown', or 'error_<ExceptionName>'
+        tuple: (status, restriction_details, actual_id) where:
+            - status: 'active', 'banned', 'deleted', 'id_mismatch', 'unknown', or 'error_<ExceptionName>'
             - restriction_details: dict with 'platform', 'reason', 'text' if banned, else None
+            - actual_id: the actual entity ID (for id_mismatch cases), else None
 
     Status meanings:
         - 'active': Successfully retrieved and entity is accessible
         - 'banned': Confirmed banned by Telegram (restricted platform='all')
         - 'deleted': Confirmed deleted account (deleted=True, users only)
+        - 'id_mismatch': Username/invite exists but ID doesn't match (username reused)
         - 'unknown': Cannot determine exact status (private, changed username,
                     invalid invite, no access, platform-specific restriction, etc.)
     """
@@ -66,11 +69,17 @@ def check_entity_status(client, identifier, is_invite=False):
         else:
             entity = client.get_entity(identifier)
 
+        # *** SAFEGUARD: Verify ID if expected_id is provided ***
+        if expected_id is not None and hasattr(entity, 'id'):
+            if entity.id != expected_id:
+                # This is a DIFFERENT entity with the same username/invite!
+                return ('id_mismatch', None, entity.id)
+
         # Successfully retrieved entity - now check its status
 
         # Check if user is deleted
         if hasattr(entity, 'deleted') and entity.deleted:
-            return ('deleted', None)
+            return ('deleted', None, None)
 
         # Check if entity is restricted (banned by Telegram)
         if hasattr(entity, 'restricted') and entity.restricted:
@@ -86,49 +95,57 @@ def check_entity_status(client, identifier, is_invite=False):
                             'reason': restriction.reason,
                             'text': restriction.text
                         }
-                        return ('banned', details)
+                        return ('banned', details, None)
 
                 # If we reach here, it's platform-specific restriction (not global ban)
-                return ('unknown', None)
+                return ('unknown', None, None)
             else:
                 # Restricted but no reason provided
-                return ('unknown', None)
+                return ('unknown', None, None)
 
-        return ('active', None)
+        return ('active', None, None)
 
     except ChannelPrivateError:
         # Channel/group is private or we don't have access
-        return ('unknown', None)
+        return ('unknown', None, None)
 
     except (InviteHashExpiredError, InviteHashInvalidError):
         # Invite link is invalid/expired - doesn't mean the entity is banned
-        return ('unknown', None)
+        return ('unknown', None, None)
 
     except (UsernameInvalidError, UsernameNotOccupiedError):
         # Username doesn't exist - could be changed, typo, or deleted
-        return ('unknown', None)
+        return ('unknown', None, None)
 
     except ValueError as e:
         # Specific case: trying to access a channel/group we're not part of via invite link
         if "Cannot get entity from a channel" in str(e):
-            return ('unknown', None)
+            return ('unknown', None, None)
         # Other ValueError cases (unexpected)
-        print(f"    ⚠️  Unexpected ValueError: {str(e)}")
-        return (f'error_ValueError', None)
+        print(f"  ⚠️ Unexpected ValueError: {str(e)}")
+        return (f'error_ValueError', None, None)
 
     except FloodWaitError as e:
         print(f"⏸️  FloodWait: waiting {e.seconds}s...")
         time.sleep(e.seconds)
-        return check_entity_status(client, identifier, is_invite)
+        return check_entity_status(client, identifier, is_invite, expected_id)
 
     except Exception as e:
-        print(f"    ⚠️  Unexpected error: {type(e).__name__}: {str(e)}")
-        return (f'error_{type(e).__name__}', None)
+        print(f"  ⚠️ Unexpected error: {type(e).__name__}: {str(e)}")
+        return (f'error_{type(e).__name__}', None, None)
 
 
 # ============================================
 # MARKDOWN FILE PARSING
 # ============================================
+
+def extract_entity_id(content):
+    """Extract the entity ID from markdown content."""
+    match = re.search(r'^id:\s*`?(\d+)`?', content, re.MULTILINE)
+    if match:
+        return int(match.group(1))
+    return None
+
 
 def get_entity_type_from_md(content):
     """
@@ -558,6 +575,7 @@ Examples:
         'active': 0,
         'banned': 0,
         'deleted': 0,
+        'id_mismatch': 0,
         'unknown': 0,
         'skipped': 0,
         'skipped_time': 0,
@@ -584,8 +602,9 @@ Examples:
                 stats['skipped_type'] += 1
                 continue
 
-            # Extract identifier
+            # Extract identifier and ID
             identifier, is_invite = extract_telegram_identifiers(content)
+            expected_id = extract_entity_id(content)
             if not identifier:
                 print(f"⏭️  {md_file.name}: No identifier found")
                 stats['skipped'] += 1
@@ -609,7 +628,7 @@ Examples:
             display_id = f"+{identifier[:15]}..." if is_invite else f"@{identifier}"
             print(f"⏳ {md_file.name}: {display_id}...", end=' ', flush=True)
 
-            status, restriction_details = check_entity_status(client, identifier, is_invite)
+            status, restriction_details, actual_id = check_entity_status(client, identifier, is_invite, expected_id)
             stats['total'] += 1
 
             # Detect status change
@@ -630,6 +649,9 @@ Examples:
             elif status == 'deleted':
                 stats['deleted'] += 1
                 emoji = "🗑️"
+            elif status == 'id_mismatch':  # ← AJOUTER
+                stats['id_mismatch'] += 1
+                emoji = "⚠️"
             elif status == 'unknown':
                 stats['unknown'] += 1
                 emoji = "❓"
@@ -638,6 +660,11 @@ Examples:
                 emoji = "❌"
 
             print(f"{emoji} {status}")
+
+            # Show actual ID for id_mismatch
+            if status == 'id_mismatch' and actual_id:
+                print(f"  ⚠️  Expected ID: {expected_id}, found ID: {actual_id} ❕")
+
             if last_status is not None and last_status != status:
                 print(f"    🔄 STATUS CHANGE: {last_status} → {status} ❕")
 
@@ -696,6 +723,7 @@ Examples:
     print(f"✅ Active:      {stats['active']}")
     print(f"🔨 Banned:      {stats['banned']}")
     print(f"🗑️ Deleted:     {stats['deleted']}")
+    print(f"⚠️ ID Mismatch: {stats['id_mismatch']}")
     print(f"❓ Unknown :     {stats['unknown']}")
     print(f"❌ Errors:      {stats['error']}")
     print()
