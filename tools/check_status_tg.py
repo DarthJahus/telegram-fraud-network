@@ -123,7 +123,7 @@ def check_entity_status(client, identifier, is_invite=False, expected_id=None):
             return ('unknown', None, None)
         # Other ValueError cases (unexpected)
         print(f"  ⚠️ Unexpected ValueError: {str(e)}")
-        return (f'error_ValueError', None, None)
+        return (f'unknown', None, None)
 
     except FloodWaitError as e:
         print(f"⏸️  FloodWait: waiting {e.seconds}s...")
