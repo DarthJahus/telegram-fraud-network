@@ -1,31 +1,32 @@
-id: `IDNUMBER`  
+id: `IDNUMBER`
+
 status:
 - `active`, `{{date}} {{time}}`
 
-type: `user|channel|group`  
+type: `user|channel|group`
 
-discovered: `{{date}} {{time}}`  
+discovered: `{{date}} {{time}}`
 
-invite:  
+invite: 
 
-username: `USERNAME` ([link](https://t.me/@))  
+username: `USERNAME` ([link](https://t.me/@))
 
-name: `NAME`  
+name: `NAME`
 
-bio: `BIOGRAPHY`  
+bio: `BIOGRAPHY`
 
-mobile: `NUMBER`  
+mobile: `NUMBER`
 
-activity: #  
+activity: #
 
-created: `DATE` ([link](https://t.me/ID/c/1))  
+created: `DATE` ([link](https://t.me/ID/c/1))
 
-linked channel:   
+linked channel: 
 
 discussion: 
 
-subscribers: `NUMBER`  
+subscribers: `NUMBER`
 
-members: `NUMBER`, `DATE`  
+members: `NUMBER`, `DATE`
 
-joined: `DATE`   
+joined: `DATE`
