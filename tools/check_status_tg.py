@@ -165,24 +165,48 @@ def get_entity_type_from_md(content):
 
 def extract_telegram_identifiers(content):
     """
-    Extracts username OR invite link from markdown file.
+    Extracts username OR invite link(s) from markdown file.
 
     Args:
         content (str): Markdown file content
 
     Returns:
-        tuple: (identifier, is_invite) where identifier is the username/hash and
-               is_invite is a boolean indicating if it's an invite link
+        tuple: (identifier, is_invite) where:
+            - identifier: str (username) or list[str] (invite hashes)
+            - is_invite: bool (False for username, True for invites)
     """
     # Priority: username field (must start with @, otherwise it's likely a placeholder)
     username_match = re.search(r'username:\s*`?@([a-zA-Z0-9_]{5,32})`?', content)
     if username_match:
         return (username_match.group(1), False)
 
-    # Fallback: invite link (active or expired)
-    invite_match = re.search(r'invite:\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)', content)
-    if invite_match:
-        return (invite_match.group(1), True)
+    # Fallback 1: single invite link (inline format)
+    # Format: invite: https://t.me/+HASH
+    invite_single_match = re.search(r'^invite:\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)', content, re.MULTILINE)
+    if invite_single_match:
+        return ([invite_single_match.group(1)], True)
+
+    # Fallback 2: invite list format
+    # Format:
+    # invite:
+    # - https://t.me/+HASH1
+    # - https://t.me/+HASH2
+    invite_block_match = re.search(r'^invite:\s*$', content, re.MULTILINE)
+    if invite_block_match:
+        # Find the next field (end of invite block)
+        next_field_match = re.search(r'^[a-z_]+:\s', content[invite_block_match.end():], re.MULTILINE)
+
+        if next_field_match:
+            # Extract only the invite block content
+            invite_block = content[invite_block_match.end():invite_block_match.end() + next_field_match.start()]
+        else:
+            # Invite block goes to end of file
+            invite_block = content[invite_block_match.end():]
+
+        # Extract all invite hashes from the block only
+        invite_hashes = re.findall(r'-\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)', invite_block)
+        if invite_hashes:
+            return (invite_hashes, True)
 
     return (None, None)
 
@@ -582,9 +606,9 @@ Examples:
                 continue
 
             # Extract identifier and ID
-            identifier, is_invite = extract_telegram_identifiers(content)
+            identifiers, is_invite = extract_telegram_identifiers(content)
             expected_id = extract_entity_id(content)
-            if not identifier:
+            if not identifiers:
                 print(f"⏭️  {md_file.name}: No identifier found")
                 stats['skipped'] += 1
                 stats['skipped_no_identifier'] += 1
@@ -603,11 +627,56 @@ Examples:
                     stats['skipped_status'] += 1
                 continue
 
-            # Check status
-            display_id = f"+{identifier[:15]}..." if is_invite else f"@{identifier}"
-            print(f"⏳ {md_file.name}: {display_id}...", end=' ', flush=True)
+            # Check status (handle both single username and multiple invites)
+            if is_invite:
+                # Multiple invites: try each until we find 'active'
+                invite_list = identifiers if isinstance(identifiers, list) else [identifiers]
+                print(f"⏳ {md_file.name}: {len(invite_list)} invite(s) to check...")
 
-            status, restriction_details, actual_id = check_entity_status(client, identifier, is_invite, expected_id)
+                status = None
+                restriction_details = None
+                actual_id = None
+
+                for idx, invite_hash in enumerate(invite_list, 1):
+                    display_id = f"+{invite_hash[:15]}..."
+                    print(f"   [{idx}/{len(invite_list)}] {display_id}...", end=' ', flush=True)
+
+                    status, restriction_details, actual_id = check_entity_status(
+                        client, invite_hash, True, expected_id
+                    )
+
+                    # Show status
+                    if status == 'active':
+                        print(f"✅ active")
+                        break  # Stop at first active invite
+                    elif status == 'banned':
+                        print(f"🔨 banned")
+                        break  # Stop if banned (definitive)
+                    elif status == 'deleted':
+                        print(f"🗑️ deleted")
+                        break  # Stop if deleted (definitive)
+                    elif status == 'id_mismatch':
+                        print(f"⚠️ id_mismatch")
+                        break  # Stop if ID mismatch (definitive)
+                    else:
+                        print(f"❓ {status}")
+                        # Continue to next invite
+
+                    # Sleep between invite checks
+                    if idx < len(invite_list):
+                        time.sleep(5)  # Shorter delay between invites
+
+                display_id = f"+{invite_list[0][:10]}... ({len(invite_list)} invite(s))"
+            else:
+                # Single username
+                identifier = identifiers
+                display_id = f"@{identifier}"
+                print(f"⏳ {md_file.name}: {display_id}...", end=' ', flush=True)
+
+                status, restriction_details, actual_id = check_entity_status(
+                    client, identifier, False, expected_id
+                )
+
             stats['total'] += 1
 
             # Detect status change
@@ -628,7 +697,7 @@ Examples:
             elif status == 'deleted':
                 stats['deleted'] += 1
                 emoji = "🗑️"
-            elif status == 'id_mismatch':  # ← AJOUTER
+            elif status == 'id_mismatch':
                 stats['id_mismatch'] += 1
                 emoji = "⚠️"
             elif status == 'unknown':
@@ -638,7 +707,8 @@ Examples:
                 stats['error'] += 1
                 emoji = "❌"
 
-            print(f"{emoji} {status}")
+            if not is_invite:  # Only print status for username (already printed for invites)
+                print(f"{emoji} {status}")
 
             # Show actual ID for id_mismatch
             if status == 'id_mismatch' and actual_id:
