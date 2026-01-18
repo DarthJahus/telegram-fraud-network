@@ -4,7 +4,7 @@
 - Links reflect the direction of discovery.
 
 ## Minimal Information
-Each entity file may contain:
+Each [[entity_tg|entity]] may contain:
 - Telegram ID (or invitation link placeholder)
 - type: `channel` | `group` | `user` | `bot` | `website`
 - discovered: date and time when the entity was first observed
@@ -52,3 +52,4 @@ This documentation method directly produces a graph.
 See:
 - [Graph Construction](graph.md)
 - [Visualization](visualization.md)
+- Tool: [[check_status_tg|Telegram Status Checker]]
