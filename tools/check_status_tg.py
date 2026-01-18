@@ -179,7 +179,7 @@ def get_last_status(content):
         content (str): Markdown file content
 
     Returns:
-        tuple: (status, datetime) or (None, None) if no valid status found
+        tuple: (status, datetime, has_status_block) or (None, None, has_status_block) if no valid status found
 
     Note: If a status entry exists but doesn't have a valid date/time,
           it is ignored (treated as if no status exists).
@@ -192,7 +192,7 @@ def get_last_status(content):
     # Find the status: block
     status_match = re.search(r'^status:\s*$', content, re.MULTILINE)
     if not status_match:
-        return (None, None)
+        return (None, None, False)
 
     # Find the first status entry after "status:"
     # Pattern: - `<status>`, `<date> <time>`
@@ -210,13 +210,13 @@ def get_last_status(content):
 
         try:
             dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-            return (status, dt)
+            return (status, dt, True)
         except ValueError:
             # Date format is invalid - treat as no status
-            return (None, None)
+            return (None, None, True)
 
     # No valid status entry found (either no entry, or entry without valid date/time)
-    return (None, None)
+    return (None, None, True)
 
 
 def should_skip_entity(content, skip_time_seconds, skip_statuses):
@@ -231,7 +231,7 @@ def should_skip_entity(content, skip_time_seconds, skip_statuses):
     Returns:
         tuple: (should_skip, reason) where reason explains why it was skipped
     """
-    last_status, last_datetime = get_last_status(content)
+    last_status, last_datetime, has_status_block = get_last_status(content)
 
     if last_status is None:
         # No previous status, don't skip
@@ -569,6 +569,8 @@ Examples:
 
     # Store results for dry-run summary
     results = []
+    status_changed_files = []
+    no_status_block_results = []
 
     try:
         for md_file in md_files:
@@ -590,6 +592,8 @@ Examples:
                 stats['skipped_no_identifier'] += 1
                 continue
 
+            last_status, last_datetime, has_status_block = get_last_status(content)
+
             # Check if we should skip based on last status
             should_skip, skip_reason = should_skip_entity(content, skip_time_seconds, skip_statuses)
             if should_skip:
@@ -607,6 +611,14 @@ Examples:
 
             status, restriction_details = check_entity_status(client, identifier, is_invite)
             stats['total'] += 1
+
+            # Detect status change
+            if last_status != status:
+                status_changed_files.append({
+                    'file': md_file.name,
+                    'old': last_status,
+                    'new': status
+                })
 
             # Update stats and get emoji
             if status == 'active':
@@ -626,6 +638,8 @@ Examples:
                 emoji = "❌"
 
             print(f"{emoji} {status}")
+            if last_status is not None and last_status != status:
+                print(f"    🔄 STATUS CHANGE: {last_status} → {status} ❕")
 
             # Print restriction details if present
             if restriction_details:
@@ -647,6 +661,9 @@ Examples:
                 'restriction_details': restriction_details
             }
             results.append(result)
+
+            if not has_status_block:
+                no_status_block_results.append(result)
 
             # Update .md file (only if NOT dry-run)
             if not args.dry_run:
@@ -696,6 +713,24 @@ Examples:
     # Dry-run summary
     if args.dry_run:
         print_dry_run_summary(results)
+
+    if status_changed_files:
+        print("\n" + "!" * 60)
+        print("✏️ FILES WITH STATUS CHANGE (RENAME IN OBSIDIAN)")
+        print("!" * 60)
+        for item in status_changed_files:
+            print(f"• {item['file']} : {item['old']} → {item['new']}")
+        print("!" * 60)
+
+
+    if no_status_block_results:
+        print("\n" + "!" * 60)
+        print("⚠️ FILES WITHOUT 'status:' BLOCK (STATUS DETECTED)")
+        print("!" * 60)
+        for r in no_status_block_results:
+            print(f"• {r['file']} → {r['emoji']} {r['status']}")
+        print("!" * 60)
+
 
     print("\n✅ Done!")
 
