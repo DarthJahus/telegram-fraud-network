@@ -536,7 +536,7 @@ Examples:
 
     if not mobile_file.exists():
         print(f"❌ Mobile file not found: {mobile_file}")
-        print(f"   Create it with: echo '+213XXXXXXXXX' > {mobile_file}")
+        print(f"   Create it with: echo '+XXXXXXXXXXX' > {mobile_file}")
         return
 
     phone = mobile_file.read_text(encoding='utf-8').strip()
