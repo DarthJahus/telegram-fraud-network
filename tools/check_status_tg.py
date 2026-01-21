@@ -29,15 +29,98 @@ from telethon.errors import (
 # ============================================
 API_ID = int(open('.secret/api_id', 'r', encoding='utf-8').read().strip())
 API_HASH = open('.secret/api_hash', 'r', encoding='utf-8').read().strip()
-# REMOVED: PHONE is now loaded per-user in main()
-
-SLEEP_BETWEEN_CHECKS = 20  # seconds between each check
+SLEEP_BETWEEN_CHECKS = 10  # seconds between each check
 MAX_STATUS_ENTRIES = 10  # maximum number of status entries to keep
 
+# ============================================
+# REGEX
+# ============================================
+
+REGEX_ID = re.compile(pattern=r'^id:\s*`?(\d+)`?', flags=re.MULTILINE)
+REGEX_TYPE = re.compile(pattern=r'^type:\s*(\w+)', flags=re.MULTILINE)
+REGEX_USERNAME = re.compile(pattern=r'username:\s*`?@([a-zA-Z0-9_]{5,32})`?')
+
+REGEX_INVITE_INLINE = re.compile(pattern=r'^invite:\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)', flags=re.MULTILINE)
+REGEX_INVITE_BLOCK_START = re.compile(pattern=r'^invite:\s*$', flags=re.MULTILINE)
+REGEX_INVITE_LINK = re.compile(pattern=r'-\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)')
+
+REGEX_STATUS_BLOCK_START = re.compile(pattern=r'^status:\s*$', flags=re.MULTILINE)
+REGEX_STATUS_ENTRY_FULL =  re.compile(pattern=r'^\s*-\s*`([^`]+)`\s*,\s*`(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})`', flags=re.MULTILINE)
+REGEX_STATUS_BLOCK_PATTERN = re.compile(pattern=r'^\s*-\s*`[^`]+`,\s*`\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}`', flags=re.MULTILINE)
+REGEX_STATUS_SUB_ITEM = re.compile(pattern=r'^\s{2,}-\s')
+
+REGEX_NEXT_FIELD = re.compile(pattern=r'^[a-z_]+:\s', flags=re.MULTILINE)
 
 # ============================================
 # ENTITY STATUS CHECKING
 # ============================================
+
+def check_entity_by_id(client, entity_id):
+    """
+    Tries to get entity directly by ID (most reliable if client is member).
+
+    Args:
+        client: TelegramClient instance
+        entity_id (int): Entity ID
+
+    Returns:
+        tuple: (success, entity_or_error)
+    """
+    try:
+        from telethon.tl.types import PeerChannel, PeerUser
+
+        # Try as channel/group first (most common for your use case)
+        try:
+            entity = client.get_entity(PeerChannel(entity_id))
+            return (True, entity)
+        except Exception:
+            # If that fails, try as user
+            try:
+                entity = client.get_entity(PeerUser(entity_id))
+                return (True, entity)
+            except Exception:
+                # Try direct ID as last resort
+                entity = client.get_entity(entity_id)
+                return (True, entity)
+
+    except Exception as e:
+        return (False, e)
+
+
+def analyze_entity_status(entity):
+    """
+    Analyzes an entity object to determine its status.
+
+    Args:
+        entity: Telethon entity object
+
+    Returns:
+        tuple: (status, restriction_details)
+    """
+    # Check if user is deleted
+    if hasattr(entity, 'deleted') and entity.deleted:
+        return ('deleted', None)
+
+    # Check if entity is restricted (banned by Telegram)
+    if hasattr(entity, 'restricted') and entity.restricted:
+        if hasattr(entity, 'restriction_reason') and entity.restriction_reason:
+            for restriction in entity.restriction_reason:
+                if restriction.platform == 'all':
+                    details = {
+                        'platform': restriction.platform,
+                        'reason': restriction.reason,
+                        'text': restriction.text
+                    }
+                    return ('banned', details)
+
+            # Platform-specific restriction (not global ban)
+            return ('unknown', None)
+        else:
+            # Restricted but no reason provided
+            return ('unknown', None)
+
+    return ('active', None)
+
 
 def check_entity_status(client, identifier, is_invite=False, expected_id=None):
     """
@@ -49,11 +132,12 @@ def check_entity_status(client, identifier, is_invite=False, expected_id=None):
         is_invite (bool): Whether the identifier is an invite link
         expected_id (int, optional): Expected entity ID for verification
 
-    Returns:
-        tuple: (status, restriction_details, actual_id) where:
+Returns:
+        tuple: (status, restriction_details, actual_id, method_used) where:
             - status: 'active', 'banned', 'deleted', 'id_mismatch', 'unknown', or 'error_<ExceptionName>'
             - restriction_details: dict with 'platform', 'reason', 'text' if banned, else None
             - actual_id: the actual entity ID (for id_mismatch cases), else None
+            - method_used: 'id', 'username', 'invite', or 'error' (which method succeeded)
 
     Status meanings:
         - 'active': Successfully retrieved and entity is accessible
@@ -63,6 +147,17 @@ def check_entity_status(client, identifier, is_invite=False, expected_id=None):
         - 'unknown': Cannot determine exact status (private, changed username,
                     invalid invite, no access, platform-specific restriction, etc.)
     """
+
+    # PRIORITY 1: Try by ID first if available
+    if expected_id is not None:
+        success, result = check_entity_by_id(client, expected_id)
+        if success:
+            entity = result
+            status, restriction_details = analyze_entity_status(entity)
+            return (status, restriction_details, None, 'id')
+        # If ID fetch failed, continue to fallback methods below
+
+    # PRIORITY 2 & 3: Try by username or invite (fallback)
     try:
         if is_invite:
             entity = client.get_entity(f'https://t.me/+{identifier}')
@@ -73,57 +168,28 @@ def check_entity_status(client, identifier, is_invite=False, expected_id=None):
         if expected_id is not None and hasattr(entity, 'id'):
             if entity.id != expected_id:
                 # This is a DIFFERENT entity with the same username/invite!
-                return ('id_mismatch', None, entity.id)
+                method = 'invite' if is_invite else 'username'
+                return ('id_mismatch', None, entity.id, method)
 
         # Successfully retrieved entity - now check its status
-
-        # Check if user is deleted
-        if hasattr(entity, 'deleted') and entity.deleted:
-            return ('deleted', None, None)
-
-        # Check if entity is restricted (banned by Telegram)
-        if hasattr(entity, 'restricted') and entity.restricted:
-            # Check restriction_reason to determine if it's a platform-wide ban
-            if hasattr(entity, 'restriction_reason') and entity.restriction_reason:
-                # restriction_reason is a list of RestrictionReason objects
-                for restriction in entity.restriction_reason:
-                    # Check if it's restricted for all platforms (ToS violation)
-                    if restriction.platform == 'all':
-                        # Extract restriction details
-                        details = {
-                            'platform': restriction.platform,
-                            'reason': restriction.reason,
-                            'text': restriction.text
-                        }
-                        return ('banned', details, None)
-
-                # If we reach here, it's platform-specific restriction (not global ban)
-                return ('unknown', None, None)
-            else:
-                # Restricted but no reason provided
-                return ('unknown', None, None)
-
-        return ('active', None, None)
+        status, restriction_details = analyze_entity_status(entity)
+        method = 'invite' if is_invite else 'username'
+        return (status, restriction_details, None, method)
 
     except ChannelPrivateError:
-        # Channel/group is private or we don't have access
-        return ('unknown', None, None)
+        return ('unknown', None, None, 'error')
 
     except (InviteHashExpiredError, InviteHashInvalidError):
-        # Invite link is invalid/expired - doesn't mean the entity is banned
-        return ('unknown', None, None)
+        return ('unknown', None, None, 'error')
 
     except (UsernameInvalidError, UsernameNotOccupiedError):
-        # Username doesn't exist - could be changed, typo, or deleted
-        return ('unknown', None, None)
+        return ('unknown', None, None, 'error')
 
     except ValueError as e:
-        # Specific case: trying to access a channel/group we're not part of via invite link
         if "Cannot get entity from a channel" in str(e):
-            return ('unknown', None, None)
-        # Other ValueError cases (unexpected)
+            return ('unknown', None, None, 'error')
         print(f"  ⚠️ Unexpected ValueError: {str(e)}")
-        return (f'unknown', None, None)
+        return ('unknown', None, None, 'error')
 
     except FloodWaitError as e:
         print(f"⏸️  FloodWait: waiting {e.seconds}s...")
@@ -132,7 +198,7 @@ def check_entity_status(client, identifier, is_invite=False, expected_id=None):
 
     except Exception as e:
         print(f"  ⚠️ Unexpected error: {type(e).__name__}: {str(e)}")
-        return (f'error_{type(e).__name__}', None, None)
+        return (f'error_{type(e).__name__}', None, None, 'error')
 
 
 # ============================================
@@ -141,7 +207,7 @@ def check_entity_status(client, identifier, is_invite=False, expected_id=None):
 
 def extract_entity_id(content):
     """Extract the entity ID from markdown content."""
-    match = re.search(r'^id:\s*`?(\d+)`?', content, re.MULTILINE)
+    match = REGEX_ID.search(content)
     if match:
         return int(match.group(1))
     return None
@@ -157,7 +223,7 @@ def get_entity_type_from_md(content):
     Returns:
         str or None: Entity type (channel, group, user, bot) or None if not found
     """
-    match = re.search(r'^type:\s*(\w+)', content, re.MULTILINE)
+    match = REGEX_TYPE.search(content)
     if match:
         return match.group(1).lower()
     return None
@@ -176,25 +242,24 @@ def extract_telegram_identifiers(content):
             - is_invite: bool (False for username, True for invites)
     """
     # Priority: username field (must start with @, otherwise it's likely a placeholder)
-    username_match = re.search(r'username:\s*`?@([a-zA-Z0-9_]{5,32})`?', content)
+    username_match = REGEX_USERNAME.search(content)
     if username_match:
-        return (username_match.group(1), False)
+        return username_match.group(1), False
 
     # Fallback 1: single invite link (inline format)
     # Format: invite: https://t.me/+HASH
-    invite_single_match = re.search(r'^invite:\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)', content, re.MULTILINE)
+    invite_single_match = REGEX_INVITE_INLINE.search(content)
     if invite_single_match:
-        return ([invite_single_match.group(1)], True)
+        return [invite_single_match.group(1)], True
 
     # Fallback 2: invite list format
-    # Format:
     # invite:
     # - https://t.me/+HASH1
     # - https://t.me/+HASH2
-    invite_block_match = re.search(r'^invite:\s*$', content, re.MULTILINE)
+    invite_block_match = REGEX_INVITE_BLOCK_START.search(content)
     if invite_block_match:
         # Find the next field (end of invite block)
-        next_field_match = re.search(r'^[a-z_]+:\s', content[invite_block_match.end():], re.MULTILINE)
+        next_field_match = REGEX_NEXT_FIELD.search(content[invite_block_match.end():])
 
         if next_field_match:
             # Extract only the invite block content
@@ -204,11 +269,11 @@ def extract_telegram_identifiers(content):
             invite_block = content[invite_block_match.end():]
 
         # Extract all invite hashes from the block only
-        invite_hashes = re.findall(r'-\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)', invite_block)
+        invite_hashes = REGEX_INVITE_LINK.findall(invite_block)
         if invite_hashes:
-            return (invite_hashes, True)
+            return invite_hashes, True
 
-    return (None, None)
+    return None, None
 
 
 def get_last_status(content):
@@ -231,18 +296,17 @@ def get_last_status(content):
         - `unknown`, `2026-01-17 10:15`
     """
     # Find the status: block
-    status_match = re.search(r'^status:\s*$', content, re.MULTILINE)
+    status_match = REGEX_STATUS_BLOCK_START.search(content)
     if not status_match:
-        return (None, None, False)
+        return None, None, False
 
     # Find the first status entry after "status:"
     # Pattern: - `<status>`, `<date> <time>`
     # This pattern REQUIRES both date and time to be present
-    pattern = r'^\s*-\s*`([^`]+)`\s*,\s*`(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})`'
 
     # Search from the status: line onwards
     remaining_content = content[status_match.end():]
-    match = re.search(pattern, remaining_content, re.MULTILINE)
+    match = REGEX_STATUS_ENTRY_FULL.search(remaining_content)
 
     if match:
         status = match.group(1)
@@ -309,7 +373,7 @@ def update_status_in_md(file_path, new_status, restriction_details=None):
     # 1. Find the status: block
     status_line_idx = None
     for i, line in enumerate(lines):
-        if re.match(r'^status:\s*$', line.strip()):
+        if REGEX_STATUS_BLOCK_START.match(line.strip()):
             status_line_idx = i
             break
 
@@ -321,7 +385,7 @@ def update_status_in_md(file_path, new_status, restriction_details=None):
     next_field_idx = None
     for i in range(status_line_idx + 1, len(lines)):
         # Next field starts with word characters followed by ':'
-        if re.match(r'^[a-z_]+:\s', lines[i]):
+        if REGEX_NEXT_FIELD.match(lines[i]):
             next_field_idx = i
             break
 
@@ -336,14 +400,14 @@ def update_status_in_md(file_path, new_status, restriction_details=None):
 
     for line in status_block_lines:
         # Check if this is a new status entry (has date/time)
-        if re.match(r'^\s*-\s*`[^`]+`,\s*`\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}`', line):
+        if REGEX_STATUS_BLOCK_PATTERN.match(line):
             # Save previous entry if exists
             if current_entry:
                 existing_entries.append(current_entry)
             # Start new entry
             current_entry = [line]
         # Check if this is a sub-item (part of current entry)
-        elif re.match(r'^\s{2,}-\s', line) and current_entry:
+        elif REGEX_STATUS_SUB_ITEM.match(line) and current_entry:
             current_entry.append(line)
         # Else: ignore malformed lines
 
@@ -480,6 +544,12 @@ Examples:
 
   # Check only channels, skip those checked in the last 12 hours
   %(prog)s --path . --type channel --skip-time "12*60*60"
+  
+  # Check all but don't update files for 'unknown' status
+  %(prog)s --path . --ignore unknown
+
+  # Check all but ignore both 'unknown' and 'banned'
+  %(prog)s --path . --ignore unknown banned
         """
     )
     parser.add_argument(
@@ -516,6 +586,12 @@ Examples:
         action='store_true',
         help='Check status without updating .md files'
     )
+    parser.add_argument(
+        '--ignore',
+        nargs='+',
+        metavar='STATUS',
+        help='Check entities but ignore file updates for these statuses (e.g., unknown banned)'
+    )
 
     args = parser.parse_args()
 
@@ -534,6 +610,11 @@ Examples:
     skip_statuses = args.skip if args.skip else None
     if skip_statuses:
         print(f"🚫 Skip statuses: {', '.join(skip_statuses)}")
+
+    # Parse ignore statuses
+    ignore_statuses = args.ignore if args.ignore else None
+    if ignore_statuses:
+        print(f"🙈 Ignore statuses: {', '.join(ignore_statuses)}")
 
     # Find all .md files
     path = Path(args.path)
@@ -585,7 +666,13 @@ Examples:
         'skipped_status': 0,
         'skipped_no_identifier': 0,
         'skipped_type': 0,
-        'error': 0
+        'error': 0,
+        'ignored': 0,
+        'method': {
+            'id': 0,
+            'username': 0,
+            'invite': 0
+        }
     }
 
     # Store results for dry-run summary
@@ -641,9 +728,12 @@ Examples:
                     display_id = f"+{invite_hash[:15]}..."
                     print(f"   [{idx}/{len(invite_list)}] {display_id}...", end=' ', flush=True)
 
-                    status, restriction_details, actual_id = check_entity_status(
+                    status, restriction_details, actual_id, method_used = check_entity_status(
                         client, invite_hash, True, expected_id
                     )
+                    if method_used in stats['method']:
+                        print(f"  📍 Method: {method_used}")
+                        stats['method'][method_used] += 1
 
                     # Show status
                     if status == 'active':
@@ -673,19 +763,14 @@ Examples:
                 display_id = f"@{identifier}"
                 print(f"⏳ {md_file.name}: {display_id}...", end=' ', flush=True)
 
-                status, restriction_details, actual_id = check_entity_status(
+                status, restriction_details, actual_id, method_used = check_entity_status(
                     client, identifier, False, expected_id
                 )
+                if method_used in stats['method']:
+                    print(f"  📍 Method: {method_used}")
+                    stats['method'][method_used] += 1
 
             stats['total'] += 1
-
-            # Detect status change
-            if last_status != status:
-                status_changed_files.append({
-                    'file': md_file.name,
-                    'old': last_status,
-                    'new': status
-                })
 
             # Update stats and get emoji
             if status == 'active':
@@ -726,6 +811,12 @@ Examples:
                         restriction_details['text']) > 60 else restriction_details['text']
                     print(f"  💬 Text: {text_preview}")
 
+            # CHECK IF STATUS SHOULD BE IGNORED
+            should_ignore = ignore_statuses and status in ignore_statuses
+            if should_ignore:
+                stats['ignored'] += 1
+                print(f"  🙈 Ignoring status '{status}' (not updating file)")
+
             # Store result for dry-run summary
             now = datetime.now()
             result = {
@@ -738,23 +829,34 @@ Examples:
             }
             results.append(result)
 
+            # Track files without status block (even if ignored)
             if not has_status_block:
                 no_status_block_results.append(result)
 
-            # Update .md file (only if NOT dry-run)
-            if not args.dry_run:
-                if update_status_in_md(md_file, status, restriction_details):
-                    print(f"  💾 File updated")
-            else:
-                # Show what WOULD be written
-                date_str = now.strftime('%Y-%m-%d')
-                time_str = now.strftime('%H:%M')
-                print(f"  🔍 Would add: - `{status}`, `{date_str} {time_str}`")
-                if restriction_details:
-                    if 'reason' in restriction_details:
-                        print(f"             - reason: `{restriction_details['reason']}`")
-                    if 'text' in restriction_details:
-                        print(f"             - text: `{restriction_details['text'][:50]}...`")
+            # Only track status changes and update files if NOT ignored
+            if not should_ignore:
+                # Detect status change
+                if last_status != status:
+                    status_changed_files.append({
+                        'file': md_file.name,
+                        'old': last_status,
+                        'new': status
+                    })
+
+                # Update .md file (only if NOT dry-run AND NOT ignored)
+                if not args.dry_run:
+                    if update_status_in_md(md_file, status, restriction_details):
+                        print(f"  💾 File updated")
+                else:
+                    # Show what WOULD be written
+                    date_str = now.strftime('%Y-%m-%d')
+                    time_str = now.strftime('%H:%M')
+                    print(f"  🔍 Would add: - `{status}`, `{date_str} {time_str}`")
+                    if restriction_details:
+                        if 'reason' in restriction_details:
+                            print(f"             - reason: `{restriction_details['reason']}`")
+                        if 'text' in restriction_details:
+                            print(f"             - text: `{restriction_details['text'][:50]}...`")
 
             # Sleep between checks to avoid rate limiting
             if md_file != md_files[-1]:  # Don't sleep after last file
@@ -785,6 +887,18 @@ Examples:
         print(f"   └─ No identifier:     {stats['skipped_no_identifier']}")
     if stats['skipped_type'] > 0:
         print(f"   └─ Wrong type:        {stats['skipped_type']}")
+    if stats['ignored'] > 0:
+        print()
+        print(f"🙈 Ignored (total):      {stats['ignored']}")
+    print()
+    if stats['method']:
+        print("📍 Methods used:")
+        if stats['method']['id'] > 0:
+            print(f"   └─ By ID:        {stats['method']['id']}")
+        if stats['method']['username'] > 0:
+            print(f"   └─ By username:  {stats['method']['username']}")
+        if stats['method']['invite'] > 0:
+            print(f"   └─ By invite:    {stats['method']['invite']}")
     print("=" * 60)
 
     # Dry-run summary
