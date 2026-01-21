@@ -187,13 +187,13 @@ def analyze_entity_status(entity):
                         'reason': restriction.reason,
                         'text': restriction.text
                     }
-                    return ('banned', details)
+                    return 'banned', details
 
             # Platform-specific restriction (not global ban)
-            return ('unknown', None)
+            return 'unknown', None
         else:
             # Restricted but no reason provided
-            return ('unknown', None)
+            return 'unknown', None
 
     return ('active', None)
 
@@ -262,22 +262,31 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
         return status, restriction_details, None, method
 
     except ChannelPrivateError:
-        return 'unknown', None, None, 'error'
+        # Channel exists, but we don't have access
+        # For invites: if we can see the invite page, the channel is active
+        # For usernames: the channel exists but is private
+        return 'active', None, None, ('invite' if is_invite else 'username')
 
     except (InviteHashExpiredError, InviteHashInvalidError):
+        # Invite is truly invalid/expired
         return 'unknown', None, None, 'error'
 
     except (UsernameInvalidError, UsernameNotOccupiedError):
+        # Username doesn't exist or is invalid
         return 'unknown', None, None, 'error'
 
     except ValueError as e:
         if "Cannot get entity from a channel" in str(e):
-            return 'unknown', None, None, 'error'
+            # This error specifically means the channel/group exists, but we're not a member
+            # Different from expired/invalid invites (which raise InviteHash/Username errors)
+            # Therefore, the entity is active, just not accessible to us
+            return 'active', None, None, ('invite' if is_invite else 'username')
+        # Other ValueError cases
         print(f"  {EMOJI["warning"]} Unexpected ValueError: {str(e)}")
         return 'unknown', None, None, 'error'
 
     except FloodWaitError as e:
-        print(f"{EMOJI["pause"]} FloodWait: waiting {e.seconds}s...")
+        print(f"\n\n{EMOJI["pause"]} FloodWait: waiting {e.seconds}s...")
         time.sleep(e.seconds)
         return check_entity_status(client, identifier, is_invite, expected_id)
 
@@ -409,7 +418,7 @@ def get_last_status(content):
     return None, None, True
 
 
-def should_skip_entity(content, skip_time_seconds, skip_statuses):
+def should_skip_entity(content, skip_time_seconds, skip_statuses, skip_unknown=True):
     """
     Determines if an entity should be skipped based on its last status.
 
@@ -417,6 +426,7 @@ def should_skip_entity(content, skip_time_seconds, skip_statuses):
         content (str): Markdown file content
         skip_time_seconds (int or None): Skip if checked within this many seconds
         skip_statuses (list or None): Skip if last status is in this list
+        skip_unknown (default: True): Skip when last_stats is Unknown
 
     Returns:
         tuple: (should_skip, reason) where reason explains why it was skipped
@@ -433,7 +443,7 @@ def should_skip_entity(content, skip_time_seconds, skip_statuses):
 
     # Check if we should skip based on time
     # IMPORTANT: Never skip 'unknown' status based on time (always re-check)
-    if skip_time_seconds is not None and last_status != 'unknown':
+    if skip_time_seconds is not None and not skip_unknown or last_status != 'unknown':
         time_since_check = datetime.now() - last_datetime
         if time_since_check.total_seconds() < skip_time_seconds:
             hours = int(time_since_check.total_seconds() / 3600)
@@ -674,6 +684,11 @@ def build_arg_parser():
         metavar='STATUS',
         help='Check entities but ignore file updates for these statuses (e.g., unknown banned)'
     )
+    parser.add_argument(
+        '--no-skip-unknown',
+        action='store_true',
+        help="Don't skip entities whose last status is 'unknown'"
+    )
     return parser
 
 
@@ -793,7 +808,7 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
     if expected_id:
         status, restriction_details, actual_id, method_used = check_and_display(
             client, None, False, expected_id,
-            f"{EMOJI.get("id")} Checking by ID: {expected_id}",
+            f"  {EMOJI.get("id")} Checking by ID: {expected_id}",
             stats
         )
 
@@ -804,11 +819,7 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
             print(f"  {EMOJI["fallback"]} Fallback: Checking {len(invite_list)} invite(s)...")
 
             for idx, invite_hash in enumerate(invite_list, 1):
-                status, restriction_details, actual_id, method_used = check_and_display(
-                    client, invite_hash, True, expected_id,
-                    f"    {EMOJI["invite"]} [{idx}/{len(invite_list)}] +{invite_hash[:15]}...",
-                    stats
-                )
+                status, restriction_details, actual_id, method_used = check_and_display(client, invite_hash, True, expected_id, f"    {EMOJI["invite"]} [{idx}/{len(invite_list)}] +{invite_hash}", stats)
 
                 # Stop if we get a definitive answer
                 if status != 'unknown':
@@ -821,11 +832,7 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
     # PRIORITY 3: Fallback to username (last resort)
     if status is None or status == 'unknown':
         if not is_invite and identifiers:
-            status, restriction_details, actual_id, method_used = check_and_display(
-                client, identifiers, False, expected_id,
-                f"  {EMOJI["handle"]} Fallback: Checking @{identifiers}",
-                stats
-            )
+            status, restriction_details, actual_id, method_used = check_and_display(client, identifiers, False, expected_id, f"  {EMOJI["handle"]} Fallback: Checking @{identifiers}", stats)
 
     # Final fallback (should rarely happen)
     if status is None:
@@ -925,6 +932,10 @@ def main():
     if ignore_statuses:
         print(f"{EMOJI["ignored"]} Ignore statuses: {', '.join(ignore_statuses)}")
 
+    # Parse no-skip-unknown
+    if args.no_skip_unknown:
+        print(f"{EMOJI["info"]} {EMOJI["file"]} with {EMOJI["unknown"]} status will be checked")
+
     # Find all .md files
     path = Path(args.path)
     if not path.exists():
@@ -1001,7 +1012,7 @@ def main():
             last_status, last_datetime, has_status_block = get_last_status(content)
 
             # Check if we should skip based on last status
-            should_skip, skip_reason = should_skip_entity(content, skip_time_seconds, skip_statuses)
+            should_skip, skip_reason = should_skip_entity(content, skip_time_seconds, skip_statuses, not args.no_skip_unknown)
             if should_skip:
                 print(f"  {EMOJI["skip"]} Skipped: ({skip_reason})")
                 stats['skipped'] += 1
