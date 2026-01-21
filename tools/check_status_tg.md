@@ -169,22 +169,54 @@ When the limit is reached, the middle entry is removed to preserve both recent a
 ## Output Example
 
 ```
-📂 150 .md files found
+📂 301 .md files found
 🔍 Filter: all
 
-⏳ tg_123456.md: @example... ✅ active
-⏳ tg_234567.md: +AbCdEf... ❓ unknown
-⏳ tg_345678.md: @scammer... 🔨 banned
-  📋 Reason: spam
+📡 Connecting to Telegram (user: watcher)...
+✅ Connected!
+
+🧻 tg_+123BfldT567kMzRh.md
+  📨 Fallback: Checking 1 invite(s)...
+    ⏳ [1/1] +123BfldT567kMzR...... ❓ unknown
   💾 File updated
-⏳ tg_456789.md: @reused... ⚠️ id_mismatch
-  ⚠️  Expected ID: 111111111, found ID: 999999999
+
+🧻 tg_6544778986.md
+🆔 Checking by ID: 6544778986... 🔨 banned
+  🔄 STATUS CHANGE: unknown → banned
+  📋 Reason: porn
+  💬 Text: This channel can’t be displayed because it was used to spread calls to violence.
+  💾 File updated
+
+🧻 tg_+985412365QM5MGEx ❓.md
+   Skipped: No identifier found
+
+🧻 tg_+985412365qtmOGIx.md
+  📨 Fallback: Checking 1 invite(s)...
+    ⏳ [1/1] +985412365qtmOGI...... ❓ unknown
+  ⚠️ No 'status:' block found in tg_+985412365qtmOGIx.md
+
+🧻 tg_5988508437.md
+🆔 Checking by ID: 5988508437... 🔨 banned
+  🔄 STATUS CHANGE: active → banned
+  📋 Reason: terms
+  💬 Text: This channel can’t be displayed because it violated Telegram's Terms of Service.
+  💾 File updated
+ 
+🧻 tg_985412365.md
+🆔 Checking by ID: 985412365... 🔥 active
+  💾 File updated
+
+🧻 tg_9854123651.md
+🆔 Checking by ID: 9854123651... ❓ unknown
+  👤 Fallback: Checking @Beb2Beers... ❓ unknown
+  🔄 STATUS CHANGE: active → unknown
+  💾 File updated
 
 ══════════════════════════════════════════════════════════════
 📊 RESULTS
 ══════════════════════════════════════════════════════════════
 Total checked:  120
-✅ Active:      85
+🔥 Active:      85
 🔨 Banned:      12
 🗑️ Deleted:     8
 ⚠️ ID Mismatch: 2
