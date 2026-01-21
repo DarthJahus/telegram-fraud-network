@@ -52,6 +52,49 @@ REGEX_STATUS_SUB_ITEM = re.compile(pattern=r'^\s{2,}-\s')
 REGEX_NEXT_FIELD = re.compile(pattern=r'^[a-z_]+:\s', flags=re.MULTILINE)
 
 # ============================================
+# Variables & other constants
+# ============================================
+
+STATS_EMOJI = {
+                'active': "✅",
+                'banned': "🔨",
+                'deleted': "🗑️",
+                'id_mismatch': "⚠️",
+                'unknown': "❓",
+                'error': "❌"
+            }
+
+STATS_INIT = {
+        'total': 0,
+        'active': 0,
+        'banned': 0,
+        'deleted': 0,
+        'id_mismatch': 0,
+        'unknown': 0,
+        'skipped': 0,
+        'skipped_time': 0,
+        'skipped_status': 0,
+        'skipped_no_identifier': 0,
+        'skipped_type': 0,
+        'error': 0,
+        'ignored': 0,
+        'method': {
+            'id': 0,
+            'username': 0,
+            'invite': 0
+        }
+    }
+
+
+# ============================================
+# Helper functions
+# ============================================
+def get_date_time(get_date=True, get_time=True):
+    dt_format = ('%Y-%m-%d' if get_date else '') + (' %H:%M' if get_time else '')
+    return datetime.now().strftime(dt_format).strip()
+
+
+# ============================================
 # ENTITY STATUS CHECKING
 # ============================================
 
@@ -416,11 +459,7 @@ def update_status_in_md(file_path, new_status, restriction_details=None):
         existing_entries.append(current_entry)
 
     # 4. Create new status entry
-    now = datetime.now()
-    date_str = now.strftime('%Y-%m-%d')
-    time_str = now.strftime('%H:%M')
-
-    new_entry = [f"- `{new_status}`, `{date_str} {time_str}`\n"]
+    new_entry = [f"- `{new_status}`, `{get_date_time()}`\n"]
 
     if restriction_details:
         if 'reason' in restriction_details and restriction_details['reason']:
@@ -523,34 +562,34 @@ def parse_time_expression(expr):
 # MAIN
 # ============================================
 
-def main():
+def build_arg_parser():
     parser = argparse.ArgumentParser(
         description='Check Telegram entities status and update markdown files',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Check all entities
-  %(prog)s --path .
+    Examples:
+      # Check all entities
+      %(prog)s --path .
 
-  # Skip entities checked in the last 24 hours
-  %(prog)s --path . --skip-time 86400
-  %(prog)s --path . --skip-time "24*60*60"
+      # Skip entities checked in the last 24 hours
+      %(prog)s --path . --skip-time 86400
+      %(prog)s --path . --skip-time "24*60*60"
 
-  # Skip entities with 'unknown' or 'banned' status
-  %(prog)s --path . --skip unknown banned
+      # Skip entities with 'unknown' or 'banned' status
+      %(prog)s --path . --skip unknown banned
 
-  # Combine both: skip if checked recently OR if unknown/banned
-  %(prog)s --path . --skip-time "24*60*60" --skip unknown banned
+      # Combine both: skip if checked recently OR if unknown/banned
+      %(prog)s --path . --skip-time "24*60*60" --skip unknown banned
 
-  # Check only channels, skip those checked in the last 12 hours
-  %(prog)s --path . --type channel --skip-time "12*60*60"
-  
-  # Check all but don't update files for 'unknown' status
-  %(prog)s --path . --ignore unknown
+      # Check only channels, skip those checked in the last 12 hours
+      %(prog)s --path . --type channel --skip-time "12*60*60"
 
-  # Check all but ignore both 'unknown' and 'banned'
-  %(prog)s --path . --ignore unknown banned
-        """
+      # Check all but don't update files for 'unknown' status
+      %(prog)s --path . --ignore unknown
+
+      # Check all but ignore both 'unknown' and 'banned'
+      %(prog)s --path . --ignore unknown banned
+            """
     )
     parser.add_argument(
         '--user',
@@ -592,8 +631,65 @@ Examples:
         metavar='STATUS',
         help='Check entities but ignore file updates for these statuses (e.g., unknown banned)'
     )
+    return parser
 
-    args = parser.parse_args()
+
+def print_stats(stats):
+    print("\n" + "=" * 60)
+    print("📊 RESULTS")
+    print("=" * 60)
+    print(f"Total checked:  {stats['total']}")
+    print(f"✅ Active:      {stats['active']}")
+    print(f"🔨 Banned:      {stats['banned']}")
+    print(f"🗑️ Deleted:     {stats['deleted']}")
+    print(f"⚠️ ID Mismatch: {stats['id_mismatch']}")
+    print(f"❓ Unknown:     {stats['unknown']}")
+    print(f"❌ Errors:      {stats['error']}")
+    print()
+    print(f"⏭️ Skipped (total):      {stats['skipped']}")
+    if stats['skipped_time'] > 0:
+        print(f"   └─ Recently checked:  {stats['skipped_time']}")
+    if stats['skipped_status'] > 0:
+        print(f"   └─ By status:         {stats['skipped_status']}")
+    if stats['skipped_no_identifier'] > 0:
+        print(f"   └─ No identifier:     {stats['skipped_no_identifier']}")
+    if stats['skipped_type'] > 0:
+        print(f"   └─ Wrong type:        {stats['skipped_type']}")
+    if stats['ignored'] > 0:
+        print()
+        print(f"🙈 Ignored (total):      {stats['ignored']}")
+    print()
+    if stats['method']:
+        print("📍 Methods used:")
+        if stats['method']['id'] > 0:
+            print(f"   └─ By ID:        {stats['method']['id']}")
+        if stats['method']['username'] > 0:
+            print(f"   └─ By username:  {stats['method']['username']}")
+        if stats['method']['invite'] > 0:
+            print(f"   └─ By invite:    {stats['method']['invite']}")
+    print("=" * 60)
+
+
+def print_no_status_block(no_status_block_results):
+    print("\n" + "!" * 60)
+    print("⚠️ FILES WITHOUT 'status:' BLOCK (STATUS DETECTED)")
+    print("!" * 60)
+    for r in no_status_block_results:
+        print(f"• {r['file']} → {r['emoji']} {r['status']}")
+    print("!" * 60)
+
+
+def print_status_changed_files(status_changed_files):
+    print("\n" + "!" * 60)
+    print("✏️ FILES WITH STATUS CHANGE (RENAME IN OBSIDIAN)")
+    print("!" * 60)
+    for item in status_changed_files:
+        print(f"• {item['file']} : {item['old']} → {item['new']}")
+    print("!" * 60)
+
+
+def main():
+    args = build_arg_parser().parse_args()
 
     # Parse skip-time if provided
     skip_time_seconds = None
@@ -654,26 +750,7 @@ Examples:
     print("✅ Connected!\n")
 
     # Statistics
-    stats = {
-        'total': 0,
-        'active': 0,
-        'banned': 0,
-        'deleted': 0,
-        'id_mismatch': 0,
-        'unknown': 0,
-        'skipped': 0,
-        'skipped_time': 0,
-        'skipped_status': 0,
-        'skipped_no_identifier': 0,
-        'skipped_type': 0,
-        'error': 0,
-        'ignored': 0,
-        'method': {
-            'id': 0,
-            'username': 0,
-            'invite': 0
-        }
-    }
+    stats = STATS_INIT.copy()
 
     # Store results for dry-run summary
     results = []
@@ -685,6 +762,7 @@ Examples:
             with open(md_file, 'r', encoding='utf-8') as f:
                 content = f.read()
 
+            print(f"📁 {md_file.name}")
             # Check type filter
             entity_type = get_entity_type_from_md(content)
             if args.type != 'all' and entity_type != args.type:
@@ -696,7 +774,7 @@ Examples:
             identifiers, is_invite = extract_telegram_identifiers(content)
             expected_id = extract_entity_id(content)
             if not identifiers:
-                print(f"⏭️  {md_file.name}: No identifier found")
+                print(f"⏭️ Skipped: No identifier found")
                 stats['skipped'] += 1
                 stats['skipped_no_identifier'] += 1
                 continue
@@ -706,7 +784,7 @@ Examples:
             # Check if we should skip based on last status
             should_skip, skip_reason = should_skip_entity(content, skip_time_seconds, skip_statuses)
             if should_skip:
-                print(f"⏭️  {md_file.name}: Skipped ({skip_reason})")
+                print(f"⏭️ Skipped: ({skip_reason})")
                 stats['skipped'] += 1
                 if 'checked' in skip_reason and 'ago' in skip_reason:
                     stats['skipped_time'] += 1
@@ -718,7 +796,7 @@ Examples:
             if is_invite:
                 # Multiple invites: try each until we find 'active'
                 invite_list = identifiers if isinstance(identifiers, list) else [identifiers]
-                print(f"⏳ {md_file.name}: {len(invite_list)} invite(s) to check...")
+                print(f"⏳ {len(invite_list)} invite(s) to check...")
 
                 status = None
                 restriction_details = None
@@ -761,7 +839,7 @@ Examples:
                 # Single username
                 identifier = identifiers
                 display_id = f"@{identifier}"
-                print(f"⏳ {md_file.name}: {display_id}...", end=' ', flush=True)
+                print(f"🧷 {display_id}...", end=' ', flush=True)
 
                 status, restriction_details, actual_id, method_used = check_entity_status(
                     client, identifier, False, expected_id
@@ -775,22 +853,18 @@ Examples:
             # Update stats and get emoji
             if status == 'active':
                 stats['active'] += 1
-                emoji = "✅"
             elif status == 'banned':
                 stats['banned'] += 1
-                emoji = "🔨"
             elif status == 'deleted':
                 stats['deleted'] += 1
-                emoji = "🗑️"
             elif status == 'id_mismatch':
                 stats['id_mismatch'] += 1
-                emoji = "⚠️"
             elif status == 'unknown':
                 stats['unknown'] += 1
-                emoji = "❓"
             else:
                 stats['error'] += 1
-                emoji = "❌"
+
+            emoji = STATS_EMOJI.get(status, '🚫')
 
             if not is_invite:  # Only print status for username (already printed for invites)
                 print(f"{emoji} {status}")
@@ -818,12 +892,11 @@ Examples:
                 print(f"  🙈 Ignoring status '{status}' (not updating file)")
 
             # Store result for dry-run summary
-            now = datetime.now()
             result = {
                 'file': md_file.name,
                 'identifier': display_id,
                 'status': status,
-                'timestamp': now.strftime('%Y-%m-%d %H:%M'),
+                'timestamp': get_date_time(),
                 'emoji': emoji,
                 'restriction_details': restriction_details
             }
@@ -849,14 +922,14 @@ Examples:
                         print(f"  💾 File updated")
                 else:
                     # Show what WOULD be written
-                    date_str = now.strftime('%Y-%m-%d')
-                    time_str = now.strftime('%H:%M')
-                    print(f"  🔍 Would add: - `{status}`, `{date_str} {time_str}`")
+                    print(f"  🔍 Would add: - `{status}`, `{get_date_time()}`")
                     if restriction_details:
                         if 'reason' in restriction_details:
                             print(f"             - reason: `{restriction_details['reason']}`")
                         if 'text' in restriction_details:
                             print(f"             - text: `{restriction_details['text'][:50]}...`")
+
+            print()
 
             # Sleep between checks to avoid rate limiting
             if md_file != md_files[-1]:  # Don't sleep after last file
@@ -867,61 +940,17 @@ Examples:
         client.disconnect()
 
     # Final statistics
-    print("\n" + "=" * 60)
-    print("📊 RESULTS")
-    print("=" * 60)
-    print(f"Total checked:  {stats['total']}")
-    print(f"✅ Active:      {stats['active']}")
-    print(f"🔨 Banned:      {stats['banned']}")
-    print(f"🗑️ Deleted:     {stats['deleted']}")
-    print(f"⚠️ ID Mismatch: {stats['id_mismatch']}")
-    print(f"❓ Unknown:     {stats['unknown']}")
-    print(f"❌ Errors:      {stats['error']}")
-    print()
-    print(f"⏭️ Skipped (total):      {stats['skipped']}")
-    if stats['skipped_time'] > 0:
-        print(f"   └─ Recently checked:  {stats['skipped_time']}")
-    if stats['skipped_status'] > 0:
-        print(f"   └─ By status:         {stats['skipped_status']}")
-    if stats['skipped_no_identifier'] > 0:
-        print(f"   └─ No identifier:     {stats['skipped_no_identifier']}")
-    if stats['skipped_type'] > 0:
-        print(f"   └─ Wrong type:        {stats['skipped_type']}")
-    if stats['ignored'] > 0:
-        print()
-        print(f"🙈 Ignored (total):      {stats['ignored']}")
-    print()
-    if stats['method']:
-        print("📍 Methods used:")
-        if stats['method']['id'] > 0:
-            print(f"   └─ By ID:        {stats['method']['id']}")
-        if stats['method']['username'] > 0:
-            print(f"   └─ By username:  {stats['method']['username']}")
-        if stats['method']['invite'] > 0:
-            print(f"   └─ By invite:    {stats['method']['invite']}")
-    print("=" * 60)
+    print_stats(stats)
 
     # Dry-run summary
     if args.dry_run:
         print_dry_run_summary(results)
 
     if status_changed_files:
-        print("\n" + "!" * 60)
-        print("✏️ FILES WITH STATUS CHANGE (RENAME IN OBSIDIAN)")
-        print("!" * 60)
-        for item in status_changed_files:
-            print(f"• {item['file']} : {item['old']} → {item['new']}")
-        print("!" * 60)
-
+        print_status_changed_files(status_changed_files)
 
     if no_status_block_results:
-        print("\n" + "!" * 60)
-        print("⚠️ FILES WITHOUT 'status:' BLOCK (STATUS DETECTED)")
-        print("!" * 60)
-        for r in no_status_block_results:
-            print(f"• {r['file']} → {r['emoji']} {r['status']}")
-        print("!" * 60)
-
+        print_no_status_block(no_status_block_results)
 
     print("\n✅ Done!")
 
