@@ -15,6 +15,7 @@ ToDo: Can we consider using more than 1 account at the same time,
 """
 
 import argparse
+import builtins
 import re
 import time
 from datetime import datetime, timedelta
@@ -112,6 +113,7 @@ STATS_INIT = {
     }
 }
 
+OUT_FILE = None
 
 # ============================================
 # Helper functions
@@ -125,6 +127,29 @@ def cut_text(text, limit=120):
     if len(text) > limit:
         return text[:(limit-3)] + '...'
     return text
+
+
+def format_console(el):
+    if not isinstance(el, str):
+        return el
+    # supprime les [[ ]] temporaires pour console
+    el = el.replace('\\[[', '').replace('\\]]', '')
+    # replace les crochets échappés normaux
+    el = el.replace('\\[', '[').replace('\\]', ']')
+    return el
+
+
+def format_file(el):
+    if not isinstance(el, str):
+        return el
+    # remet les [[ ]] pour le fichier
+    return el.replace('\\[[', '[[').replace('\\]]', ']]')
+
+
+def print(*args, **kwargs):
+    builtins.print(*(format_console(a) for a in args), **kwargs)
+    if OUT_FILE:
+        builtins.print(*(format_file(a) for a in args), file=OUT_FILE, **kwargs)
 
 
 # ============================================
@@ -689,6 +714,10 @@ def build_arg_parser():
         action='store_true',
         help="Don't skip entities whose last status is 'unknown'"
     )
+    parser.add_argument(
+        '--out-file',
+        help="Output log to a file"
+    )
     return parser
 
 
@@ -732,8 +761,8 @@ def print_no_status_block(no_status_block_results):
     print("\n" + "!" * 60)
     print(f"{EMOJI["warning"]} FILES WITHOUT 'status:' BLOCK (STATUS DETECTED)")
     print("-" * 60)
-    for r in no_status_block_results:
-        print(f"• {r['file']} → {r['emoji']} {r['status']}")
+    for item in no_status_block_results:
+        print(f"• \\[[{item['file']}\\]] → {item['emoji']} {item['status']}")
     print("-" * 60)
 
 
@@ -742,7 +771,7 @@ def print_status_changed_files(status_changed_files):
     print(f"{EMOJI["change"]} FILES WITH STATUS CHANGE (RENAME IN OBSIDIAN)")
     print("-" * 60)
     for item in status_changed_files:
-        print(f"• {item['file']} : {item['old']} → {item['new']}")
+        print(f"• \\[[{item['file']}\\]] : {item['old']} → {item['new']}")
     print("-" * 60)
 
 
@@ -819,7 +848,7 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
             print(f"  {EMOJI["fallback"]} Fallback: Checking {len(invite_list)} invite(s)...")
 
             for idx, invite_hash in enumerate(invite_list, 1):
-                status, restriction_details, actual_id, method_used = check_and_display(client, invite_hash, True, expected_id, f"    {EMOJI["invite"]} [{idx}/{len(invite_list)}] +{invite_hash}", stats)
+                status, restriction_details, actual_id, method_used = check_and_display(client, invite_hash, True, expected_id, f"    {EMOJI["invite"]} \\[{idx}/{len(invite_list)}\\] +{invite_hash}", stats)
 
                 # Stop if we get a definitive answer
                 if status != 'unknown':
@@ -911,6 +940,15 @@ def process_and_update_file(md_file, status, restriction_details, actual_id, exp
 def main():
     args = build_arg_parser().parse_args()
 
+    # Write to file?
+    if args.out_file:
+        try:
+            global OUT_FILE
+            OUT_FILE = open(args.out_file, 'w', encoding='UTF-8')
+        except:
+            OUT_FILE = None
+            print(f"{EMOJI["error"]} Output file {args.out_file} cannot be created/accessed.")
+
     # Parse skip-time if provided
     skip_time_seconds = None
     if args.skip_time:
@@ -984,101 +1022,110 @@ def main():
 
     try:
         for md_file in md_files:
-            with open(md_file, 'r', encoding='utf-8') as f:
-                content = f.read()
+            try:
+                with open(md_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
 
-            print()
-            print(f"{EMOJI["file"]} {md_file.name}")
+                print()
+                print(f"{EMOJI["file"]} \\[[{md_file.name}\\]]")
 
-            # Check type filter
-            entity_type = get_entity_type_from_md(content)
-            if args.type != 'all' and entity_type != args.type:
-                stats['skipped'] += 1
-                stats['skipped_type'] += 1
-                continue
+                # Check type filter
+                entity_type = get_entity_type_from_md(content)
+                if args.type != 'all' and entity_type != args.type:
+                    stats['skipped'] += 1
+                    stats['skipped_type'] += 1
+                    continue
 
-            # Extract ALL identifiers upfront
-            expected_id = extract_entity_id(content)
-            identifiers, is_invite = extract_telegram_identifiers(content)
+                # Extract ALL identifiers upfront
+                expected_id = extract_entity_id(content)
+                identifiers, is_invite = extract_telegram_identifiers(content)
 
-            # If no ID AND no identifiers, skip entirely
-            if not expected_id and not identifiers:
-                print(f"   Skipped: No identifier found")
-                stats['skipped'] += 1
-                stats['skipped_no_identifier'] += 1
-                continue
+                # If no ID AND no identifiers, skip entirely
+                if not expected_id and not identifiers:
+                    print(f"  {EMOJI["skip"]} Skipped: No identifier found")
+                    stats['skipped'] += 1
+                    stats['skipped_no_identifier'] += 1
+                    continue
 
-            # Get last status info
-            last_status, last_datetime, has_status_block = get_last_status(content)
+                # Get last status info
+                last_status, last_datetime, has_status_block = get_last_status(content)
 
-            # Check if we should skip based on last status
-            should_skip, skip_reason = should_skip_entity(content, skip_time_seconds, skip_statuses, not args.no_skip_unknown)
-            if should_skip:
-                print(f"  {EMOJI["skip"]} Skipped: ({skip_reason})")
-                stats['skipped'] += 1
-                if 'checked' in skip_reason and 'ago' in skip_reason:
-                    stats['skipped_time'] += 1
-                elif 'last status' in skip_reason:
-                    stats['skipped_status'] += 1
-                continue
+                # Check if we should skip based on last status
+                should_skip, skip_reason = should_skip_entity(content, skip_time_seconds, skip_statuses, not args.no_skip_unknown)
+                if should_skip:
+                    print(f"  {EMOJI["skip"]} Skipped: ({skip_reason})")
+                    stats['skipped'] += 1
+                    if 'checked' in skip_reason and 'ago' in skip_reason:
+                        stats['skipped_time'] += 1
+                    elif 'last status' in skip_reason:
+                        stats['skipped_status'] += 1
+                    continue
 
-            # Check entity status with priority fallback
-            status, restriction_details, actual_id, method_used, display_id = check_entity_with_fallback(
-                client, expected_id, identifiers, is_invite, stats
-            )
+                # Check entity status with priority fallback
+                status, restriction_details, actual_id, method_used, display_id = check_entity_with_fallback(
+                    client, expected_id, identifiers, is_invite, stats
+                )
 
-            # Update statistics
-            stats['total'] += 1
-            if status == 'active':
-                stats['active'] += 1
-            elif status == 'banned':
-                stats['banned'] += 1
-            elif status == 'deleted':
-                stats['deleted'] += 1
-            elif status == 'id_mismatch':
-                stats['id_mismatch'] += 1
-            elif status == 'unknown':
-                stats['unknown'] += 1
-            else:
+                # Update statistics
+                stats['total'] += 1
+                if status == 'active':
+                    stats['active'] += 1
+                elif status == 'banned':
+                    stats['banned'] += 1
+                elif status == 'deleted':
+                    stats['deleted'] += 1
+                elif status == 'id_mismatch':
+                    stats['id_mismatch'] += 1
+                elif status == 'unknown':
+                    stats['unknown'] += 1
+                else:
+                    stats['error'] += 1
+
+                # Process result and update file if needed
+                should_ignore = ignore_statuses and status in ignore_statuses
+                if should_ignore:
+                    stats['ignored'] += 1
+
+                should_track_change, _ = process_and_update_file(
+                    md_file, status, restriction_details, actual_id,
+                    expected_id, last_status, has_status_block,
+                    should_ignore, args.dry_run
+                )
+
+                # Store result for reports
+                result = {
+                    'file': md_file.name,
+                    'identifier': display_id,
+                    'status': status,
+                    'timestamp': get_date_time(),
+                    'emoji': EMOJI.get(status, EMOJI["no_emoji"]),
+                    'restriction_details': restriction_details
+                }
+                results.append(result)
+
+                # Track files without status block
+                if not has_status_block:
+                    no_status_block_results.append(result)
+
+                # Track status changes
+                if should_track_change:
+                    status_changed_files.append({
+                        'file': md_file.name,
+                        'old': last_status,
+                        'new': status
+                    })
+
+                # Sleep between checks to avoid rate limiting
+                if md_file != md_files[-1]:
+                    time.sleep(SLEEP_BETWEEN_CHECKS)
+
+            except FileNotFoundError:
+                print(f"  {EMOJI["warning"]} Can't read file \\[[{md_file.name}\\]]")
                 stats['error'] += 1
 
-            # Process result and update file if needed
-            should_ignore = ignore_statuses and status in ignore_statuses
-            if should_ignore:
-                stats['ignored'] += 1
-
-            should_track_change, _ = process_and_update_file(
-                md_file, status, restriction_details, actual_id,
-                expected_id, last_status, has_status_block,
-                should_ignore, args.dry_run
-            )
-
-            # Store result for reports
-            result = {
-                'file': md_file.name,
-                'identifier': display_id,
-                'status': status,
-                'timestamp': get_date_time(),
-                'emoji': EMOJI.get(status, EMOJI["no_emoji"]),
-                'restriction_details': restriction_details
-            }
-            results.append(result)
-
-            # Track files without status block
-            if not has_status_block:
-                no_status_block_results.append(result)
-
-            # Track status changes
-            if should_track_change:
-                status_changed_files.append({
-                    'file': md_file.name,
-                    'old': last_status,
-                    'new': status
-                })
-
-            # Sleep between checks to avoid rate limiting
-            if md_file != md_files[-1]:
-                time.sleep(SLEEP_BETWEEN_CHECKS)
+            except Exception as e:
+                print(f"  {EMOJI["warning"]} Unexpected error with file \\[[{md_file.name}\\]]")
+                stats['error'] += 1
 
     finally:
         # Always disconnect, even if there's an error
