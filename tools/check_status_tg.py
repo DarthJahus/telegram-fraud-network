@@ -89,7 +89,8 @@ EMOJI = {
     'methods':     "💊",
     'invite':      "⏳",
     'change':      "🔄",
-    "pause":       "⏸️"
+    "pause":       "⏸️",
+    "log":         "📰"
 }
 
 STATS_INIT = {
@@ -284,7 +285,8 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
         # Successfully retrieved entity - now check its status
         status, restriction_details = analyze_entity_status(entity)
         method = 'invite' if is_invite else 'username'
-        return status, restriction_details, None, method
+        retrieved_id = entity.id if hasattr(entity, 'id') else None
+        return status, restriction_details, retrieved_id, method
 
     except ChannelPrivateError:
         # Channel exists, but we don't have access
@@ -480,6 +482,56 @@ def should_skip_entity(content, skip_time_seconds, skip_statuses, skip_unknown=T
 # ============================================
 # MARKDOWN FILE UPDATING
 # ============================================
+
+def write_id_to_md(file_path, entity_id):
+    """
+    Writes the entity ID at the beginning of the markdown file.
+    Only writes if no ID field exists yet.
+
+    Insertion logic:
+    - If YAML frontmatter exists (---...---), insert after it with blank line
+    - Otherwise, insert at the very beginning (line 0)
+
+    Args:
+        file_path: Path to markdown file
+        entity_id: Entity ID to write
+
+    Returns:
+        bool: True if ID was written, False if ID already exists or error
+    """
+    with open(file_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+
+    # Check if ID already exists
+    if REGEX_ID.search(content):
+        return False
+
+    lines = content.split('\n')
+
+    # Detect YAML frontmatter
+    insert_pos = 0  # Default: very beginning
+
+    if len(lines) > 0 and lines[0].strip() == '---':
+        # Look for closing ---
+        for i in range(1, len(lines)):
+            if lines[i].strip() == '---':
+                # Insert after the closing --- and a blank line
+                insert_pos = i + 1
+                # Add blank line if not already present
+                if insert_pos < len(lines) and lines[insert_pos].strip() != '':
+                    lines.insert(insert_pos, '')
+                    insert_pos += 1
+                break
+
+    # Insert the ID field
+    lines.insert(insert_pos, f"id: `{entity_id}`")
+
+    # Write back
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+
+    return True
+
 
 def update_status_in_md(file_path, new_status, restriction_details=None):
     """
@@ -718,6 +770,11 @@ def build_arg_parser():
         '--out-file',
         help="Output log to a file"
     )
+    parser.add_argument(
+        '--write-id',
+        action='store_true',
+        help="Write recovered IDs to markdown files (only for IDs recovered via invite links)"
+    )
     return parser
 
 
@@ -773,6 +830,51 @@ def print_status_changed_files(status_changed_files):
     for item in status_changed_files:
         print(f"• \\[[{item['file']}\\]] : {item['old']} → {item['new']}")
     print("-" * 60)
+
+
+def print_recovered_ids(recovered_ids):
+    """
+    Prints a summary of recovered entity IDs.
+
+    Args:
+        recovered_ids (list): List of dicts with 'file', 'id', 'method', 'written'
+    """
+    if not recovered_ids:
+        return
+
+    print("\n" + "=" * 60)
+    print(f"{EMOJI['id']} RECOVERED IDs ({len(recovered_ids)})")
+    print("=" * 60)
+
+    # Group by method
+    by_invite = [r for r in recovered_ids if r['method'] == 'invite']
+    by_username = [r for r in recovered_ids if r['method'] == 'username']
+
+    if by_invite:
+        print(f"\n✅ Via INVITE (reliable):")
+        for item in by_invite:
+            written_mark = "✅" if item.get('written') else "⚠️"
+            print(f"  {written_mark} [[{item['file']}]] → id: `{item['id']}`")
+
+        written_count = sum(1 for r in by_invite if r.get('written'))
+        if written_count > 0:
+            print(f"\n  ✅ {written_count} ID(s) written to files")
+        not_written = len(by_invite) - written_count
+        if not_written > 0:
+            print(f"  ⚠️  {not_written} ID(s) not written (ID already exists or --write-id not enabled)")
+
+    if by_username:
+        print(f"\n⚠️  Via USERNAME (unreliable - DO NOT write):")
+        for item in by_username:
+            print(f"  • [[{item['file']}]] → id: `{item['id']}`")
+        print(f"\n  ⚠️  These IDs were recovered via username.")
+        print(f"     Verify manually before adding them to files!")
+
+    print("=" * 60)
+    if by_invite:
+        print(f"{EMOJI['info']} IDs recovered via invite are reliable and permanent.")
+        print(f"{EMOJI['info']} Use them for faster future checks.")
+    print("=" * 60)
 
 
 def check_and_display(client, identifier, is_invite, expected_id, label, stats):
@@ -850,6 +952,9 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
             for idx, invite_hash in enumerate(invite_list, 1):
                 status, restriction_details, actual_id, method_used = check_and_display(client, invite_hash, True, expected_id, f"    {EMOJI["invite"]} \\[{idx}/{len(invite_list)}\\] +{invite_hash}", stats)
 
+                if actual_id and not expected_id:
+                    print(f"      {EMOJI['id']} ID récupéré: {actual_id}")
+
                 # Stop if we get a definitive answer
                 if status != 'unknown':
                     break
@@ -862,6 +967,7 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
     if status is None or status == 'unknown':
         if not is_invite and identifiers:
             status, restriction_details, actual_id, method_used = check_and_display(client, identifiers, False, expected_id, f"  {EMOJI["handle"]} Fallback: Checking @{identifiers}", stats)
+            if actual_id and not expected_id: print(f"      {EMOJI['id']} ID récupéré: {actual_id} (via username - non fiable)")
 
     # Final fallback (should rarely happen)
     if status is None:
@@ -942,12 +1048,20 @@ def main():
 
     # Write to file?
     if args.out_file:
+        if Path(args.out_file).exists():
+            print(f"\n{EMOJI['warning']} Output file already exists: {args.out_file}")
+            response = input("Overwrite? (y/n): ").strip().lower()
+            if response not in ['y', 'yes']:
+                print(f"{EMOJI['error']} Script cancelled by user.")
+                exit(1)
         try:
             global OUT_FILE
             OUT_FILE = open(args.out_file, 'w', encoding='UTF-8')
-        except:
+            print(f"{EMOJI['log']} Logging to: {args.out_file}")
+        except Exception as e:
             OUT_FILE = None
-            print(f"{EMOJI["error"]} Output file {args.out_file} cannot be created/accessed.")
+            print(f"{EMOJI["error"]} Output file {args.out_file} cannot be created/accessed:\n{e}")
+            exit(1)
 
     # Parse skip-time if provided
     skip_time_seconds = None
@@ -1019,6 +1133,7 @@ def main():
     results = []
     status_changed_files = []
     no_status_block_results = []
+    recovered_ids = []  # Liste of {file, id, method, written}
 
     try:
         for md_file in md_files:
@@ -1065,6 +1180,26 @@ def main():
                 status, restriction_details, actual_id, method_used, display_id = check_entity_with_fallback(
                     client, expected_id, identifiers, is_invite, stats
                 )
+
+                # NOUVELLES LIGNES : Traquer et écrire l'ID récupéré si applicable
+                if actual_id and not expected_id:
+                    id_written = False
+
+                    # Écrire l'ID si récupéré via invite ET --write-id activé
+                    if method_used == 'invite' and args.write_id and not args.dry_run:
+                        if write_id_to_md(md_file, actual_id):
+                            print(f"  {EMOJI['saved']} ID écrit dans le fichier: `{actual_id}`")
+                            id_written = True
+                        else:
+                            print(f"  {EMOJI['info']} ID déjà présent dans le fichier")
+
+                    # Ajouter à la liste des IDs récupérés
+                    recovered_ids.append({
+                        'file': md_file.name,
+                        'id': actual_id,
+                        'method': method_used,
+                        'written': id_written
+                    })
 
                 # Update statistics
                 stats['total'] += 1
@@ -1143,6 +1278,9 @@ def main():
 
     if no_status_block_results:
         print_no_status_block(no_status_block_results)
+
+    if recovered_ids:
+        print_recovered_ids(recovered_ids)
 
     print(f"\n{EMOJI["info"]} Done!")
 
