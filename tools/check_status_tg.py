@@ -18,7 +18,7 @@ import argparse
 import builtins
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from telethon.sync import TelegramClient
 from telethon.errors import (
@@ -35,7 +35,7 @@ from telethon.errors import (
 # ============================================
 API_ID = int(open('.secret/api_id', 'r', encoding='utf-8').read().strip())
 API_HASH = open('.secret/api_hash', 'r', encoding='utf-8').read().strip()
-SLEEP_BETWEEN_CHECKS = 10  # seconds between each check
+SLEEP_BETWEEN_CHECKS = 20  # seconds between each check
 MAX_STATUS_ENTRIES = 10  # maximum number of status entries to keep
 
 # ============================================
@@ -65,7 +65,7 @@ EMOJI = {
     'active':      "🔥",
     'banned':      "🔨",
     'deleted':     "🗑️",
-    'id_mismatch': "⚠️",
+    'id_mismatch': "🧩",
     'unknown':     "❓",
     'error':       "❌",
     'skip':        "⏭️",
@@ -81,7 +81,7 @@ EMOJI = {
     'handle':      "👤",
     'stats':       "📊",
     'success':     "✅",
-    'warning':     "⚠️",
+    'warning':     "🚨",
     'info':        "ℹ️",
     'saved':       "💾",
     'reason':      "📋",
