@@ -44,7 +44,10 @@ MAX_STATUS_ENTRIES = 10  # maximum number of status entries to keep
 
 REGEX_ID = re.compile(pattern=r'^id:\s*`?(\d+)`?', flags=re.MULTILINE)
 REGEX_TYPE = re.compile(pattern=r'^type:\s*(\w+)', flags=re.MULTILINE)
-REGEX_USERNAME = re.compile(pattern=r'username:\s*`?@([a-zA-Z0-9_]{5,32})`?')
+
+REGEX_USERNAME_INLINE = re.compile(pattern=r'^username:\s*`?@([a-zA-Z0-9_]{5,32})`?', flags=re.MULTILINE)
+REGEX_USERNAME_BLOCK_START = re.compile(pattern=r'^username:\s*$', flags=re.MULTILINE)
+REGEX_USERNAME_ENTRY = re.compile(pattern=r'-\s*`@([a-zA-Z0-9_]{5,32})`')
 
 REGEX_INVITE_INLINE = re.compile(pattern=r'^invite:\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)', flags=re.MULTILINE)
 REGEX_INVITE_BLOCK_START = re.compile(pattern=r'^invite:\s*$', flags=re.MULTILINE)
@@ -60,6 +63,8 @@ REGEX_NEXT_FIELD = re.compile(pattern=r'^[a-z_]+:\s', flags=re.MULTILINE)
 # ============================================
 # Variables & other constants
 # ============================================
+
+UI_HORIZONTAL_LINE = 60 * "-"
 
 EMOJI = {
     'active':      "🔥",
@@ -133,9 +138,7 @@ def cut_text(text, limit=120):
 def format_console(el):
     if not isinstance(el, str):
         return el
-    # supprime les [[ ]] temporaires pour console
     el = el.replace('\\[[', '').replace('\\]]', '')
-    # replace les crochets échappés normaux
     el = el.replace('\\[', '[').replace('\\]', ']')
     return el
 
@@ -143,7 +146,6 @@ def format_console(el):
 def format_file(el):
     if not isinstance(el, str):
         return el
-    # remet les [[ ]] pour le fichier
     return el.replace('\\[[', '[[').replace('\\]]', ']]')
 
 
@@ -201,7 +203,7 @@ def analyze_entity_status(entity):
     """
     # Check if user is deleted
     if hasattr(entity, 'deleted') and entity.deleted:
-        return ('deleted', None)
+        return 'deleted', None
 
     # Check if entity is restricted (banned by Telegram)
     if hasattr(entity, 'restricted') and entity.restricted:
@@ -221,7 +223,7 @@ def analyze_entity_status(entity):
             # Restricted but no reason provided
             return 'unknown', None
 
-    return ('active', None)
+    return 'active', None
 
 
 def check_entity_status(client, identifier=None, is_invite=False, expected_id=None):
@@ -256,16 +258,17 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
         if success:
             entity = result
             status, restriction_details = analyze_entity_status(entity)
-            return (status, restriction_details, None, 'id')
+            retrieved_username = entity.username if hasattr(entity, 'username') else None
+            return status, restriction_details, None, retrieved_username, 'id'
         # If ID fetch failed, continue to fallback methods below (if identifier provided)
 
         # If no identifier to fallback to, return unknown
         if identifier is None:
-            return 'unknown', None, None, 'error'
+            return 'unknown', None, None, None, 'error'
 
     # If no expected_id AND no identifier, we have nothing to check
     if identifier is None:
-        return 'unknown', None, None, 'error'
+        return 'unknown', None, None, None, 'error'
 
     # PRIORITY 2 & 3: Try by username or invite (fallback or primary if no ID)
     try:
@@ -280,37 +283,39 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
             if entity.id != expected_id:
                 # This is a DIFFERENT entity with the same username/invite!
                 method = 'invite' if is_invite else 'username'
-                return 'id_mismatch', None, entity.id, method
+                retrieved_username = entity.username if hasattr(entity, 'username') else None
+                return 'id_mismatch', None, entity.id, retrieved_username, method
 
         # Successfully retrieved entity - now check its status
         status, restriction_details = analyze_entity_status(entity)
         method = 'invite' if is_invite else 'username'
         retrieved_id = entity.id if hasattr(entity, 'id') else None
-        return status, restriction_details, retrieved_id, method
+        retrieved_username = entity.username if hasattr(entity, 'username') else None
+        return status, restriction_details, retrieved_id, retrieved_username, method
 
     except ChannelPrivateError:
         # Channel exists, but we don't have access
         # For invites: if we can see the invite page, the channel is active
         # For usernames: the channel exists but is private
-        return 'active', None, None, ('invite' if is_invite else 'username')
+        return 'active', None, None, None, ('invite' if is_invite else 'username')
 
     except (InviteHashExpiredError, InviteHashInvalidError):
         # Invite is truly invalid/expired
-        return 'unknown', None, None, 'error'
+        return 'unknown', None, None, None, 'error'
 
     except (UsernameInvalidError, UsernameNotOccupiedError):
         # Username doesn't exist or is invalid
-        return 'unknown', None, None, 'error'
+        return 'unknown', None, None, None, 'error'
 
     except ValueError as e:
         if "Cannot get entity from a channel" in str(e):
             # This error specifically means the channel/group exists, but we're not a member
             # Different from expired/invalid invites (which raise InviteHash/Username errors)
             # Therefore, the entity is active, just not accessible to us
-            return 'active', None, None, ('invite' if is_invite else 'username')
+            return 'active', None, None, None, ('invite' if is_invite else 'username')
         # Other ValueError cases
         print(f"  {EMOJI["warning"]} Unexpected ValueError: {str(e)}")
-        return 'unknown', None, None, 'error'
+        return 'unknown', None, None, None, 'error'
 
     except FloodWaitError as e:
         print(f"\n\n{EMOJI["pause"]} FloodWait: waiting {e.seconds}s...")
@@ -319,7 +324,7 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
 
     except Exception as e:
         print(f"  {EMOJI["warning"]} Unexpected error: {type(e).__name__}: {str(e)}")
-        return f'error_{type(e).__name__}', None, None, 'error'
+        return f'error_{type(e).__name__}', None, None, None, 'error'
 
 
 # ============================================
@@ -363,7 +368,7 @@ def extract_telegram_identifiers(content):
             - is_invite: bool (False for username, True for invites)
     """
     # Priority: username field (must start with @, otherwise it's likely a placeholder)
-    username_match = REGEX_USERNAME.search(content)
+    username_match = REGEX_USERNAME_INLINE.search(content)
     if username_match:
         return username_match.group(1), False
 
@@ -395,6 +400,55 @@ def extract_telegram_identifiers(content):
             return invite_hashes, True
 
     return None, None
+
+
+def extract_username_from_md(content):
+    """
+    Extracts the most recent username from markdown file.
+    Handles both inline and list formats.
+
+    Formats supported:
+    1. Inline: username: `@username` ([link](https://t.me/username))
+    2. List:   username:
+               - `@usernameNew`, `2026-01-13 01:57`
+               - `@usernameOld`, `2026-01-10`
+
+    Args:
+        content (str): Markdown file content
+
+    Returns:
+        str or None: Most recent username (without @) if found, None otherwise
+    """
+    # Priority 1: Check for inline format
+    # Format: username: `@username` ([link](https://t.me/username))
+    username_inline_match = REGEX_USERNAME_INLINE.search(content)
+    if username_inline_match:
+        return username_inline_match.group(1)  # Return without @
+
+    # Priority 2: Check for list format
+    # Format:
+    # username:
+    # - `@username1`, `date time`
+    # - `@username2`, `date time`
+    username_block_match = REGEX_USERNAME_BLOCK_START.search(content)
+    if username_block_match:
+        # Find the next field (end of username block)
+        next_field_match = REGEX_NEXT_FIELD.search(content[username_block_match.end():])
+
+        if next_field_match:
+            # Extract only the username block content
+            username_block = content[username_block_match.end():username_block_match.end() + next_field_match.start()]
+        else:
+            # Username block goes to end of file
+            username_block = content[username_block_match.end():]
+
+        # Extract the FIRST username from the block (most recent)
+        # ToDo: Change it to return the last one
+        username_match_list = REGEX_USERNAME_ENTRY.findall(username_block)
+        if username_match_list:
+            return username_match_list[-1]  # Return without @
+
+    return None
 
 
 def get_last_status(content):
@@ -632,9 +686,9 @@ def print_dry_run_summary(results):
     if not results:
         return
 
-    print("\n" + "=" * 60)
+    print("\n" + UI_HORIZONTAL_LINE)
     print(f"{EMOJI["dry-run"]} DRY-RUN SUMMARY - Changes to apply:")
-    print("=" * 60)
+    print(UI_HORIZONTAL_LINE)
 
     # Group by status
     for status_type in ['active', 'banned', 'deleted', 'unknown']:
@@ -660,9 +714,9 @@ def print_dry_run_summary(results):
         for r in errors:
             print(f"  • {r['file']}: {r['identifier']} → {r['status']}")
 
-    print("\n" + "=" * 60)
+    print("\n" + UI_HORIZONTAL_LINE)
     print(f"{EMOJI["info"]} To apply these changes, run again without --dry-run")
-    print("=" * 60)
+    print(UI_HORIZONTAL_LINE)
 
 
 def parse_time_expression(expr):
@@ -779,9 +833,9 @@ def build_arg_parser():
 
 
 def print_stats(stats):
-    print("\n" + "=" * 60)
+    print("\n" + UI_HORIZONTAL_LINE)
     print(f"{EMOJI["stats"]} RESULTS")
-    print("=" * 60)
+    print(UI_HORIZONTAL_LINE)
     print(f"Total checked:  {stats['total']}")
     print(f"{EMOJI.get("active")     } Active:      {stats['active']     }")
     print(f"{EMOJI.get("banned")     } Banned:      {stats['banned']     }")
@@ -811,25 +865,25 @@ def print_stats(stats):
             print(f"   └─ By username:  {stats['method']['username']}")
         if stats['method']['invite'] > 0:
             print(f"   └─ By invite:    {stats['method']['invite']}")
-    print("=" * 60)
+    print(UI_HORIZONTAL_LINE)
 
 
 def print_no_status_block(no_status_block_results):
     print("\n" + "!" * 60)
     print(f"{EMOJI["warning"]} FILES WITHOUT 'status:' BLOCK (STATUS DETECTED)")
-    print("-" * 60)
+    print(UI_HORIZONTAL_LINE)
     for item in no_status_block_results:
         print(f"• \\[[{item['file']}\\]] → {item['emoji']} {item['status']}")
-    print("-" * 60)
+    print(UI_HORIZONTAL_LINE)
 
 
 def print_status_changed_files(status_changed_files):
     print("\n" + "!" * 60)
     print(f"{EMOJI["change"]} FILES WITH STATUS CHANGE (RENAME IN OBSIDIAN)")
-    print("-" * 60)
+    print(UI_HORIZONTAL_LINE)
     for item in status_changed_files:
         print(f"• \\[[{item['file']}\\]] : {item['old']} → {item['new']}")
-    print("-" * 60)
+    print(UI_HORIZONTAL_LINE)
 
 
 def print_recovered_ids(recovered_ids):
@@ -842,9 +896,9 @@ def print_recovered_ids(recovered_ids):
     if not recovered_ids:
         return
 
-    print("\n" + "=" * 60)
+    print("\n" + UI_HORIZONTAL_LINE)
     print(f"{EMOJI['id']} RECOVERED IDs ({len(recovered_ids)})")
-    print("=" * 60)
+    print(UI_HORIZONTAL_LINE)
 
     # Group by method
     by_invite = [r for r in recovered_ids if r['method'] == 'invite']
@@ -854,7 +908,7 @@ def print_recovered_ids(recovered_ids):
         print(f"\n✅ Via INVITE (reliable):")
         for item in by_invite:
             written_mark = "✅" if item.get('written') else "⚠️"
-            print(f"  {written_mark} [[{item['file']}]] → id: `{item['id']}`")
+            print(f"  {written_mark} \\[[{item['file']}\\]] → id: `{item['id']}`")
 
         written_count = sum(1 for r in by_invite if r.get('written'))
         if written_count > 0:
@@ -866,15 +920,51 @@ def print_recovered_ids(recovered_ids):
     if by_username:
         print(f"\n⚠️  Via USERNAME (unreliable - DO NOT write):")
         for item in by_username:
-            print(f"  • [[{item['file']}]] → id: `{item['id']}`")
+            print(f"  • \\[[{item['file']}\\]] → id: `{item['id']}`")
         print(f"\n  ⚠️  These IDs were recovered via username.")
         print(f"     Verify manually before adding them to files!")
 
-    print("=" * 60)
+    print(UI_HORIZONTAL_LINE)
     if by_invite:
         print(f"{EMOJI['info']} IDs recovered via invite are reliable and permanent.")
         print(f"{EMOJI['info']} Use them for faster future checks.")
-    print("=" * 60)
+    print(UI_HORIZONTAL_LINE)
+
+
+def print_discovered_usernames(discovered_usernames):
+    """
+    Prints a summary of discovered/changed usernames.
+
+    Args:
+        discovered_usernames (list): List of dicts with 'file', 'old_username', 'new_username', 'status'
+    """
+    if not discovered_usernames:
+        return
+
+    print("\n" + UI_HORIZONTAL_LINE)
+    print(f"{EMOJI['handle']} DISCOVERED/CHANGED USERNAMES ({len(discovered_usernames)})")
+    print(UI_HORIZONTAL_LINE)
+
+    # Group by status
+    discovered = [u for u in discovered_usernames if u['status'] == 'discovered']
+    changed = [u for u in discovered_usernames if u['status'] == 'changed']
+
+    if discovered:
+        print(f"\n✨ DISCOVERED (new usernames):")
+        for item in discovered:
+            print(f"  • \\{item['file']}\\]] → @{item['new_username']}")
+        print(f"\n  {EMOJI["info"]}  {len(discovered)} username(s) discovered")
+
+    if changed:
+        print(f"\n🔄 CHANGED (username updates):")
+        for item in changed:
+            print(f"  • \\[[{item['file']}\\]] : @{item['old_username']} → @{item['new_username']}")
+        print(f"\n  ⚠️  {len(changed)} username(s) changed")
+
+    print(UI_HORIZONTAL_LINE)
+    print(f"{EMOJI['warning']} Usernames can change frequently - verify before updating files!")
+    print(f"{EMOJI['info']} Consider manually updating the markdown files with new usernames.")
+    print(UI_HORIZONTAL_LINE)
 
 
 def check_and_display(client, identifier, is_invite, expected_id, label, stats):
@@ -882,10 +972,10 @@ def check_and_display(client, identifier, is_invite, expected_id, label, stats):
     Helper function to check status and display result.
 
     Returns:
-        tuple: (status, restriction_details, actual_id, method_used)
+        tuple: (status, restriction_details, actual_id, actual_username, method_used)
     """
     print(f"{label}...", end=' ', flush=True)
-    status, restriction_details, actual_id, method_used = check_entity_status(
+    status, restriction_details, actual_id, actual_username, method_used = check_entity_status(
         client, identifier, is_invite, expected_id
     )
 
@@ -895,7 +985,7 @@ def check_and_display(client, identifier, is_invite, expected_id, label, stats):
     emoji = EMOJI.get(status, EMOJI["no_emoji"])
     print(f"{emoji} {status}")
 
-    return status, restriction_details, actual_id, method_used
+    return status, restriction_details, actual_id, actual_username, method_used
 
 
 def format_display_id(expected_id, identifiers, is_invite, method_used):
@@ -928,18 +1018,19 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
         stats: Statistics dictionary to update
 
     Returns:
-        tuple: (status, restriction_details, actual_id, method_used, display_id)
+        tuple: (status, restriction_details, actual_id, actual_username, method_used, display_id)
     """
     status = None
     restriction_details = None
     actual_id = None
+    actual_username = None
     method_used = None
 
     # PRIORITY 1: Try by ID first (most reliable)
     if expected_id:
-        status, restriction_details, actual_id, method_used = check_and_display(
+        status, restriction_details, actual_id, actual_username, method_used = check_and_display(
             client, None, False, expected_id,
-            f"  {EMOJI.get("id")} Checking by ID: {expected_id}",
+            f"  {EMOJI.get('id')} Checking by ID: {expected_id}",
             stats
         )
 
@@ -947,13 +1038,20 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
     if status is None or status == 'unknown':
         if is_invite and identifiers:
             invite_list = identifiers if isinstance(identifiers, list) else [identifiers]
-            print(f"  {EMOJI["fallback"]} Fallback: Checking {len(invite_list)} invite(s)...")
+            print(f"  {EMOJI['fallback']} Fallback: Checking {len(invite_list)} invite(s)...")
 
             for idx, invite_hash in enumerate(invite_list, 1):
-                status, restriction_details, actual_id, method_used = check_and_display(client, invite_hash, True, expected_id, f"    {EMOJI["invite"]} \\[{idx}/{len(invite_list)}\\] +{invite_hash}", stats)
+                status, restriction_details, actual_id, actual_username, method_used = check_and_display(
+                    client, invite_hash, True, expected_id,
+                    f"    {EMOJI['invite']} \\[{idx}/{len(invite_list)}\\] +{invite_hash}",
+                    stats
+                )
 
                 if actual_id and not expected_id:
-                    print(f"      {EMOJI['id']} ID récupéré: {actual_id}")
+                    print(f"      {EMOJI['id']} ID recovered: {actual_id}")
+
+                if actual_username:
+                    print(f"      {EMOJI['handle']} Username: @{actual_username}")
 
                 # Stop if we get a definitive answer
                 if status != 'unknown':
@@ -966,8 +1064,17 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
     # PRIORITY 3: Fallback to username (last resort)
     if status is None or status == 'unknown':
         if not is_invite and identifiers:
-            status, restriction_details, actual_id, method_used = check_and_display(client, identifiers, False, expected_id, f"  {EMOJI["handle"]} Fallback: Checking @{identifiers}", stats)
-            if actual_id and not expected_id: print(f"      {EMOJI['id']} ID récupéré: {actual_id} (via username - non fiable)")
+            status, restriction_details, actual_id, actual_username, method_used = check_and_display(
+                client, identifiers, False, expected_id,
+                f"  {EMOJI['handle']} Fallback: Checking @{identifiers}",
+                stats
+            )
+
+            if actual_id and not expected_id:
+                print(f"    {EMOJI['id']} ID recovered: {actual_id} (via username - unreliable)")
+
+            if actual_username:
+                print(f"    {EMOJI['handle']} Username: @{actual_username}")
 
     # Final fallback (should rarely happen)
     if status is None:
@@ -977,7 +1084,7 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
     # Format display ID based on what succeeded
     display_id = format_display_id(expected_id, identifiers, is_invite, method_used)
 
-    return status, restriction_details, actual_id, method_used, display_id
+    return status, restriction_details, actual_id, actual_username, method_used, display_id
 
 
 def process_and_update_file(md_file, status, restriction_details, actual_id, expected_id, last_status, has_status_block, should_ignore, is_dry_run):
@@ -1134,6 +1241,7 @@ def main():
     status_changed_files = []
     no_status_block_results = []
     recovered_ids = []  # Liste of {file, id, method, written}
+    discovered_usernames = []  # Liste of {file, old_username, new_username, status}
 
     try:
         for md_file in md_files:
@@ -1177,11 +1285,11 @@ def main():
                     continue
 
                 # Check entity status with priority fallback
-                status, restriction_details, actual_id, method_used, display_id = check_entity_with_fallback(
+                status, restriction_details, actual_id, actual_username, method_used, display_id = check_entity_with_fallback(
                     client, expected_id, identifiers, is_invite, stats
                 )
 
-                # NOUVELLES LIGNES : Traquer et écrire l'ID récupéré si applicable
+                # Traquer et écrire l'ID récupéré si applicable
                 if actual_id and not expected_id:
                     id_written = False
 
@@ -1200,6 +1308,31 @@ def main():
                         'method': method_used,
                         'written': id_written
                     })
+
+                # NOUVELLES LIGNES : Traquer les usernames découverts/changés
+                if actual_username:
+                    # Extraire le username existant du markdown
+                    existing_username = extract_username_from_md(content)
+
+                    # Cas 1 : Username découvert (pas dans le .md)
+                    if not existing_username:
+                        print(f"  ✨ Username discovered: @{actual_username}")
+                        discovered_usernames.append({
+                            'file': md_file.name,
+                            'old_username': None,
+                            'new_username': actual_username,
+                            'status': 'discovered'
+                        })
+
+                    # Cas 2 : Username changé (différent de celui dans le .md)
+                    elif existing_username != actual_username:
+                        print(f"  {EMOJI['change']} Username changed: @{existing_username} → @{actual_username}")
+                        discovered_usernames.append({
+                            'file': md_file.name,
+                            'old_username': existing_username,
+                            'new_username': actual_username,
+                            'status': 'changed'
+                        })
 
                 # Update statistics
                 stats['total'] += 1
@@ -1281,6 +1414,9 @@ def main():
 
     if recovered_ids:
         print_recovered_ids(recovered_ids)
+
+    if discovered_usernames:
+        print_discovered_usernames(discovered_usernames)
 
     print(f"\n{EMOJI["info"]} Done!")
 
