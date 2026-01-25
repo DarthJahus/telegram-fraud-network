@@ -1,9 +1,10 @@
+---
+type:
+---
 id: `IDNUMBER`
 
 status:
 - `active`, `{{date}} {{time}}`
-
-type: `user|channel|group`
 
 discovered: `{{date}} {{time}}`
 
