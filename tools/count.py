@@ -9,12 +9,13 @@ def load_entries(path):
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            status_val = (row["status"] or "").strip().lower() or "unknown"
+            type_val = (row["type"] or "").strip().lower() or "unknown"
             entries.append({
                 "name": row["file name"].strip(),
                 "tags": [t.strip() for t in (row["file tags"] or "").split(",") if t.strip()],
-                "type": (row.get("type") or "").strip().lower() or "unknown",
-                "banned": row["banned"] == "true",
-                "deleted": row["deleted"] == "true"
+                "type": type_val,
+                "status": status_val
             })
     return entries
 
@@ -22,30 +23,38 @@ def load_entries(path):
 def compute_stats(entries):
     """Compute global statistics from entries."""
     total = len(entries)
-    banned = sum(1 for e in entries if e["banned"])
-    deleted = sum(1 for e in entries if e["deleted"])
-    active = total - (banned + deleted)
+    banned = sum(1 for e in entries if e["status"] == "banned")
+    deleted = sum(1 for e in entries if e["status"] == "deleted")
+    unknown = sum(1 for e in entries if e["status"] == "unknown")
+    active = sum(1 for e in entries if e["status"] == "active")
     active_pct = (active / total * 100) if total else 0
+    banned_pct = (banned / total * 100) if total else 0
+    deleted_pct = (deleted / total * 100) if total else 0
 
     return {
         "total": total,
         "banned": banned,
         "deleted": deleted,
+        "unknown": unknown,
         "active": active,
-        "active_pct": active_pct
+        "active_pct": active_pct,
+        "banned_pct": banned_pct,
+        "deleted_pct": deleted_pct
     }
 
 
 def compute_type_stats(entries):
     """Compute statistics per entry type."""
-    types_data = defaultdict(lambda: {"total": 0, "banned": 0, "deleted": 0})
+    types_data = defaultdict(lambda: {"total": 0, "banned": 0, "deleted": 0, "unknown": 0})
     for entry in entries:
         typ = entry["type"]
         types_data[typ]["total"] += 1
-        if entry["banned"]:
+        if entry["status"] == "banned":
             types_data[typ]["banned"] += 1
-        if entry["deleted"]:
+        if entry["status"] == "deleted":
             types_data[typ]["deleted"] += 1
+        if entry["status"] == "unknown":
+            types_data[typ]["unknown"] += 1
     return types_data
 
 
@@ -54,8 +63,13 @@ def format_type_line(typ, data):
     t = data["total"]
     b = data["banned"]
     d = data["deleted"]
+    u = data["unknown"]
 
     parts = [f"{typ.capitalize():<10}: {t:>3}"]
+
+    if u > 0:
+        u_pct = (u / t * 100) if t else 0
+        parts.append(f"•  {u:>3} ❓ {u_pct:5.1f}%")
 
     if d > 0:
         d_pct = (d / t * 100) if t else 0
@@ -74,10 +88,11 @@ def print_global_stats(stats):
     print(line)
     print("📊 GLOBAL OVERVIEW")
     print(line)
-    print(f"📁 Total entries        : {stats['total']:4.0f}")
-    print(f"🔨 Banned               : {stats['banned']:4.0f}")
-    print(f"🗑️ Deleted              : {stats['deleted']:4.0f}")
-    print(f"🔴 Active               : {stats['active']:4.0f} {stats['active_pct']:5.1f}%\n")
+    print(f"📄 Total entries        : {stats['total']:4.0f}")
+    print(f"🔨 Banned               : {stats['banned']:4.0f} {stats['banned_pct']:5.1f}%")
+    print(f"🗑️ Deleted              : {stats['deleted']:4.0f} {stats['deleted_pct']:5.1f}%")
+    print(f"❓ Unknown              : {stats['unknown']:4.0f}")
+    print(f"🟢 Active               : {stats['active']:4.0f} {stats['active_pct']:5.1f}%\n")
 
 
 def print_type_stats(types_data):
@@ -87,7 +102,7 @@ def print_type_stats(types_data):
     print("🧩 ENTRY TYPES")
     print(line)
 
-    type_order = ["user", "group", "channel", "channels", "bot", "website", "unknown"]
+    type_order = ["channel", "group", "user", "bot", "unknown"]
     for typ in type_order:
         if typ in types_data:
             print(format_type_line(typ, types_data[typ]))
@@ -107,7 +122,7 @@ def print_tag_stats(entries, total):
 
     categories = {
         "💳 FINANCIAL FRAUD": ["#bankaccounts", "#checking", "#carding"],
-        "⛏  CRYPTO / SCAMS": ["#crypto", "#investment_scam"],
+        "⛏ CRYPTO / SCAMS": ["#crypto", "#investment_scam"],
         "🧰 INFRA / NOISE": ["#hub", "#backup"],
     }
 
@@ -143,6 +158,7 @@ def main():
     print_global_stats(stats)
     print_type_stats(types_data)
     print_tag_stats(entries, stats["total"])
+    print()
 
 
 if __name__ == "__main__":
