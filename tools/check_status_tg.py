@@ -29,6 +29,7 @@ from telethon.errors import (
     InviteHashInvalidError,
     FloodWaitError
 )
+from telegram_mdml.telegram_mdml import TelegramEntity, InvalidTypeError
 
 # ============================================
 # CONFIGURATION
@@ -54,8 +55,10 @@ REGEX_INVITE_BLOCK_START = re.compile(pattern=r'^invite:\s*$', flags=re.MULTILIN
 REGEX_INVITE_LINK = re.compile(pattern=r'-\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)')
 
 REGEX_STATUS_BLOCK_START = re.compile(pattern=r'^status:\s*$', flags=re.MULTILINE)
-REGEX_STATUS_ENTRY_FULL =  re.compile(pattern=r'^\s*-\s*`([^`]+)`\s*,\s*`(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})`', flags=re.MULTILINE)
-REGEX_STATUS_BLOCK_PATTERN = re.compile(pattern=r'^\s*-\s*`[^`]+`,\s*`\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}`', flags=re.MULTILINE)
+REGEX_STATUS_ENTRY_FULL = re.compile(pattern=r'^\s*-\s*`([^`]+)`\s*,\s*`(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})`',
+                                     flags=re.MULTILINE)
+REGEX_STATUS_BLOCK_PATTERN = re.compile(pattern=r'^\s*-\s*`[^`]+`,\s*`\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}`',
+                                        flags=re.MULTILINE)
 REGEX_STATUS_SUB_ITEM = re.compile(pattern=r'^\s{2,}-\s')
 
 REGEX_NEXT_FIELD = re.compile(pattern=r'^[a-z_]+:\s', flags=re.MULTILINE)
@@ -131,7 +134,7 @@ def get_date_time(get_date=True, get_time=True):
 
 def cut_text(text, limit=120):
     if len(text) > limit:
-        return text[:(limit-3)] + '...'
+        return text[:(limit - 3)] + '...'
     return text
 
 
@@ -333,10 +336,12 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
 
 def extract_entity_id(content):
     """Extract the entity ID from markdown content."""
-    match = REGEX_ID.search(content)
-    if match:
-        return int(match.group(1))
-    return None
+    try:
+        entity = TelegramEntity.from_string(content)
+        return entity.get_id()
+    except Exception as e:
+        print("--- DEBUG --" + str(e))
+        return None
 
 
 def get_entity_type_from_md(content):
@@ -349,10 +354,13 @@ def get_entity_type_from_md(content):
     Returns:
         str or None: Entity type (channel, group, user, bot) or None if not found
     """
-    match = REGEX_TYPE.search(content)
-    if match:
-        return match.group(1).lower()
-    return None
+    try:
+        entity = TelegramEntity.from_string(content)
+        return entity.get_type()
+    except InvalidTypeError:
+        return None
+    except Exception:
+        return None
 
 
 def extract_telegram_identifiers(content):
@@ -367,39 +375,26 @@ def extract_telegram_identifiers(content):
             - identifier: str (username) or list[str] (invite hashes)
             - is_invite: bool (False for username, True for invites)
     """
-    # Priority: username field (must start with @, otherwise it's likely a placeholder)
-    username_match = REGEX_USERNAME_INLINE.search(content)
-    if username_match:
-        return username_match.group(1), False
+    try:
+        entity = TelegramEntity.from_string(content)
 
-    # Fallback 1: single invite link (inline format)
-    # Format: invite: https://t.me/+HASH
-    invite_single_match = REGEX_INVITE_INLINE.search(content)
-    if invite_single_match:
-        return [invite_single_match.group(1)], True
+        # Priority 1: Check for username (non-strikethrough)
+        usernames = entity.get_usernames().active()
+        if usernames:
+            # Return the most recent username (first in the list)
+            return usernames[0].value, False
 
-    # Fallback 2: invite list format
-    # invite:
-    # - https://t.me/+HASH1
-    # - https://t.me/+HASH2
-    invite_block_match = REGEX_INVITE_BLOCK_START.search(content)
-    if invite_block_match:
-        # Find the next field (end of invite block)
-        next_field_match = REGEX_NEXT_FIELD.search(content[invite_block_match.end():])
-
-        if next_field_match:
-            # Extract only the invite block content
-            invite_block = content[invite_block_match.end():invite_block_match.end() + next_field_match.start()]
-        else:
-            # Invite block goes to end of file
-            invite_block = content[invite_block_match.end():]
-
-        # Extract all invite hashes from the block only
-        invite_hashes = REGEX_INVITE_LINK.findall(invite_block)
-        if invite_hashes:
+        # Priority 2: Check for invites (non-strikethrough)
+        invites = entity.get_invites().active()
+        if invites:
+            # Return list of invite hashes
+            invite_hashes = [invite.hash for invite in invites]
             return invite_hashes, True
 
-    return None, None
+        return None, None
+
+    except Exception:
+        return None, None
 
 
 def extract_username_from_md(content):
@@ -419,36 +414,14 @@ def extract_username_from_md(content):
     Returns:
         str or None: Most recent username (without @) if found, None otherwise
     """
-    # Priority 1: Check for inline format
-    # Format: username: `@username` ([link](https://t.me/username))
-    username_inline_match = REGEX_USERNAME_INLINE.search(content)
-    if username_inline_match:
-        return username_inline_match.group(1)  # Return without @
-
-    # Priority 2: Check for list format
-    # Format:
-    # username:
-    # - `@username1`, `date time`
-    # - `@username2`, `date time`
-    username_block_match = REGEX_USERNAME_BLOCK_START.search(content)
-    if username_block_match:
-        # Find the next field (end of username block)
-        next_field_match = REGEX_NEXT_FIELD.search(content[username_block_match.end():])
-
-        if next_field_match:
-            # Extract only the username block content
-            username_block = content[username_block_match.end():username_block_match.end() + next_field_match.start()]
-        else:
-            # Username block goes to end of file
-            username_block = content[username_block_match.end():]
-
-        # Extract the FIRST username from the block (most recent)
-        # ToDo: Change it to return the last one
-        username_match_list = REGEX_USERNAME_ENTRY.findall(username_block)
-        if username_match_list:
-            return username_match_list[-1]  # Return without @
-
-    return None
+    try:
+        entity = TelegramEntity.from_string(content)
+        username = entity.get_username(allow_strikethrough=False)
+        if username:
+            return username.value  # Returns username without @
+        return None
+    except Exception:
+        return None
 
 
 def get_last_status(content):
@@ -470,33 +443,18 @@ def get_last_status(content):
         - `active`, `2026-01-18 14:32`
         - `unknown`, `2026-01-17 10:15`
     """
-    # Find the status: block
-    status_match = REGEX_STATUS_BLOCK_START.search(content)
-    if not status_match:
+    try:
+        entity = TelegramEntity.from_string(content)
+        has_status_block = entity.has_field('status')
+
+        status = entity.get_status(allow_strikethrough=False)
+        if status:
+            return status.value, status.date, has_status_block
+
+        return None, None, has_status_block
+
+    except Exception:
         return None, None, False
-
-    # Find the first status entry after "status:"
-    # Pattern: - `<status>`, `<date> <time>`
-    # This pattern REQUIRES both date and time to be present
-
-    # Search from the status: line onwards
-    remaining_content = content[status_match.end():]
-    match = REGEX_STATUS_ENTRY_FULL.search(remaining_content)
-
-    if match:
-        status = match.group(1)
-        date_str = match.group(2)
-        time_str = match.group(3)
-
-        try:
-            dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
-            return status, dt, True
-        except ValueError:
-            # Date format is invalid - treat as no status
-            return None, None, True
-
-    # No valid status entry found (either no entry, or entry without valid date/time)
-    return None, None, True
 
 
 def should_skip_entity(content, skip_time_seconds, skip_statuses, skip_unknown=True):
@@ -1325,7 +1283,7 @@ def main():
                         })
 
                     # Cas 2 : Username changé (différent de celui dans le .md)
-                    elif existing_username != actual_username:
+                    elif existing_username.lower() != actual_username.lower():
                         print(f"  {EMOJI['change']} Username changed: @{existing_username} → @{actual_username}")
                         discovered_usernames.append({
                             'file': md_file.name,
