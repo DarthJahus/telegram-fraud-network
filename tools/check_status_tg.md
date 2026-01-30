@@ -268,6 +268,9 @@ The script updates markdown files in place, preserving the manual documentation 
 - Use `--skip-time` to avoid re-checking recently verified entities
 - The script handles `FloodWaitError` automatically
 
+## ToDo
+- [ ] add `--list-invites` to list valid/usage invites
+
 ## License
 
 This tool is part of the Telegram Fraud Network project. See the main repository for license information.

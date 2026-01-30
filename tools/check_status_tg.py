@@ -64,7 +64,7 @@ REGEX_NEXT_FIELD = re.compile(pattern=r'^[a-z_]+:\s', flags=re.MULTILINE)
 # Variables & other constants
 # ============================================
 
-UI_HORIZONTAL_LINE = 60 * "-"
+UI_HORIZONTAL_LINE = f"\n{60 * "-"}\n"
 
 EMOJI = {
     'active':      "🔥",
