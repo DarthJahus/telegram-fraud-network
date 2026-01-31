@@ -29,7 +29,13 @@ from telethon.errors import (
     InviteHashInvalidError,
     FloodWaitError
 )
-from telegram_mdml.telegram_mdml import TelegramEntity, InvalidTypeError
+from telegram_mdml.telegram_mdml import (
+    TelegramEntity,
+    TelegramMDMLError,
+    MissingFieldError,
+    InvalidFieldError,
+    InvalidTypeError
+)
 
 # ============================================
 # CONFIGURATION
@@ -346,23 +352,19 @@ def extract_telegram_identifiers(entity: TelegramEntity):
             - identifier: str (username) or list[str] (invite hashes)
             - is_invite: bool (False for username, True for invites)
     """
-    try:
-        # Priority 1: Check for username (non-strikethrough)
-        username = entity.get_username(allow_strikethrough=False)
-        if username:
-            return username.value, False
+    # Priority 1: Check for username (non-strikethrough)
+    username = entity.get_username(allow_strikethrough=False)
+    if username:
+        return username.value, False
 
-        # Priority 2: Check for invites (non-strikethrough)
-        invites = entity.get_invites().active()
-        if invites:
-            # Return list of invite hashes
-            invite_hashes = [invite.hash for invite in invites]
-            return invite_hashes, True
+    # Priority 2: Check for invites (non-strikethrough)
+    invites = entity.get_invites().active()
+    if invites:
+        # Return list of invite hashes
+        invite_hashes = [invite.hash for invite in invites]
+        return invite_hashes, True
 
-        return None, None
-
-    except Exception:
-        return None, None
+    return None, None
 
 
 def get_last_status(entity: TelegramEntity):
@@ -384,17 +386,11 @@ def get_last_status(entity: TelegramEntity):
         - `active`, `2026-01-18 14:32`
         - `unknown`, `2026-01-17 10:15`
     """
-    try:
-        has_status_block = entity.has_field('status')
-
-        status = entity.get_status(allow_strikethrough=False)
-        if status:
-            return status.value, status.date, has_status_block
-
-        return None, None, has_status_block
-
-    except Exception:
-        return None, None, False
+    has_status_block = entity.has_field('status')
+    status = entity.get_status(allow_strikethrough=False)
+    if status:
+        return status.value, status.date, has_status_block
+    return None, None, has_status_block
 
 
 def should_skip_entity(entity, skip_time_seconds, skip_statuses, skip_unknown=True):
@@ -1152,6 +1148,8 @@ def main():
                 # Check type filter
                 try:
                     entity_type = entity.get_type()
+                except (InvalidTypeError, MissingFieldError):
+                    entity_type = None
                 except Exception as e:
                     print(f"{EMOJI['error']} Error: {e}")
                     entity_type = None
@@ -1164,6 +1162,8 @@ def main():
                 # Extract ALL identifiers upfront
                 try:
                     expected_id = entity.get_id()
+                except InvalidFieldError:
+                    expected_id = None
                 except Exception as e:
                     print(f"{EMOJI['error']} Error: {e}")
                     expected_id = None
@@ -1298,6 +1298,10 @@ def main():
                 # Sleep between checks to avoid rate limiting
                 if md_file != md_files[-1]:
                     time.sleep(SLEEP_BETWEEN_CHECKS)
+            except FileNotFoundError as e:
+                print("File not found.")
+            except TelegramMDMLError as e:
+                print("Parsing failed.")
             except Exception as e:
                 print("Failed to read MDML entity from file.")
     finally:
