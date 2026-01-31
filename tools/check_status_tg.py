@@ -334,28 +334,32 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
 # MARKDOWN FILE PARSING
 # ============================================
 
-def extract_entity_id(content):
-    """Extract the entity ID from markdown content."""
+def extract_entity_id(entity):
+    """
+    Extract the entity ID from Telegram MDML entity
+
+    Args:
+        entity (TelegramEntity): Telegram MDML entity
+    Returns:
+        str or None: Entity ID
+    """
     try:
-        entity = TelegramEntity.from_string(content)
         return entity.get_id()
     except Exception as e:
-        print("--- DEBUG --" + str(e))
         return None
 
 
-def get_entity_type_from_md(content):
+def get_entity_type_from_md(entity: TelegramEntity):
     """
-    Detects the entity type from markdown content.
+    Detects the entity type from Telegram MDML entity.
 
     Args:
-        content (str): Markdown file content
+        content (TelegramEntity): Telegram MDML entity
 
     Returns:
         str or None: Entity type (channel, group, user, bot) or None if not found
     """
     try:
-        entity = TelegramEntity.from_string(content)
         return entity.get_type()
     except InvalidTypeError:
         return None
@@ -363,12 +367,12 @@ def get_entity_type_from_md(content):
         return None
 
 
-def extract_telegram_identifiers(content):
+def extract_telegram_identifiers(entity: TelegramEntity):
     """
-    Extracts username OR invite link(s) from markdown file.
+    Extracts username OR invite link(s) from Telegram MDML entity.
 
     Args:
-        content (str): Markdown file content
+        entity (TelegramEntity): Telegram MDML entity
 
     Returns:
         tuple: (identifier, is_invite) where:
@@ -376,8 +380,6 @@ def extract_telegram_identifiers(content):
             - is_invite: bool (False for username, True for invites)
     """
     try:
-        entity = TelegramEntity.from_string(content)
-
         # Priority 1: Check for username (non-strikethrough)
         username = entity.get_username(allow_strikethrough=False)
         if username:
@@ -396,40 +398,13 @@ def extract_telegram_identifiers(content):
         return None, None
 
 
-def extract_username_from_md(content):
+def get_last_status(entity: TelegramEntity):
     """
-    Extracts the most recent username from markdown file.
-    Handles both inline and list formats.
-
-    Formats supported:
-    1. Inline: username: `@username` ([link](https://t.me/username))
-    2. List:   username:
-               - `@usernameNew`, `2026-01-13 01:57`
-               - `@usernameOld`, `2026-01-10`
-
-    Args:
-        content (str): Markdown file content
-
-    Returns:
-        str or None: Most recent username (without @) if found, None otherwise
-    """
-    try:
-        entity = TelegramEntity.from_string(content)
-        username = entity.get_username(allow_strikethrough=False)
-        if username:
-            return username.value  # Returns username without @
-        return None
-    except Exception:
-        return None
-
-
-def get_last_status(content):
-    """
-    Extracts the most recent status entry from markdown content.
+    Extracts the most recent status entry from Telegram MDML entity.
     Only returns a status if it has a valid date+time format.
 
     Args:
-        content (str): Markdown file content
+        entity (TelegramEntity): Telegram MDML entity
 
     Returns:
         tuple: (status, datetime, has_status_block) or (None, None, has_status_block) if no valid status found
@@ -443,7 +418,6 @@ def get_last_status(content):
         - `unknown`, `2026-01-17 10:15`
     """
     try:
-        entity = TelegramEntity.from_string(content)
         has_status_block = entity.has_field('status')
 
         status = entity.get_status(allow_strikethrough=False)
@@ -456,12 +430,12 @@ def get_last_status(content):
         return None, None, False
 
 
-def should_skip_entity(content, skip_time_seconds, skip_statuses, skip_unknown=True):
+def should_skip_entity(entity, skip_time_seconds, skip_statuses, skip_unknown=True):
     """
     Determines if an entity should be skipped based on its last status.
 
     Args:
-        content (str): Markdown file content
+        entity (TelegramEntity): Telegram MDML entity
         skip_time_seconds (int or None): Skip if checked within this many seconds
         skip_statuses (list or None): Skip if last status is in this list
         skip_unknown (default: True): Skip when last_stats is Unknown
@@ -469,7 +443,7 @@ def should_skip_entity(content, skip_time_seconds, skip_statuses, skip_unknown=T
     Returns:
         tuple: (should_skip, reason) where reason explains why it was skipped
     """
-    last_status, last_datetime, has_status_block = get_last_status(content)
+    last_status, last_datetime, has_status_block = get_last_status(entity)
 
     if last_status is None:
         # No previous status, don't skip
@@ -1202,23 +1176,22 @@ def main():
 
     try:
         for md_file in md_files:
+            # parsing the file through MDML
             try:
-                with open(md_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-
+                entity = TelegramEntity.from_file(md_file)
                 print()
                 print(f"{EMOJI["file"]} \\[[{md_file.name}\\]]")
 
                 # Check type filter
-                entity_type = get_entity_type_from_md(content)
+                entity_type = get_entity_type_from_md(entity)
                 if args.type != 'all' and entity_type != args.type:
                     stats['skipped'] += 1
                     stats['skipped_type'] += 1
                     continue
 
                 # Extract ALL identifiers upfront
-                expected_id = extract_entity_id(content)
-                identifiers, is_invite = extract_telegram_identifiers(content)
+                expected_id = extract_entity_id(entity)
+                identifiers, is_invite = extract_telegram_identifiers(entity)
 
                 # If no ID AND no identifiers, skip entirely
                 if not expected_id and not identifiers:
@@ -1228,10 +1201,10 @@ def main():
                     continue
 
                 # Get last status info
-                last_status, last_datetime, has_status_block = get_last_status(content)
+                last_status, last_datetime, has_status_block = get_last_status(entity)
 
                 # Check if we should skip based on last status
-                should_skip, skip_reason = should_skip_entity(content, skip_time_seconds, skip_statuses, not args.no_skip_unknown)
+                should_skip, skip_reason = should_skip_entity(entity, skip_time_seconds, skip_statuses, not args.no_skip_unknown)
                 if should_skip:
                     print(f"  {EMOJI["skip"]} Skipped: ({skip_reason})")
                     stats['skipped'] += 1
@@ -1269,7 +1242,12 @@ def main():
                 # NOUVELLES LIGNES : Traquer les usernames découverts/changés
                 if actual_username:
                     # Extraire le username existant du markdown
-                    existing_username = extract_username_from_md(content)
+
+                    username = entity.get_username(allow_strikethrough=False)
+                    if username:
+                        existing_username = username.value  # username without @
+                    else:
+                        existing_username = None
 
                     # Cas 1 : Username découvert (pas dans le .md)
                     if not existing_username:
@@ -1343,15 +1321,8 @@ def main():
                 # Sleep between checks to avoid rate limiting
                 if md_file != md_files[-1]:
                     time.sleep(SLEEP_BETWEEN_CHECKS)
-
-            except FileNotFoundError:
-                print(f"  {EMOJI["warning"]} Can't read file \\[[{md_file.name}\\]]")
-                stats['error'] += 1
-
             except Exception as e:
-                print(f"  {EMOJI["warning"]} Unexpected error with file \\[[{md_file.name}\\]]")
-                stats['error'] += 1
-
+                print("Failed to read MDML entity from file.")
     finally:
         # Always disconnect, even if there's an error
         client.disconnect()
