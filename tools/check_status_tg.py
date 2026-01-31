@@ -379,10 +379,9 @@ def extract_telegram_identifiers(content):
         entity = TelegramEntity.from_string(content)
 
         # Priority 1: Check for username (non-strikethrough)
-        usernames = entity.get_usernames().active()
-        if usernames:
-            # Return the most recent username (first in the list)
-            return usernames[0].value, False
+        username = entity.get_username(allow_strikethrough=False)
+        if username:
+            return username.value, False
 
         # Priority 2: Check for invites (non-strikethrough)
         invites = entity.get_invites().active()
