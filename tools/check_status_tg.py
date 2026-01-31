@@ -334,39 +334,6 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
 # MARKDOWN FILE PARSING
 # ============================================
 
-def extract_entity_id(entity):
-    """
-    Extract the entity ID from Telegram MDML entity
-
-    Args:
-        entity (TelegramEntity): Telegram MDML entity
-    Returns:
-        str or None: Entity ID
-    """
-    try:
-        return entity.get_id()
-    except Exception as e:
-        return None
-
-
-def get_entity_type_from_md(entity: TelegramEntity):
-    """
-    Detects the entity type from Telegram MDML entity.
-
-    Args:
-        content (TelegramEntity): Telegram MDML entity
-
-    Returns:
-        str or None: Entity type (channel, group, user, bot) or None if not found
-    """
-    try:
-        return entity.get_type()
-    except InvalidTypeError:
-        return None
-    except Exception:
-        return None
-
-
 def extract_telegram_identifiers(entity: TelegramEntity):
     """
     Extracts username OR invite link(s) from Telegram MDML entity.
@@ -1183,14 +1150,24 @@ def main():
                 print(f"{EMOJI["file"]} \\[[{md_file.name}\\]]")
 
                 # Check type filter
-                entity_type = get_entity_type_from_md(entity)
+                try:
+                    entity_type = entity.get_type()
+                except Exception as e:
+                    print(f"{EMOJI['error']} Error: {e}")
+                    entity_type = None
+
                 if args.type != 'all' and entity_type != args.type:
                     stats['skipped'] += 1
                     stats['skipped_type'] += 1
                     continue
 
                 # Extract ALL identifiers upfront
-                expected_id = extract_entity_id(entity)
+                try:
+                    expected_id = entity.get_id()
+                except Exception as e:
+                    print(f"{EMOJI['error']} Error: {e}")
+                    expected_id = None
+
                 identifiers, is_invite = extract_telegram_identifiers(entity)
 
                 # If no ID AND no identifiers, skip entirely
