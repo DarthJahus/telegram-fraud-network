@@ -1196,19 +1196,19 @@ def main():
                     client, expected_id, identifiers, is_invite, stats
                 )
 
-                # Traquer et écrire l'ID récupéré si applicable
+                # Check and write the retrieved ID
                 if actual_id and not expected_id:
                     id_written = False
 
-                    # Écrire l'ID si récupéré via invite ET --write-id activé
+                    # Write ID retrieved via invite, if --write-id
                     if method_used == 'invite' and args.write_id and not args.dry_run:
                         if write_id_to_md(md_file, actual_id):
-                            print(f"  {EMOJI['saved']} ID écrit dans le fichier: `{actual_id}`")
+                            print(f"  {EMOJI['saved']} ID written to file: `{actual_id}`")
                             id_written = True
                         else:
-                            print(f"  {EMOJI['info']} ID déjà présent dans le fichier")
+                            print(f"  {EMOJI['info']} ID already present in file.")
 
-                    # Ajouter à la liste des IDs récupérés
+                    # Add to list of retrieved ID
                     recovered_ids.append({
                         'file': md_file.name,
                         'id': actual_id,
@@ -1216,17 +1216,15 @@ def main():
                         'written': id_written
                     })
 
-                # NOUVELLES LIGNES : Traquer les usernames découverts/changés
+                # Track discovered / changed usernames
                 if actual_username:
-                    # Extraire le username existant du markdown
-
                     username = entity.get_username(allow_strikethrough=False)
                     if username:
                         existing_username = username.value  # username without @
                     else:
                         existing_username = None
 
-                    # Cas 1 : Username découvert (pas dans le .md)
+                    # Cas 1 : Discovered username not in MDML
                     if not existing_username:
                         print(f"  ✨ Username discovered: @{actual_username}")
                         discovered_usernames.append({
@@ -1236,7 +1234,7 @@ def main():
                             'status': 'discovered'
                         })
 
-                    # Cas 2 : Username changé (différent de celui dans le .md)
+                    # Cas 2 : Username has changed AND is different from username in MDML
                     elif existing_username.lower() != actual_username.lower():
                         print(f"  {EMOJI['change']} Username changed: @{existing_username} → @{actual_username}")
                         discovered_usernames.append({
