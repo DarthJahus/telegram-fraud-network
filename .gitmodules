@@ -1,0 +1,6 @@
+[submodule "tools/tools/telegram_mdml"]
+	path = tools/tools/telegram_mdml
+	url = https://github.com/DarthJahus/telegram-mdml
+[submodule "tools/telegram_mdml"]
+	path = tools/telegram_mdml
+	url = https://github.com/DarthJahus/telegram-mdml
