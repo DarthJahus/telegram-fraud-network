@@ -9,6 +9,9 @@ This script is designed to work with the [Telegram Fraud Network](https://github
 - Checks if documented Telegram entities are still active, banned, or deleted
 - Updates markdown files with timestamped status entries
 - Detects when usernames have been reused by different accounts
+- Recovers and writes entity IDs from invite links
+- Discover usernames
+- Tracks username changes
 - Provides filtering and skip options to optimize API usage
 - Maintains a historical record of status changes
 
@@ -19,6 +22,8 @@ This script is designed to work with the [Telegram Fraud Network](https://github
 ```bash
 pip install telethon
 ```
+
+**Note:** The [`telegram_mdml`](https://github.com/darthjahus/telegram_mdml) module is included as a submodule in this repository.
 
 ### Telegram API Credentials
 
@@ -61,6 +66,21 @@ name: `Display Name`
 **Optional but recommended:**
 - `id:` - entity ID for username reuse detection
 
+### Alternative Formats
+
+The script also supports block formats for multiple usernames or invites (with or without date / details / strikethrough):
+
+```markdown
+username:
+- `@example1`
+- `@example2`, `2026-01-30`
+
+invite:
+- ~~https://t.me/+O1D1NV1T3~~ (expried)
+- https://t.me/+ABC123xyz
+- https://t.me/+DEF456uvw, `2026-02-01`
+```
+
 ## Usage
 
 ### Basic Usage
@@ -98,6 +118,30 @@ python check_status_tg.py --path . --skip banned
 python check_status_tg.py --path . --skip banned deleted
 ```
 
+**Ignore specific statuses:**
+
+The `--ignore` option allows you to check entities, but skip updating their files based on the **check result**. This is useful when you want to verify status without documenting certain outcomes:
+
+```bash
+# Check entities, but don't update files if the result is 'active'
+python check_status_tg.py --path . --ignore active
+
+# Ignore multiple result statuses
+python check_status_tg.py --path . --ignore active unknown
+
+# Useful for monitoring without affecting documentation of stable entities
+python check_status_tg.py --path . --ignore active --skip-time "12*60*60"
+```
+
+**Example:**
+A file currently has `status: active`.
+You check it and find it's now `unknown`
+With `--ignore unknown`, the file will **not** be updated (because the check result is `unknown`).
+
+**Difference between `--skip` and `--ignore`:**
+- `--skip <status>`: Don't check entities whose **current/last** status matches (saves API calls)
+- `--ignore <status>`: Check all entities, but don't update files when the **check result** matches (useful for monitoring)
+
 **Combine filters:**
 ```bash
 # Skip channels checked in the last 12 hours
@@ -117,6 +161,12 @@ python check_status_tg.py --path . --dry-run
 ```bash
 # Use a different Telegram account
 python check_status_tg.py --path . --user alt
+```
+
+**Logging:**
+```bash
+# Save output to a log file
+python check_status_tg.py --path . --log output.log
 ```
 
 ## Status Types
@@ -142,14 +192,32 @@ When an entity has both a `username:` and an `id:` field, the script verifies th
 
 Status `id_mismatch` indicates the username has been reused.
 
+### ID Recovery from Invite Links
+
+When checking entities via invite links, the script can recover the entity ID. 
+Use `--write-id` to automatically write recovered IDs to MDML files.
+
+This is useful for:
+- Enabling ID-based checking (faster and more reliable)
+- Tracking entity changes even after invite link expiration
+
+### Username Discovery and Tracking
+
+The script automatically detects and reports:
+- **New usernames** - When an entity gains a username (reported as "discovered")
+- **Changed usernames** - When an existing username changes to a different one
+
+These changes are displayed in the final summary.
+
 ### Unknown Status Re-checking
 
-Entities with `unknown` status are **always re-checked**, regardless of `--skip-time` settings. This is because:
-
+Entities with `unknown` status are **always re-checked** by default, regardless of `--skip-time` settings. This is because:
 - Private channels may become public
 - Changed usernames may be restored
 - Temporary errors may resolve
 - Invalid invites may be replaced
+
+Use `--no-skip-unknown` to skip these entities as well.
 
 Other statuses (`active`, `banned`, `deleted`) respect the `--skip-time` parameter.
 
@@ -184,7 +252,7 @@ When the limit is reached, the middle entry is removed to preserve both recent a
 🆔 Checking by ID: 6544778986... 🔨 banned
   🔄 STATUS CHANGE: unknown → banned
   📋 Reason: porn
-  💬 Text: This channel can’t be displayed because it was used to spread calls to violence.
+  💬 Text: This channel can't be displayed because it was used to spread calls to violence.
   💾 File updated
 
 🧻 tg_+985412365QM5MGEx ❓.md
@@ -199,7 +267,7 @@ When the limit is reached, the middle entry is removed to preserve both recent a
 🆔 Checking by ID: 5988508437... 🔨 banned
   🔄 STATUS CHANGE: active → banned
   📋 Reason: terms
-  💬 Text: This channel can’t be displayed because it violated Telegram's Terms of Service.
+  💬 Text: This channel can't be displayed because it violated Telegram's Terms of Service.
   💾 File updated
  
 🧻 tg_985412365.md
@@ -212,9 +280,9 @@ When the limit is reached, the middle entry is removed to preserve both recent a
   🔄 STATUS CHANGE: active → unknown
   💾 File updated
 
-══════════════════════════════════════════════════════════════
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 RESULTS
-══════════════════════════════════════════════════════════════
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Total checked:  120
 🔥 Active:      85
 🔨 Banned:      12
@@ -224,9 +292,54 @@ Total checked:  120
 ❌ Errors:      0
 
 ⏭️ Skipped (total):      30
-   └─ Recently checked:  25
-   └─ By status:         5
-══════════════════════════════════════════════════════════════
+   ├─ Recently checked:  25
+   ├─ By status:         5
+   └─ By type:           0
+
+🙈 Ignored (checked but not updated): 5
+
+💊 Methods used:
+   ├─ By ID:       95
+   ├─ By username: 15
+   └─ By invite:   10
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📰 IDs recovered from invites: 5
+File: tg_invite123.md → ID: 123456789 (written ✓)
+File: tg_invite456.md → ID: 987654321 (written ✓)
+
+✨ Usernames discovered/changed: 3
+File: tg_123.md → @newusername (discovered)
+File: tg_456.md → @oldname → @newname (changed)
+
+ℹ️ Done!
+```
+
+## Command-Line Arguments Reference
+
+```
+usage: check_status_tg.py [-h] --path PATH [--type {all,user,channel,group,bot}]
+                          [--skip-time SKIP_TIME] [--skip SKIP [SKIP ...]]
+                          [--no-skip-unknown] [--ignore IGNORE [IGNORE ...]]
+                          [--write-id] [--dry-run] [--user USER] [--log LOG]
+
+options:
+  -h, --help            Show this help message and exit
+  --path PATH           Path to directory containing markdown files
+  --type {all,user,channel,group,bot}
+                        Filter by entity type (default: all)
+  --skip-time SKIP_TIME
+                        Skip entities checked within N seconds (e.g., 86400 for 24h,
+                        or "24*60*60")
+  --skip SKIP [SKIP ...]
+                        Skip entities with these statuses (e.g., banned deleted)
+  --no-skip-unknown     Don't automatically re-check entities with 'unknown' status
+  --ignore IGNORE [IGNORE ...]
+                        Check entities but don't update files with these statuses
+  --write-id            Write recovered IDs to markdown files (from invite links)
+  --dry-run             Preview changes without modifying files
+  --user USER           Telegram account to use (default: default)
+  --log LOG             Log output to file
 ```
 
 ## Rate Limiting
@@ -269,7 +382,8 @@ The script updates markdown files in place, preserving the manual documentation 
 - The script handles `FloodWaitError` automatically
 
 ## ToDo
-- [ ] add `--list-invites` to list valid/usage invites
+- [ ] Add `--list-invites` to list valid/usage invites
+- [ ] Consider using more than 1 account at the same time, and check with every account before settling on a status (helpful for groups where one account has been accepted, and that others can't access)
 
 ## License
 
