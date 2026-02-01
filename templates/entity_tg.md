@@ -8,8 +8,6 @@ status:
 
 discovered: `{{date}} {{time}}`
 
-invite: 
-
 username: `USERNAME` ([link](https://t.me/@))
 
 name: `NAME`
@@ -20,14 +18,18 @@ mobile: `NUMBER`
 
 activity: #
 
-created: `DATE` ([link](https://t.me/ID/c/1))
+invite: 
+
+joined: `DATE`
+
+created: `DATE` ([link](https://t.me/c/ID/1))
 
 linked channel: 
 
+members:
+- `NUMBER`, `{{date}} {{time}}`
+
 discussion: 
 
-subscribers: `NUMBER`
-
-members: `NUMBER`, `DATE`
-
-joined: `DATE`
+subscribers:
+- `NUMBER`, `{{date}} {{time}}`
