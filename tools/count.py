@@ -1,22 +1,75 @@
-import csv
+#!/usr/bin/env python3
 import sys
+from pathlib import Path
 from collections import Counter, defaultdict
+from telegram_mdml.telegram_mdml import TelegramEntity
 
 
-def load_entries(path):
-    """Load and parse CSV entries."""
+def load_entries(directory_path):
+    """Load and parse markdown entries from a directory."""
     entries = []
-    with open(path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            status_val = (row["status"] or "").strip().lower() or "unknown"
-            type_val = (row["type"] or "").strip().lower() or "unknown"
+    directory = Path(directory_path)
+
+    if not directory.exists():
+        print(f"Error: Directory {directory_path} does not exist")
+        sys.exit(1)
+
+    if not directory.is_dir():
+        print(f"Error: {directory_path} is not a directory")
+        sys.exit(1)
+
+    # Scan all .md files in the directory
+    md_files = list(directory.glob("*.md"))
+
+    if not md_files:
+        print(f"Warning: No .md files found in {directory_path}")
+        return entries
+
+    for md_file in md_files:
+        try:
+            entity = TelegramEntity.from_file(md_file)
+
+            # Get the most recent status
+            status_obj = entity.get_status()
+            status_val = status_obj.value if status_obj else "unknown"
+
+            # Get entity type
+            try:
+                type_val = entity.get_type()
+            except Exception as e:
+                type_val = "unknown"
+
+            # Get tags from activity field
+            tags = []
+            activity_field = entity.doc.get_field('activity')
+            if activity_field:
+                for field_value in activity_field.values:
+                    if field_value.is_array:
+                        # Array of values
+                        for tag in field_value.array_values:
+                            tag = tag.strip()
+                            if tag.startswith('#'):
+                                if len(tag) > 1:
+                                    tags.append(tag)
+                    else:
+                        # Single value?
+                        tag = field_value.value.strip()
+                        for _tag_s1 in tag.split():
+                            if (_tag_s2:= _tag_s1.strip('`')).startswith('#'):
+                                if len(_tag_s2) > 1:
+                                    tags.append(_tag_s2)
+
             entries.append({
-                "name": row["file name"].strip(),
-                "tags": [t.strip() for t in (row["file tags"] or "").split(",") if t.strip()],
+                "name": md_file.name,
+                "tags": tags,
                 "type": type_val,
                 "status": status_val
             })
+
+        except Exception as e:
+            print(f"Warning: Failed to parse {md_file.name}: {e}", file=sys.stderr)
+            continue
+
     return entries
 
 
@@ -146,12 +199,18 @@ def print_tag_stats(entries, total):
 
 def main():
     if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <file.csv>")
+        print(f"Usage: {sys.argv[0]} <directory>")
+        print(f"  Scans all .md files in <directory> for Telegram entity stats")
         sys.exit(1)
 
-    path = sys.argv[1]
+    directory_path = sys.argv[1]
 
-    entries = load_entries(path)
+    entries = load_entries(directory_path)
+
+    if not entries:
+        print("No valid entries found.")
+        sys.exit(1)
+
     stats = compute_stats(entries)
     types_data = compute_type_stats(entries)
 
