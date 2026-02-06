@@ -757,6 +757,11 @@ def build_arg_parser():
         action='store_true',
         help="With --get-invites: print results as markdown tasks"
     )
+    parser.add_argument(
+        '--valid-only',
+        action='store_true',
+        help="With --get-invites: only print valid invites"
+    )
     return parser
 
 
@@ -1078,7 +1083,7 @@ def process_and_update_file(md_file, status, restriction_details, actual_id, exp
     return should_track_change, was_updated
 
 
-def print_invites(invites_list, is_check_list=True):
+def print_invites(invites_list, is_check_list=True, valid_only=False):
     if not invites_list:
         return
 
@@ -1097,13 +1102,13 @@ def print_invites(invites_list, is_check_list=True):
                 print(f"  {EMOJI["id"]      } {inv['user_id']}")
             print(f"  {EMOJI["file"]    } {inv['file']}")
             print()
-        elif inv['valid'] is False:
+        elif inv['valid'] is False and not valid_only:
             print(f"{md_check_list}{EMOJI["no_emoji"]} {inv['full_link']}")
             print(f"  {EMOJI["file"]    } {inv['file']}")
             print(f"  {EMOJI["text"]    } {inv['reason']}")
             print(f"  {EMOJI["text"]    } {inv['message']}")
             print()
-        else:  # valid is None
+        else:  # valid is None, because we haven't checked for validity
             print(f"{md_check_list}{inv['full_link']}")
             print(f"  {EMOJI["file"]    } {inv['file']}")
             print()
@@ -1207,6 +1212,9 @@ def main():
     if args.tasks and not args.get_invites:
         print(f"{EMOJI['warning']} --tasks can only be used with --get-invites")
 
+    if args.valid_only and not args.get_invites:
+        print(f"{EMOJI['warning']} --valid-only can only be used with --get-invites")
+
     # Write to file?
     if args.out_file:
         if Path(args.out_file).exists():
@@ -1290,10 +1298,10 @@ def main():
                         'full_link': f'https://t.me/+{invite.hash}',
                         'valid': None,
                         'reason': None,
-                        'message': None
+                        'message': "Not validated"
                     }
                     if args.continuous:
-                        print_invites([invite_entry], args.tasks)
+                        print_invites([invite_entry], args.tasks, args.valid_only)
                     else:
                         invites_list.append(invite_entry)
 
@@ -1302,7 +1310,7 @@ def main():
                 continue
 
         # Print results and exit (no Telegram connection needed)
-        print_invites(invites_list, args.tasks)
+        print_invites(invites_list, args.tasks, args.valid_only)
         return
 
     # Statistics
@@ -1344,7 +1352,7 @@ def main():
 
                     time.sleep(SLEEP_BETWEEN_CHECKS)  # Rate limiting
                     if args.continuous:
-                        print_invites([invite_entry], args.tasks)
+                        print_invites([invite_entry], args.tasks, args.valid_only)
                     else:
                         invites_list.append(invite_entry)
 
@@ -1353,7 +1361,7 @@ def main():
                 continue
 
         # Print results
-        print_invites(invites_list, args.tasks)
+        print_invites(invites_list, args.tasks, args.valid_only)
         client.disconnect()
         return
 
