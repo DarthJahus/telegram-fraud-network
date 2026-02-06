@@ -21,6 +21,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 from telethon.sync import TelegramClient
+from telethon.tl.functions.messages import CheckChatInviteRequest
+from telethon.tl.types import ChatInviteAlready, ChatInvite, ChatInvitePeek
 from telethon.errors import (
     ChannelPrivateError,
     UsernameInvalidError,
@@ -40,6 +42,7 @@ from telegram_mdml.telegram_mdml import (
 # ============================================
 # CONFIGURATION
 # ============================================
+DEBUG = True
 API_ID = int(open('.secret/api_id', 'r', encoding='utf-8').read().strip())
 API_HASH = open('.secret/api_hash', 'r', encoding='utf-8').read().strip()
 SLEEP_BETWEEN_CHECKS = 20  # seconds between each check
@@ -162,6 +165,15 @@ def print(*args, **kwargs):
     builtins.print(*(format_console(a) for a in args), **kwargs)
     if OUT_FILE:
         builtins.print(*(format_file(a) for a in args), file=OUT_FILE, **kwargs)
+
+
+def print_debug(e: Exception):
+    if not DEBUG:
+        return
+    print('---DEBUG---')
+    print(f'{type(e).__name__}')
+    print(f'{str(e)}')
+    print('-----------')
 
 
 # ============================================
@@ -723,6 +735,28 @@ def build_arg_parser():
         action='store_true',
         help="Write recovered IDs to markdown files (only for IDs recovered via invite links)"
     )
+    parser.add_argument(
+        '--get-invites',
+        nargs='?',
+        const='all',
+        choices=['all', 'valid'],
+        help='Get list of invites (all = non-strikethrough, valid = tested with UserID)'
+    )
+    parser.add_argument(
+        '--no-skip',
+        action='store_true',
+        help="With --get-invites: don't skip files with 'banned' or 'unknown' status (default: skip them)"
+    )
+    parser.add_argument(
+        '--continuous',
+        action='store_true',
+        help="With --get-invites: print results continuously (default: print at the end of the process)"
+    )
+    parser.add_argument(
+        '--tasks',
+        action='store_true',
+        help="With --get-invites: print results as markdown tasks"
+    )
     return parser
 
 
@@ -1044,8 +1078,134 @@ def process_and_update_file(md_file, status, restriction_details, actual_id, exp
     return should_track_change, was_updated
 
 
+def print_invites(invites_list, is_check_list=True):
+    if not invites_list:
+        return
+
+    md_check_list = ''
+    if is_check_list:
+        md_check_list = '- [ ] '
+
+    # Print results
+    if len(invites_list) > 1:
+        print(f"\n{EMOJI['invite']} Found {len(invites_list)} invite(s):\n")
+
+    for inv in invites_list:
+        if inv['valid'] is True:
+            print(f"{md_check_list}{EMOJI["active"]} {inv['full_link']}")
+            if inv['user_id']:
+                print(f"  {EMOJI["id"]      } {inv['user_id']}")
+            print(f"  {EMOJI["file"]    } {inv['file']}")
+            print()
+        elif inv['valid'] is False:
+            print(f"{md_check_list}{EMOJI["no_emoji"]} {inv['full_link']}")
+            print(f"  {EMOJI["file"]    } {inv['file']}")
+            print(f"  {EMOJI["text"]    } {inv['reason']}")
+            print(f"  {EMOJI["text"]    } {inv['message']}")
+            print()
+        else:  # valid is None
+            print(f"{md_check_list}{inv['full_link']}")
+            print(f"  {EMOJI["file"]    } {inv['file']}")
+            print()
+
+
+def validate_invite(client, invite_hash):
+    """
+    Validates an invite link by checking the invite info.
+    Uses CheckChatInviteRequest to validate the invite,
+    then attempts to retrieve the entity ID via get_entity.
+
+    Args:
+        client: TelegramClient instance
+        invite_hash: Invite hash to validate
+
+    Returns:
+        tuple: (is_valid, user_id or None, reason or None, message or None)
+    """
+    try:
+        # Check the invite (returns ChatInviteAlready, ChatInvite, or ChatInvitePeek)
+        result = client(CheckChatInviteRequest(hash=invite_hash))
+
+        # Invitation is valid - now try to get the entity ID
+        entity_id = None
+        message = None
+        try:
+            entity = client.get_entity(f'https://t.me/+{invite_hash}')
+            if hasattr(entity, 'id'):
+                entity_id = entity.id
+            else:
+                # Should never happen
+                print_debug(Exception("SHOULD NEVER HAVE HAPPENED"))
+        except ValueError as e:
+            message = str(e)
+        except Exception as e:
+            print_debug(e)
+            # Can't get entity, but invite is still valid
+            pass
+
+        # Determine reason based on result type
+        if isinstance(result, ChatInviteAlready):
+            reason = 'ALREADY_MEMBER'
+        elif isinstance(result, ChatInvite):
+            reason = 'VALID_PREVIEW'
+        elif isinstance(result, ChatInvitePeek):
+            reason = 'VALID_PEEK'
+        else:
+            reason = 'VALID_UNKNOWN_TYPE'
+
+        return True, entity_id, reason, message
+
+    except InviteHashExpiredError as e:
+        return False, None, 'EXPIRED', str(e)
+    except InviteHashInvalidError as e:
+        return False, None, 'INVALID', str(e)
+
+    except FloodWaitError as e:
+        # Handle flood wait with recursive retry
+        print(f"  {EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
+        time.sleep(e.seconds)
+        return validate_invite(client, invite_hash)
+
+    except Exception as e:
+        print_debug(e)
+        return False, None, 'ERROR', f'{type(e).__name__}: {str(e)}'
+
+
+def connect_to_telegram(user):
+    # Load phone number for user
+    session_dir = Path('.secret')
+    session_dir.mkdir(exist_ok=True)
+    mobile_file = session_dir / f'{user}.mobile'
+
+    if not mobile_file.exists():
+        print(f"{EMOJI["error"]} Mobile file not found: {mobile_file}")
+        print(f"  Create it with:")
+        print(f"    echo '+XXXXXXXXXXX' > {mobile_file}")
+        return
+
+    phone = mobile_file.read_text(encoding='utf-8').strip()
+
+    # Connect to Telegram
+    session_file = session_dir / user
+    print(f"{EMOJI["connecting"]} Connecting to Telegram (user: {user})...")
+    client = TelegramClient(str(session_file), API_ID, API_HASH)
+    client.start(phone=phone)
+    print(f"{EMOJI["success"]} Connected!\n")
+    return client
+
+
 def main():
     args = build_arg_parser().parse_args()
+
+    # Validate --no-skip usage
+    if args.no_skip and not args.get_invites:
+        print(f"{EMOJI['warning']} --no-skip can only be used with --get-invites")
+
+    if args.continuous and not args.get_invites:
+        print(f"{EMOJI['warning']} --continuous can only be used with --get-invites")
+
+    if args.tasks and not args.get_invites:
+        print(f"{EMOJI['warning']} --tasks can only be used with --get-invites")
 
     # Write to file?
     if args.out_file:
@@ -1107,35 +1267,105 @@ def main():
         print(f"🔎 Mode: DRY-RUN (no file modifications)")
     print()
 
-    # Load phone number for this user
-    session_dir = Path('.secret')
-    session_dir.mkdir(exist_ok=True)
-    mobile_file = session_dir / f'{args.user}.mobile'
+    # Handle --get-invites mode without connection if mode is 'all'
+    if args.get_invites == 'all':
+        invites_list = []
 
-    if not mobile_file.exists():
-        print(f"{EMOJI["error"]} Mobile file not found: {mobile_file}")
-        print(f"  Create it with:")
-        print(f"    echo '+XXXXXXXXXXX' > {mobile_file}")
+        for md_file in md_files:
+            try:
+                entity = TelegramEntity.from_file(md_file)
+
+                # Skip files with banned/unknown status unless --no-skip
+                if not args.no_skip:
+                    last_status, _, _ = get_last_status(entity)
+                    if last_status in ['banned', 'unknown']:
+                        continue
+
+                invites = entity.get_invites().active()
+
+                for invite in invites:
+                    invite_entry = {
+                        'file': md_file.name,
+                        'hash': invite.hash,
+                        'full_link': f'https://t.me/+{invite.hash}',
+                        'valid': None,
+                        'reason': None,
+                        'message': None
+                    }
+                    if args.continuous:
+                        print_invites([invite_entry], args.tasks)
+                    else:
+                        invites_list.append(invite_entry)
+
+            except Exception as e:
+                print_debug(e)
+                continue
+
+        # Print results and exit (no Telegram connection needed)
+        print_invites(invites_list, args.tasks)
         return
-
-    phone = mobile_file.read_text(encoding='utf-8').strip()
-
-    # Connect to Telegram
-    session_file = session_dir / args.user
-    print(f"{EMOJI["connecting"]} Connecting to Telegram (user: {args.user})...")
-    client = TelegramClient(str(session_file), API_ID, API_HASH)
-    client.start(phone=phone)
-    print(f"{EMOJI["success"]} Connected!")
 
     # Statistics
     stats = STATS_INIT.copy()
+
+    # Connect to Telegram
+    client = connect_to_telegram(args.user)
+
+    # Handle --get-invites valid mode (requires connection)
+    if args.get_invites == 'valid':
+        invites_list = []
+
+        for md_file in md_files:
+            try:
+                entity = TelegramEntity.from_file(md_file)
+
+                # Skip files with banned/unknown status unless --no-skip
+                if not args.no_skip:
+                    last_status, _, _ = get_last_status(entity)
+                    if last_status in ['banned', 'unknown']:
+                        continue
+
+                invites = entity.get_invites().active()
+
+                for invite in invites:
+                    # Build base invite entry
+                    invite_entry = {
+                        'file': md_file.name,
+                        'hash': invite.hash,
+                        'full_link': f'https://t.me/+{invite.hash}',
+                    }
+                    # Validate invite
+                    (
+                        invite_entry['valid'],
+                        invite_entry['user_id'],
+                        invite_entry['reason'],
+                        invite_entry['message']
+                    ) = validate_invite(client, invite.hash)
+
+                    time.sleep(SLEEP_BETWEEN_CHECKS)  # Rate limiting
+                    if args.continuous:
+                        print_invites([invite_entry], args.tasks)
+                    else:
+                        invites_list.append(invite_entry)
+
+            except Exception as e:
+                print_debug(e)
+                continue
+
+        # Print results
+        print_invites(invites_list, args.tasks)
+        client.disconnect()
+        return
+
+    # Connect to Telegram (needed for normal checks)
+    client = connect_to_telegram(args.user)
 
     # Store results for dry-run summary
     results = []
     status_changed_files = []
     no_status_block_results = []
-    recovered_ids = []  # Liste of {file, id, method, written}
-    discovered_usernames = []  # Liste of {file, old_username, new_username, status}
+    recovered_ids = []  # List of {file, id, method, written}
+    discovered_usernames = []  # List of {file, old_username, new_username, status}
 
     try:
         for md_file in md_files:
@@ -1296,12 +1526,13 @@ def main():
                 # Sleep between checks to avoid rate limiting
                 if md_file != md_files[-1]:
                     time.sleep(SLEEP_BETWEEN_CHECKS)
-            except FileNotFoundError as e:
+            except FileNotFoundError:
                 print("File not found.")
-            except TelegramMDMLError as e:
+            except TelegramMDMLError:
                 print("Parsing failed.")
             except Exception as e:
                 print("Failed to read MDML entity from file.")
+                print_debug(e)
     finally:
         # Always disconnect, even if there's an error
         client.disconnect()
