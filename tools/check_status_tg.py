@@ -753,7 +753,7 @@ def build_arg_parser():
         help="With --get-invites: print results continuously (default: print at the end of the process)"
     )
     parser.add_argument(
-        '--tasks',
+        '--md-tasks',
         action='store_true',
         help="With --get-invites: print results as markdown tasks"
     )
@@ -1209,8 +1209,8 @@ def main():
     if args.continuous and not args.get_invites:
         print(f"{EMOJI['warning']} --continuous can only be used with --get-invites")
 
-    if args.tasks and not args.get_invites:
-        print(f"{EMOJI['warning']} --tasks can only be used with --get-invites")
+    if args.md_tasks and not args.get_invites:
+        print(f"{EMOJI['warning']} --md-tasks can only be used with --get-invites")
 
     if args.valid_only and not args.get_invites:
         print(f"{EMOJI['warning']} --valid-only can only be used with --get-invites")
@@ -1301,7 +1301,7 @@ def main():
                         'message': "Not validated"
                     }
                     if args.continuous:
-                        print_invites([invite_entry], args.tasks, args.valid_only)
+                        print_invites([invite_entry], args.md_tasks, args.valid_only)
                     else:
                         invites_list.append(invite_entry)
 
@@ -1310,7 +1310,7 @@ def main():
                 continue
 
         # Print results and exit (no Telegram connection needed)
-        print_invites(invites_list, args.tasks, args.valid_only)
+        print_invites(invites_list, args.md_tasks, args.valid_only)
         return
 
     # Statistics
@@ -1352,7 +1352,7 @@ def main():
 
                     time.sleep(SLEEP_BETWEEN_CHECKS)  # Rate limiting
                     if args.continuous:
-                        print_invites([invite_entry], args.tasks, args.valid_only)
+                        print_invites([invite_entry], args.md_tasks, args.valid_only)
                     else:
                         invites_list.append(invite_entry)
 
@@ -1361,7 +1361,7 @@ def main():
                 continue
 
         # Print results
-        print_invites(invites_list, args.tasks, args.valid_only)
+        print_invites(invites_list, args.md_tasks, args.valid_only)
         client.disconnect()
         return
 
