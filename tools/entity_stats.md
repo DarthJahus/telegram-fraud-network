@@ -38,8 +38,6 @@ The `telegram_mdml` module is located in `telegram-fraud-network/tools/telegram_
 
 ## Usage
 
-### Basic Usage
-
 Analyze all entity files in a directory:
 
 ```bash
@@ -93,7 +91,7 @@ Breaks down statistics by entity type:
 - Bot
 - Unknown
 
-For each type, displays the count and distribution of unknown, deleted, and banned statuses.
+For each type, displays the count and distribution of unknown, deleted and banned statuses.
 
 ### 🏷️ Tag Analysis
 
@@ -157,9 +155,7 @@ Unknown   :  51 •   43 ❓  84.3% •    4 🔨   7.8%
 ```
 
 ## Notes
-
 ### Entity Status
-
 The script uses the **most recent status** from each entity's history. This is automatically determined by the `telegram_mdml` module, which:
 - Prioritizes statuses with dates (most recent first)
 - Falls back to the last status in document order if no dates are present
@@ -173,34 +169,24 @@ Valid statuses are:
 - `id_mismatch` - Entity ID doesn't match expected value
 
 ### Activity Tags
-
 Tags are extracted from the `activity` field in entity files. The field can contain:
 - **Array values**: Multiple tags in a list
 - **Single values**: One or more tags in text format
 
-Only tags starting with `#` are counted. Tags are case-sensitive.
+Only tags starting with `#` are counted.
 
 ### File Parsing
-
 If a file cannot be parsed (invalid MDML format, missing required fields, etc.), the script:
 - Prints a warning to stderr
 - Continues processing other files
 - Does not include the failed file in statistics
 
-### Empty Directories
-
-If no `.md` files are found in the specified directory, the script will:
-- Display a warning
-- Exit with an error message
-
 ## Integration with Telegram Fraud Network
-
 This tool is part of the [Telegram Fraud Network](https://github.com/DarthJahus/telegram-fraud-network/) project and is located in `tools/entity_stats.py`.
 
 The script works in conjunction with:
 - **telegram_mdml**: MDML parsing middleware (submodule in `tools/telegram_mdml/`)
-- **Entity documentation**: Markdown files documenting fraudulent Telegram entities
+- **Entity documentation**: Markdown files documenting fraudulent Telegram entities.
 
 ## License
-
 This tool is part of the Telegram Fraud Network project. See the main repository for license information.

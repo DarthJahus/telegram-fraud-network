@@ -50,14 +50,14 @@ def load_entries(directory_path):
                             tag = tag.strip()
                             if tag.startswith('#'):
                                 if len(tag) > 1:
-                                    tags.append(tag)
+                                    tags.append(tag.lower())
                     else:
                         # Single value?
                         tag = field_value.value.strip()
                         for _tag_s1 in tag.split():
                             if (_tag_s2:= _tag_s1.strip('`')).startswith('#'):
                                 if len(_tag_s2) > 1:
-                                    tags.append(_tag_s2)
+                                    tags.append(_tag_s2.lower())
 
             entries.append({
                 "name": md_file.name,
