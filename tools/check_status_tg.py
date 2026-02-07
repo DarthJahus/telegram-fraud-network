@@ -254,7 +254,7 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
     Args:
         client: TelegramClient instance
         identifier (str, optional): Username or invite hash (None if checking by ID only)
-        is_invite (bool): Whether the identifier is an invite link
+        is_invite (bool): Whether the identifier is an invitation link
         expected_id (int, optional): Expected entity ID for verification
 
     Returns:
@@ -283,7 +283,7 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
             return status, restriction_details, None, retrieved_username, 'id'
         # If ID fetch failed, continue to fallback methods below (if identifier provided)
 
-        # If no identifier to fallback to, return unknown
+        # If no identifier to fall back to, return unknown
         if identifier is None:
             return 'unknown', None, None, None, 'error'
 
@@ -937,7 +937,7 @@ def check_and_display(client, identifier, is_invite, expected_id, label, stats):
     return status, restriction_details, actual_id, actual_username, method_used
 
 
-def format_display_id(expected_id, identifiers, is_invite, method_used):
+def format_display_id(expected_id, identifiers, method_used):
     """
     Formats a display ID based on what method succeeded.
 
@@ -1031,12 +1031,12 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
         method_used = 'error'
 
     # Format display ID based on what succeeded
-    display_id = format_display_id(expected_id, identifiers, is_invite, method_used)
+    display_id = format_display_id(expected_id, identifiers, method_used)
 
     return status, restriction_details, actual_id, actual_username, method_used, display_id
 
 
-def process_and_update_file(md_file, status, restriction_details, actual_id, expected_id, last_status, has_status_block, should_ignore, is_dry_run):
+def process_and_update_file(md_file, status, restriction_details, actual_id, expected_id, last_status, should_ignore, is_dry_run):
     """
     Displays additional info, updates file if needed, and prepares result data.
 
@@ -1047,7 +1047,6 @@ def process_and_update_file(md_file, status, restriction_details, actual_id, exp
         actual_id: Actual entity ID (for id_mismatch)
         expected_id: Expected entity ID
         last_status: Previous status
-        has_status_block: Whether file has status block
         should_ignore: Whether to ignore this status
         is_dry_run: Whether in dry-run mode
 
@@ -1108,8 +1107,6 @@ def print_identifiers(identifiers_list, md_tasks=True, valid_only=False, clean=F
         md_check_list = '- [ ] '
 
     # Print results
-    if len(invites_list) > 1:
-        print(f"\n{EMOJI['invite']} Found {len(invites_list)} invite(s):\n")
     if len(identifiers_list) > 1:
         print(f"\n{EMOJI['invite']} Found {len(identifiers_list)} identifiers:\n")
 
@@ -1138,7 +1135,7 @@ def print_identifiers(identifiers_list, md_tasks=True, valid_only=False, clean=F
 
 def validate_invite(client, invite_hash):
     """
-    Validates an invite link by checking the invite info.
+    Validates an invitation link by checking the invite info.
     Uses CheckChatInviteRequest to validate the invite,
     then attempts to retrieve the entity ID via get_entity.
 
@@ -1242,14 +1239,15 @@ def connect_to_telegram(user):
     if not mobile_file.exists():
         print(f"{EMOJI["error"]} Mobile file not found: {mobile_file}")
         print(f"  Create it with:")
-        print(f"    echo '+XXXXXXXXXXX' > {mobile_file}")
+        print(f"    echo '+1234567890' > {mobile_file}")
         return
 
     phone = mobile_file.read_text(encoding='utf-8').strip()
 
     # Connect to Telegram
     session_file = session_dir / user
-    print(f"{EMOJI["connecting"]} Connecting to Telegram (user: {user})...")
+    print(f"{EMOJI["handle"]} User: {user}")
+    print(f"{EMOJI["connecting"]} Connecting to Telegram...")
     client = TelegramClient(str(session_file), API_ID, API_HASH)
     client.start(phone=phone)
     print(f"{EMOJI["success"]} Connected!\n")
@@ -1344,160 +1342,17 @@ def list_identifiers(client, md_files, args):
     # Print results and cleanup
     if not args.continuous:
         print_identifiers(identifiers_list, args.md_tasks, args.valid_only, args.clean)
-def main():
-    args = build_arg_parser().parse_args()
 
-    # Validate --no-skip usage
-    if args.no_skip and not args.get_invites:
-        print(f"{EMOJI['warning']} --no-skip can only be used with --get-invites")
 
-    if args.continuous and not args.get_invites:
-        print(f"{EMOJI['warning']} --continuous can only be used with --get-invites")
-
-    if args.md_tasks and not args.get_invites:
-        print(f"{EMOJI['warning']} --md-tasks can only be used with --get-invites")
-
-    if args.valid_only and not args.get_invites:
-        print(f"{EMOJI['warning']} --valid-only can only be used with --get-invites")
-
-    # Write to file?
-    if args.out_file:
-        if Path(args.out_file).exists():
-            print(f"\n{EMOJI['warning']} Output file already exists: {args.out_file}")
-            response = input("Overwrite? (y/n): ").strip().lower()
-            if response not in ['y', 'yes']:
-                print(f"{EMOJI['error']} Script cancelled by user.")
-                exit(1)
-        try:
-            global OUT_FILE
-            OUT_FILE = open(args.out_file, 'w', encoding='UTF-8')
-            print(f"{EMOJI['log']} Logging to: {args.out_file}")
-        except Exception as e:
-            OUT_FILE = None
-            print(f"{EMOJI["error"]} Output file {args.out_file} cannot be created/accessed:\n{e}")
-            exit(1)
-
-    # Parse skip-time if provided
-    skip_time_seconds = None
-    if args.skip_time:
-        try:
-            skip_time_seconds = parse_time_expression(args.skip_time)
-            hours = skip_time_seconds / 3600
-            print(f"{EMOJI["time"]} Skip time: {skip_time_seconds}s ({hours:.1f} hours)")
-        except ValueError as e:
-            print(f"{EMOJI["error"]} Error: {e}")
-            return
-
-    # Parse skip statuses
-    skip_statuses = args.skip if args.skip else None
-    if skip_statuses:
-        print(f"{EMOJI["skip"]} Skip statuses: {', '.join(skip_statuses)}")
-
-    # Parse ignore statuses
-    ignore_statuses = args.ignore if args.ignore else None
-    if ignore_statuses:
-        print(f"{EMOJI["ignored"]} Ignore statuses: {', '.join(ignore_statuses)}")
-
-    # Parse no-skip-unknown
-    if args.no_skip_unknown:
-        print(f"{EMOJI["info"]} {EMOJI["file"]} with {EMOJI["unknown"]} status will be checked")
-
-    # Find all .md files
-    path = Path(args.path)
-    if not path.exists():
-        print(f"{EMOJI["error"]} Path does not exist: {path}")
-        return
-
-    md_files = list(path.glob('*.md'))
-
-    if not md_files:
-        print(f"{EMOJI["error"]} No .md files found in {path}")
-        return
-
-    print(f"{EMOJI["folder"]} {len(md_files)} .md files found")
-    print(f"🔍 Filter: {args.type}")
-    if args.dry_run:
-        print(f"🔎 Mode: DRY-RUN (no file modifications)")
-    print()
-
-    # Connect to Telegram
-    client = None
-    if not (args.get_identifiers == 'all'):
-        client = connect_to_telegram(args.user)
-
-    # Handle --get-invites or --get-identifiers mode without connection if mode is 'all'
-    if args.get_identifiers:
-        list_identifiers(
-            client,
-            md_files,
-            args
-        )
-        if client:
-            client.disconnect()
-        return
-
+def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
     # Statistics
     stats = STATS_INIT.copy()
-
-    # Connect to Telegram
-    client = connect_to_telegram(args.user)
-
-    # Handle --get-invites valid mode (requires connection)
-    if args.get_invites == 'valid':
-        invites_list = []
-
-        for md_file in md_files:
-            try:
-                entity = TelegramEntity.from_file(md_file)
-
-                # Skip files with banned/unknown status unless --no-skip
-                if not args.no_skip:
-                    last_status, _, _ = get_last_status(entity)
-                    if last_status in ['banned', 'unknown']:
-                        continue
-
-                invites = entity.get_invites().active()
-
-                for invite in invites:
-                    # Build base invite entry
-                    invite_entry = {
-                        'file': md_file.name,
-                        'hash': invite.hash,
-                        'full_link': f'https://t.me/+{invite.hash}',
-                    }
-                    # Validate invite
-                    (
-                        invite_entry['valid'],
-                        invite_entry['user_id'],
-                        invite_entry['reason'],
-                        invite_entry['message']
-                    ) = validate_invite(client, invite.hash)
-
-                    time.sleep(SLEEP_BETWEEN_CHECKS)  # Rate limiting
-                    if args.continuous:
-                        print_invites([invite_entry], args.md_tasks, args.valid_only)
-                    else:
-                        invites_list.append(invite_entry)
-
-            except Exception as e:
-                print_debug(e)
-                continue
-
-        # Print results
-        print_invites(invites_list, args.md_tasks, args.valid_only)
-        client.disconnect()
-        return
-
-    # Connect to Telegram (needed for normal checks)
-    client = connect_to_telegram(args.user)
-
     # Store results for dry-run summary
     results = []
     status_changed_files = []
     no_status_block_results = []
     recovered_ids = []  # List of {file, id, method, written}
     discovered_usernames = []  # List of {file, old_username, new_username, status}
-
     try:
         for md_file in md_files:
             # parsing the file through MDML
@@ -1542,7 +1397,7 @@ def main():
                 last_status, last_datetime, has_status_block = get_last_status(entity)
 
                 # Check if we should skip based on last status
-                should_skip, skip_reason = should_skip_entity(entity, skip_time_seconds, skip_statuses, not args.no_skip_unknown)
+                should_skip, skip_reason = should_skip_entity(entity, skip_time_seconds, args.skip, not args.no_skip_unknown)
                 if should_skip:
                     print(f"  {EMOJI["skip"]} Skipped: ({skip_reason})")
                     stats['skipped'] += 1
@@ -1587,7 +1442,7 @@ def main():
 
                     # Cas 1 : Discovered username not in MDML
                     if not existing_username:
-                        print(f"  ✨ Username discovered: @{actual_username}")
+                        print(f"  {EMOJI['handle']} Username discovered: @{actual_username}")
                         discovered_usernames.append({
                             'file': md_file.name,
                             'old_username': None,
@@ -1627,7 +1482,7 @@ def main():
 
                 should_track_change, _ = process_and_update_file(
                     md_file, status, restriction_details, actual_id,
-                    expected_id, last_status, has_status_block,
+                    expected_id, last_status,
                     should_ignore, args.dry_run
                 )
 
@@ -1664,28 +1519,123 @@ def main():
             except Exception as e:
                 print("Failed to read MDML entity from file.")
                 print_debug(e)
+    except KeyboardInterrupt:
+        client.disconnect()
+        exit(0)
     finally:
         # Always disconnect, even if there's an error
         client.disconnect()
-
     # Final statistics
     print_stats(stats)
-
     # Dry-run summary
     if args.dry_run:
         print_dry_run_summary(results)
-
     if status_changed_files:
         print_status_changed_files(status_changed_files)
-
     if no_status_block_results:
         print_no_status_block(no_status_block_results)
-
     if recovered_ids:
         print_recovered_ids(recovered_ids)
-
     if discovered_usernames:
         print_discovered_usernames(discovered_usernames)
+
+
+def validate_args(args):
+    if args.no_skip and not (args.get_identifiers and args.invites_only):
+        print(f"{EMOJI['warning']} --no-skip can only be used with --get-identifiers --invites-only")
+    if args.continuous and not args.get_identifiers:
+        print(f"{EMOJI['warning']} --continuous can only be used with --get-identifiers")
+    if args.md_tasks and not args.get_identifiers:
+        print(f"{EMOJI['warning']} --md-tasks can only be used with --get-identifiers")
+    if args.valid_only and not args.get_identifiers:
+        print(f"{EMOJI['warning']} --valid-only can only be used with --get-identifiers")
+    if args.clean and not args.get_identifiers:
+        print(f"{EMOJI['warning']} --clean can only be used with --get-identifiers")
+    if args.include_users and not args.get_identifiers:
+        print(f"{EMOJI['warning']} --include-users can only be used with --get-identifiers")
+    # Write to file?
+    if args.out_file:
+        if Path(args.out_file).exists():
+            print(f"\n{EMOJI['warning']} Output file already exists: {args.out_file}")
+            response = input("Overwrite? (y/n): ").strip().lower()
+            if response not in ['y', 'yes']:
+                print(f"{EMOJI['error']} Script cancelled by user.")
+                exit(1)
+        try:
+            global OUT_FILE
+            OUT_FILE = open(args.out_file, 'w', encoding='UTF-8')
+            print(f"{EMOJI['log']} Logging to: {args.out_file}")
+        except Exception as e:
+            OUT_FILE = None
+            print(f"{EMOJI["error"]} Output file {args.out_file} cannot be created/accessed:\n{e}")
+            exit(1)
+
+
+def main():
+    args = build_arg_parser().parse_args()
+
+    # Validate args that only work with --get-identifiers
+    validate_args(args)
+
+    # Parse skip-time if provided
+    skip_time_seconds = None
+    if args.skip_time:
+        try:
+            skip_time_seconds = parse_time_expression(args.skip_time)
+            hours = skip_time_seconds / 3600
+            print(f"{EMOJI["time"]} Skip time: {skip_time_seconds}s ({hours:.1f} hours)")
+        except ValueError as e:
+            print(f"{EMOJI["error"]} Error: {e}")
+            return
+
+    # Parse skip statuses
+    if args.skip:
+        print(f"{EMOJI["skip"]} Skip statuses: {', '.join(args.skip)}")
+
+    # Parse ignore statuses
+    ignore_statuses = args.ignore if args.ignore else None
+    if ignore_statuses:
+        print(f"{EMOJI["ignored"]} Ignore statuses: {', '.join(ignore_statuses)}")
+
+    # Parse no-skip-unknown
+    if args.no_skip_unknown:
+        print(f"{EMOJI["info"]} {EMOJI["file"]} with {EMOJI["unknown"]} status will be checked")
+
+    # Find all .md files
+    path = Path(args.path)
+    if not path.exists():
+        print(f"{EMOJI["error"]} Path does not exist: {path}")
+        return
+
+    md_files = list(path.glob('*.md'))
+
+    if not md_files:
+        print(f"{EMOJI["error"]} No .md files found in {path}")
+        return
+
+    print(f"{EMOJI["folder"]} {len(md_files)} .md files found")
+    print(f"🔍 Filter: {args.type}")
+    if args.dry_run:
+        print(f"🔎 Mode: DRY-RUN (no file modifications)")
+    print()
+
+    # Connect to Telegram
+    client = None
+    if not (args.get_identifiers == 'all'):
+        client = connect_to_telegram(args.user)
+
+    # Handle --get-invites or --get-identifiers mode without connection if mode is 'all'
+    if args.get_identifiers:
+        list_identifiers(
+            client,
+            md_files,
+            args
+        )
+        if client:
+            client.disconnect()
+        return
+
+    full_check(client, args, ignore_statuses, md_files, skip_time_seconds)
 
     print(f"\n{EMOJI["info"]} Done!")
 
