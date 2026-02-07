@@ -736,13 +736,6 @@ def build_arg_parser():
         help="Write recovered IDs to markdown files (only for IDs recovered via invite links)"
     )
     parser.add_argument(
-        '--get-invites',
-        nargs='?',
-        const='all',
-        choices=['all', 'valid'],
-        help='Get list of invites (all = non-strikethrough, valid = tested with UserID)'
-    )
-    parser.add_argument(
         '--no-skip',
         action='store_true',
         help="With --get-invites: don't skip files with 'banned' or 'unknown' status (default: skip them)"
@@ -762,6 +755,29 @@ def build_arg_parser():
         action='store_true',
         help="With --get-invites: only print valid invites"
     )
+    parser.add_argument(
+        '--get-identifiers',
+        nargs='?',
+        const='all',
+        choices=['all', 'valid'],
+        help='List all identifiers (invites + valid handles) (all = non-strikethrough, valid = tested with UserID)'
+    )
+    parser.add_argument(
+        '--invites-only',
+        action='store_true',
+        help='When used with --get-identifiers, only show invites (skip handles)'
+    )
+    parser.add_argument(
+        '--clean',
+        action='store_true',
+        help='When used with --get-identifiers, only prints identifiers (no ID, no status)'
+    )
+    parser.add_argument(
+        '--include-users',
+        action='store_true',
+        help="When used with --get-identifiers, include entities whose type is 'user'"
+    )
+
     return parser
 
 
@@ -1083,35 +1099,41 @@ def process_and_update_file(md_file, status, restriction_details, actual_id, exp
     return should_track_change, was_updated
 
 
-def print_invites(invites_list, is_check_list=True, valid_only=False):
-    if not invites_list:
+def print_identifiers(identifiers_list, md_tasks=True, valid_only=False, clean=False):
+    if not identifiers_list:
         return
 
     md_check_list = ''
-    if is_check_list:
+    if md_tasks:
         md_check_list = '- [ ] '
 
     # Print results
     if len(invites_list) > 1:
         print(f"\n{EMOJI['invite']} Found {len(invites_list)} invite(s):\n")
+    if len(identifiers_list) > 1:
+        print(f"\n{EMOJI['invite']} Found {len(identifiers_list)} identifiers:\n")
 
-    for inv in invites_list:
-        if inv['valid'] is True:
-            print(f"{md_check_list}{EMOJI["active"]} {inv['full_link']}")
-            if inv['user_id']:
-                print(f"  {EMOJI["id"]      } {inv['user_id']}")
-            print(f"  {EMOJI["file"]    } {inv['file']}")
-            print()
-        elif inv['valid'] is False and not valid_only:
-            print(f"{md_check_list}{EMOJI["no_emoji"]} {inv['full_link']}")
-            print(f"  {EMOJI["file"]    } {inv['file']}")
-            print(f"  {EMOJI["text"]    } {inv['reason']}")
-            print(f"  {EMOJI["text"]    } {inv['message']}")
-            print()
-        else:  # valid is None, because we haven't checked for validity
-            print(f"{md_check_list}{inv['full_link']}")
-            print(f"  {EMOJI["file"]    } {inv['file']}")
-            print()
+    for ident in identifiers_list:
+        type_indicator = ' ' + (EMOJI['invite'] if "+" in ident['full_link'] else EMOJI['handle'])
+        if ident['valid'] is True:
+            print(f"{md_check_list}{EMOJI["active"]}{type_indicator} {ident['full_link']}")
+            if not clean:
+                if ident['user_id']:
+                    print(f"  {EMOJI["id"]      } {ident['user_id']}")
+                print(f"  {EMOJI["file"]    } {ident['file']}")
+                print()
+        elif ident['valid'] is False and not valid_only:
+            print(f"{md_check_list}{EMOJI["no_emoji"]}{type_indicator} {ident['full_link']}")
+            if not clean:
+                print(f"  {EMOJI["file"]    } {ident['file']}")
+                print(f"  {EMOJI["text"]    } {ident['reason']}")
+                print(f"  {EMOJI["text"]    } {ident['message']}")
+                print()
+        elif ident['valid'] is None:  # valid is None, because we haven't checked for validity
+            print(f"{md_check_list}{type_indicator} {ident['full_link']}")
+            if not clean:
+                print(f"  {EMOJI["file"]    } {ident['file']}")
+                print()
 
 
 def validate_invite(client, invite_hash):
@@ -1176,6 +1198,41 @@ def validate_invite(client, invite_hash):
         return False, None, 'ERROR', f'{type(e).__name__}: {str(e)}'
 
 
+def validate_handle(client, username):
+    """
+    Validates if a Telegram handle (@username) is valid and leads somewhere.
+
+    Args:
+        client: TelegramClient instance
+        username: Username without @ (e.g., 'example_channel')
+
+    Returns:
+        tuple: (is_valid, reason, message)
+            - is_valid: True if handle is accessible
+            - reason: 'valid', 'invalid', 'not_occupied', 'private', or 'error'
+            - message: Descriptive message or None
+    """
+    try:
+        entity = client.get_entity(username)
+        # If we get here, the handle is valid and accessible
+        return True, entity.id, 'valid', None
+    except UsernameNotOccupiedError:
+        return False, None, 'not_occupied', 'Username not occupied'
+    except UsernameInvalidError:
+        return False, None, 'invalid', 'Invalid username format'
+    except ChannelPrivateError:
+        # Handle exists but is private/requires membership
+        return True, None, 'private', 'Channel/group is private'
+    except FloodWaitError as e:
+        # Handle flood wait with recursive retry
+        print(f"  {EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
+        time.sleep(e.seconds)
+        return validate_handle(client, username)
+    except Exception as e:
+        print_debug(e)
+        return False, None, 'ERROR', f'{type(e).__name__}: {str(e)}'
+
+
 def connect_to_telegram(user):
     # Load phone number for user
     session_dir = Path('.secret')
@@ -1199,6 +1256,94 @@ def connect_to_telegram(user):
     return client
 
 
+def list_identifiers(client, md_files, args):
+    identifiers_list = []
+    for md_file in md_files:
+        try:
+            entity = TelegramEntity.from_file(md_file)
+
+            # Skip files with type = 'user'
+            if not args.include_users:
+                try:
+                    if entity.get_type() == 'user':
+                        continue
+                except MissingFieldError:
+                    # No type detected
+                    # Process as if not user
+                    pass
+
+            # Skip files with banned/unknown status unless --no-skip
+            if not args.no_skip:
+                last_status, _, _ = get_last_status(entity)
+                if last_status in ['banned', 'unknown']:
+                    continue
+
+            # Get invites
+            invites = entity.get_invites().active()
+
+            for invite in invites:
+                invite_entry = {
+                    'file': md_file.name,
+                    'short': invite.hash,
+                    'full_link': f'https://t.me/+{invite.hash}',
+                }
+
+                # Validate if in 'valid' mode
+                if args.get_identifiers == 'valid':
+                    (
+                        invite_entry['valid'],
+                        invite_entry['user_id'],
+                        invite_entry['reason'],
+                        invite_entry['message']
+                    ) = validate_invite(client, invite.hash)
+                    time.sleep(SLEEP_BETWEEN_CHECKS)  # Rate limiting
+                else:
+                    # 'all' mode - no validation
+                    invite_entry['valid'] = None
+                    invite_entry['reason'] = None
+                    invite_entry['message'] = "Not validated"
+
+                if args.continuous:
+                    print_identifiers([invite_entry], args.md_tasks, args.valid_only, args.clean)
+                else:
+                    identifiers_list.append(invite_entry)
+
+            # Add usernames if not --invites-only
+            if not args.invites_only:
+                usernames = entity.get_usernames().active()
+                for username in usernames:
+                    username_entry = {
+                        'file': md_file.name,
+                        'short': '@' + username.value,
+                        'full_link': f'https://t.me/{username.value}',
+                    }
+
+                    # Validate if in 'valid' mode
+                    if args.get_identifiers == 'valid':
+                        (
+                            username_entry['valid'],
+                            username_entry['user_id'],
+                            username_entry['reason'],
+                            username_entry['message']
+                        ) = validate_handle(client, username.value)
+                        time.sleep(SLEEP_BETWEEN_CHECKS)
+                    else:
+                        username_entry['valid'] = None
+                        username_entry['reason'] = None
+                        username_entry['message'] = "Not validated"
+
+                    if args.continuous:
+                        print_identifiers([username_entry], args.md_tasks, args.valid_only, args.clean)
+                    else:
+                        identifiers_list.append(username_entry)
+
+        except Exception as e:
+            print_debug(e)
+            continue
+
+    # Print results and cleanup
+    if not args.continuous:
+        print_identifiers(identifiers_list, args.md_tasks, args.valid_only, args.clean)
 def main():
     args = build_arg_parser().parse_args()
 
@@ -1275,42 +1420,20 @@ def main():
         print(f"🔎 Mode: DRY-RUN (no file modifications)")
     print()
 
-    # Handle --get-invites mode without connection if mode is 'all'
-    if args.get_invites == 'all':
-        invites_list = []
+    # Connect to Telegram
+    client = None
+    if not (args.get_identifiers == 'all'):
+        client = connect_to_telegram(args.user)
 
-        for md_file in md_files:
-            try:
-                entity = TelegramEntity.from_file(md_file)
-
-                # Skip files with banned/unknown status unless --no-skip
-                if not args.no_skip:
-                    last_status, _, _ = get_last_status(entity)
-                    if last_status in ['banned', 'unknown']:
-                        continue
-
-                invites = entity.get_invites().active()
-
-                for invite in invites:
-                    invite_entry = {
-                        'file': md_file.name,
-                        'hash': invite.hash,
-                        'full_link': f'https://t.me/+{invite.hash}',
-                        'valid': None,
-                        'reason': None,
-                        'message': "Not validated"
-                    }
-                    if args.continuous:
-                        print_invites([invite_entry], args.md_tasks, args.valid_only)
-                    else:
-                        invites_list.append(invite_entry)
-
-            except Exception as e:
-                print_debug(e)
-                continue
-
-        # Print results and exit (no Telegram connection needed)
-        print_invites(invites_list, args.md_tasks, args.valid_only)
+    # Handle --get-invites or --get-identifiers mode without connection if mode is 'all'
+    if args.get_identifiers:
+        list_identifiers(
+            client,
+            md_files,
+            args
+        )
+        if client:
+            client.disconnect()
         return
 
     # Statistics
