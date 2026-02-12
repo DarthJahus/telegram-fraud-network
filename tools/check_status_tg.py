@@ -1213,6 +1213,8 @@ def validate_handle(client, username):
         entity = client.get_entity(username)
         # If we get here, the handle is valid and accessible
         return True, entity.id, 'valid', None
+    except ValueError as e:
+        return False, None, 'NO_USER', str(e)
     except UsernameNotOccupiedError:
         return False, None, 'not_occupied', 'Username not occupied'
     except UsernameInvalidError:
@@ -1260,20 +1262,24 @@ def list_identifiers(client, md_files, args):
         try:
             entity = TelegramEntity.from_file(md_file)
 
-            # Skip files with type = 'user'
+            # Skip files with type = 'user' or 'bot'
             if not args.include_users:
                 try:
-                    if entity.get_type() == 'user':
+                    if entity.get_type() in ('user', 'bot'):
                         continue
                 except MissingFieldError:
                     # No type detected
                     # Process as if not user
                     pass
+                except InvalidTypeError:
+                    # Probably 'website' or placeholder
+                    # Skip
+                    continue
 
             # Skip files with banned/unknown status unless --no-skip
             if not args.no_skip:
                 last_status, _, _ = get_last_status(entity)
-                if last_status in ['banned', 'unknown']:
+                if last_status in ['banned', 'unknown', 'deleted']:
                     continue
 
             # Get invites
