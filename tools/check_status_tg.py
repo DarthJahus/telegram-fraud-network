@@ -12,6 +12,8 @@ ToDo: Can we consider using more than 1 account at the same time,
       and check with every account before settling on a status?
       Should reveal helpful for groups where one account has been accepted,
       and that others can't access.
+ToDo: For --get-identifiers, add:
+      --only-tags tag1,tag2,...
 """
 
 import argparse
@@ -76,7 +78,7 @@ REGEX_NEXT_FIELD = re.compile(pattern=r'^[a-z_]+:\s', flags=re.MULTILINE)
 # Variables & other constants
 # ============================================
 
-UI_HORIZONTAL_LINE = f"\n{60 * "-"}\n"
+UI_HORIZONTAL_LINE = f"\n{60 * "•"}\n"
 
 EMOJI = {
     'active':      "🔥",
@@ -170,10 +172,10 @@ def print(*args, **kwargs):
 def print_debug(e: Exception):
     if not DEBUG:
         return
-    print('---DEBUG---')
+    print('\n•••DEBUG•••')
     print(f'{type(e).__name__}')
     print(f'{str(e)}')
-    print('-----------')
+    print('•••••••••••\n')
 
 
 # ============================================
@@ -1186,7 +1188,7 @@ def validate_invite(client, invite_hash):
 
     except FloodWaitError as e:
         # Handle flood wait with recursive retry
-        print(f"  {EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
+        print(f"{EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
         time.sleep(e.seconds)
         return validate_invite(client, invite_hash)
 
