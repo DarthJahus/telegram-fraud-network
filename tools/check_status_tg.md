@@ -382,8 +382,9 @@ The script updates markdown files in place, preserving the manual documentation 
 - The script handles `FloodWaitError` automatically
 
 ## ToDo
-- [ ] Add `--list-invites` to list valid/usage invites
+- [x] Add `--list-invites` to list valid/usage invites
 - [ ] Consider using more than 1 account at the same time, and check with every account before settling on a status (helpful for groups where one account has been accepted, and that others can't access)
+- [ ] For --get-identifiers, add: `--only-tags tag1,tag2,...`
 
 ## License
 
