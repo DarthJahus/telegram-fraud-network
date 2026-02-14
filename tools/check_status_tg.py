@@ -173,8 +173,8 @@ def print_debug(e: Exception):
     if not DEBUG:
         return
     print('\n•••DEBUG•••')
-    print(f'{type(e).__name__}')
-    print(f'{str(e)}')
+    print(f'• {type(e).__name__}')
+    print('• ' + '\n• '.join(str(e).split('\n')))
     print('•••••••••••\n')
 
 
@@ -186,6 +186,7 @@ def copy_to_clipboard(text):
         print_debug(e)
         print(f"{EMOJI['warning']} Could not copy to clipboard: {e}")
         print(f"{EMOJI['info']} On Linux, install: xclip or xsel")
+
 
 # ============================================
 # ENTITY STATUS CHECKING
@@ -1756,10 +1757,13 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
 
         return info
 
+    except ValueError as e:
+        print(f"{EMOJI['error']} Invalid ID.")
+        return
     except Exception as e:
         print(f"{EMOJI['error']} Error retrieving entity: {e}")
         print_debug(e)
-        return None
+        return
 
 
 def format_entity_mdml(info):
@@ -2029,7 +2033,7 @@ def get_entity_info(client, by_id=None, by_username=None, by_invite=None):
             mdml = format_entity_mdml(info)
             return mdml
         else:
-            print(f"{EMOJI['error']} Failed to fetch entity information")
+            print(f"{EMOJI['error']} Failed to fetch entity information.")
     except Exception as e:
         print(f"{EMOJI['error']} Error generating MDML: {e}")
         print_debug(e)
@@ -2100,6 +2104,8 @@ def main():
                 by_username=args.by_username,
                 by_invite=args.by_invite
             )
+            if not entity_info:
+                return
             print(entity_info)
             if args.copy:
                 copy_to_clipboard(entity_info)
