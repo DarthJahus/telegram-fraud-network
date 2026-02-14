@@ -178,6 +178,15 @@ def print_debug(e: Exception):
     print('•••••••••••\n')
 
 
+def copy_to_clipboard(text):
+    try:
+        import pyperclip
+        pyperclip.copy(text)
+    except Exception as e:
+        print_debug(e)
+        print(f"{EMOJI['warning']} Could not copy to clipboard: {e}")
+        print(f"{EMOJI['info']} On Linux, install: xclip or xsel")
+
 # ============================================
 # ENTITY STATUS CHECKING
 # ============================================
@@ -798,6 +807,11 @@ def build_arg_parser():
         type=str,
         metavar='HASH',
         help='Invite hash to retrieve information for (use with --get-info)'
+    )
+    parser.add_argument(
+        '--copy',
+        action='store_true',
+        help='Copy --get-info MDML result to clipboard.'
     )
 
     return parser
@@ -2021,8 +2035,8 @@ def validate_args(args):
         elif selectors > 1:
             print(f"{EMOJI['error']} --get-info can only use one selector at a time")
             exit(1)
-    if any([args.by_id, args.by_username, args.by_invite]) and not args.get_info:
-        print(f"{EMOJI['warning']} --by-id, --by-username, and --by-invite require --get-info")
+    if any([args.by_id, args.by_username, args.by_invite, args.copy]) and not args.get_info:
+        print(f"{EMOJI['warning']} --by-id, --by-username, --by-invite and --copy require --get-info")
     if not args.path and not args.get_info:
         print(f"{EMOJI['error']} The following arguments are required: --path")
         exit(2)
@@ -2057,14 +2071,16 @@ def main():
         if not client:
             return
         try:
-            print(
-                get_entity_info(
-                    client,
-                    by_id=args.by_id,
-                    by_username=args.by_username,
-                    by_invite=args.by_invite
-                )
+            entity_info = get_entity_info(
+                client,
+                by_id=args.by_id,
+                by_username=args.by_username,
+                by_invite=args.by_invite
             )
+            print(entity_info)
+            if args.copy:
+                copy_to_clipboard(entity_info)
+                print(f"{EMOJI['reason']} Copied to clipboard!")
         finally:
             client.disconnect()
         return
