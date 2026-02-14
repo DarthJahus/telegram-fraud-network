@@ -596,7 +596,6 @@ def print_dry_run_summary(results):
 
     print("\n" + UI_HORIZONTAL_LINE)
     print(f"{EMOJI["dry-run"]} DRY-RUN SUMMARY - Changes to apply:")
-    print(UI_HORIZONTAL_LINE)
 
     # Group by status
     for status_type in ['active', 'banned', 'deleted', 'unknown']:
@@ -622,7 +621,6 @@ def print_dry_run_summary(results):
         for r in errors:
             print(f"  • {r['file']}: {r['identifier']} → {r['status']}")
 
-    print("\n" + UI_HORIZONTAL_LINE)
     print(f"{EMOJI["info"]} To apply these changes, run again without --dry-run")
     print(UI_HORIZONTAL_LINE)
 
@@ -786,7 +784,6 @@ def build_arg_parser():
 def print_stats(stats):
     print("\n" + UI_HORIZONTAL_LINE)
     print(f"{EMOJI["stats"]} RESULTS")
-    print(UI_HORIZONTAL_LINE)
     print(f"Total checked:  {stats['total']}")
     print(f"{EMOJI.get("active")     } Active:      {stats['active']     }")
     print(f"{EMOJI.get("banned")     } Banned:      {stats['banned']     }")
@@ -820,9 +817,8 @@ def print_stats(stats):
 
 
 def print_no_status_block(no_status_block_results):
-    print("\n" + "!" * 60)
-    print(f"{EMOJI["warning"]} FILES WITHOUT 'status:' BLOCK (STATUS DETECTED)")
     print(UI_HORIZONTAL_LINE)
+    print(f"{EMOJI["warning"]} FILES WITHOUT 'status:' BLOCK (STATUS DETECTED)")
     for item in no_status_block_results:
         print(f"• \\[[{item['file']}\\]] → {item['emoji']} {item['status']}")
     print(UI_HORIZONTAL_LINE)
@@ -831,7 +827,6 @@ def print_no_status_block(no_status_block_results):
 def print_status_changed_files(status_changed_files):
     print("\n" + "!" * 60)
     print(f"{EMOJI["change"]} FILES WITH STATUS CHANGE (RENAME IN OBSIDIAN)")
-    print(UI_HORIZONTAL_LINE)
     for item in status_changed_files:
         print(f"• \\[[{item['file']}\\]] : {item['old']} → {item['new']}")
     print(UI_HORIZONTAL_LINE)
@@ -849,7 +844,6 @@ def print_recovered_ids(recovered_ids):
 
     print("\n" + UI_HORIZONTAL_LINE)
     print(f"{EMOJI['id']} RECOVERED IDs ({len(recovered_ids)})")
-    print(UI_HORIZONTAL_LINE)
 
     # Group by method
     by_invite = [r for r in recovered_ids if r['method'] == 'invite']
@@ -875,7 +869,6 @@ def print_recovered_ids(recovered_ids):
         print(f"\n  ⚠️  These IDs were recovered via username.")
         print(f"     Verify manually before adding them to files!")
 
-    print(UI_HORIZONTAL_LINE)
     if by_invite:
         print(f"{EMOJI['info']} IDs recovered via invite are reliable and permanent.")
         print(f"{EMOJI['info']} Use them for faster future checks.")
@@ -894,7 +887,6 @@ def print_discovered_usernames(discovered_usernames):
 
     print("\n" + UI_HORIZONTAL_LINE)
     print(f"{EMOJI['handle']} DISCOVERED/CHANGED USERNAMES ({len(discovered_usernames)})")
-    print(UI_HORIZONTAL_LINE)
 
     # Group by status
     discovered = [u for u in discovered_usernames if u['status'] == 'discovered']
@@ -912,7 +904,6 @@ def print_discovered_usernames(discovered_usernames):
             print(f"  • \\[[{item['file']}\\]] : @{item['old_username']} → @{item['new_username']}")
         print(f"\n  ⚠️  {len(changed)} username(s) changed")
 
-    print(UI_HORIZONTAL_LINE)
     print(f"{EMOJI['warning']} Usernames can change frequently - verify before updating files!")
     print(f"{EMOJI['info']} Consider manually updating the markdown files with new usernames.")
     print(UI_HORIZONTAL_LINE)
