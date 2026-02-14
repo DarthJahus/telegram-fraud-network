@@ -689,7 +689,6 @@ def build_arg_parser():
     )
     parser.add_argument(
         '--path',
-        required=True,
         help='Path to directory containing .md files'
     )
     parser.add_argument(
@@ -776,6 +775,29 @@ def build_arg_parser():
         '--include-users',
         action='store_true',
         help="When used with --get-identifiers, include entities whose type is 'user'"
+    )
+    parser.add_argument(
+        '--get-info',
+        action='store_true',
+        help='Get full information about a Telegram entity and output as MDML'
+    )
+    parser.add_argument(
+        '--by-id',
+        type=int,
+        metavar='ID',
+        help='Entity ID to retrieve information for (use with --get-info)'
+    )
+    parser.add_argument(
+        '--by-username',
+        type=str,
+        metavar='USERNAME',
+        help='Username to retrieve information for (use with --get-info, without @)'
+    )
+    parser.add_argument(
+        '--by-invite',
+        type=str,
+        metavar='HASH',
+        help='Invite hash to retrieve information for (use with --get-info)'
     )
 
     return parser
@@ -1539,6 +1561,444 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
         print_discovered_usernames(discovered_usernames)
 
 
+def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
+    """
+    Fetches comprehensive information about a Telegram entity.
+
+    Args:
+        client: TelegramClient instance
+        by_id: Entity ID (int)
+        by_username: Username (str, without @)
+        by_invite: Invite hash (str)
+
+    Returns:
+        dict: Entity information or None on error
+    """
+    from telethon.tl.functions.channels import GetFullChannelRequest, GetParticipantsRequest
+    from telethon.tl.functions.users import GetFullUserRequest
+    from telethon.tl.types import (
+        Channel, User, Chat, PeerChannel, PeerUser, PeerChat,
+        ChannelParticipantsAdmins, ChannelParticipantCreator
+    )
+
+    # Determine which method to use
+    entity = None
+    try:
+        if by_id:
+            print(f"{EMOJI['id']} Fetching entity by ID: {by_id}...", file=__import__('sys').stderr)
+            # Try different peer types
+            try:
+                entity = client.get_entity(PeerChannel(by_id))
+            except:
+                try:
+                    entity = client.get_entity(PeerUser(by_id))
+                except:
+                    try:
+                        entity = client.get_entity(PeerChat(by_id))
+                    except:
+                        entity = client.get_entity(by_id)
+
+        elif by_username:
+            print(f"{EMOJI['handle']} Fetching entity by username: @{by_username}...", file=__import__('sys').stderr)
+            entity = client.get_entity(by_username)
+
+        elif by_invite:
+            print(f"{EMOJI['invite']} Fetching entity by invite: +{by_invite}...", file=__import__('sys').stderr)
+            entity = client.get_entity(f'https://t.me/+{by_invite}')
+
+        else:
+            print(f"{EMOJI['error']} No identifier provided", file=__import__('sys').stderr)
+            return None
+
+        if not entity:
+            print(f"{EMOJI['error']} Could not retrieve entity", file=__import__('sys').stderr)
+            return None
+
+        print(f"{EMOJI['success']} Entity retrieved!\n", file=__import__('sys').stderr)
+
+        # Get full entity information
+        full = None
+        if isinstance(entity, Channel):
+            full = client(GetFullChannelRequest(entity))
+        elif isinstance(entity, User):
+            full = client(GetFullUserRequest(entity))
+
+        # Determine entity type
+        entity_type = None
+        if isinstance(entity, User):
+            entity_type = 'bot' if entity.bot else 'user'
+        elif isinstance(entity, Channel):
+            if entity.megagroup:
+                entity_type = 'group'
+            elif entity.broadcast:
+                entity_type = 'channel'
+            else:
+                entity_type = 'group'
+        elif isinstance(entity, Chat):
+            entity_type = 'group'
+
+        # Build info dict
+        info = {
+            'entity': entity,
+            'full': full,
+            'type': entity_type,
+            'id': entity.id,
+            'by_invite': by_invite
+        }
+
+        # Username
+        if hasattr(entity, 'username') and entity.username:
+            info['username'] = entity.username
+
+        # Name
+        if isinstance(entity, User):
+            parts = []
+            if entity.first_name:
+                parts.append(entity.first_name)
+            if entity.last_name:
+                parts.append(entity.last_name)
+            info['name'] = ' '.join(parts) if parts else None
+        elif isinstance(entity, (Channel, Chat)):
+            info['name'] = entity.title
+
+        # Bio
+        if full:
+            bio_text = None
+            if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'about'):
+                bio_text = full.full_chat.about
+            elif hasattr(full, 'full_user') and hasattr(full.full_user, 'about'):
+                bio_text = full.full_user.about
+
+            # Only add bio if it exists and is not empty/whitespace
+            if bio_text and bio_text.strip():
+                info['bio'] = bio_text.strip()
+
+        # Mobile (phone)
+        if isinstance(entity, User) and hasattr(entity, 'phone') and entity.phone:
+            info['mobile'] = entity.phone
+
+        # Created date and first message
+        if isinstance(entity, Channel):
+            try:
+                messages = client.get_messages(entity, limit=1, reverse=True)
+                if messages:
+                    first_msg = messages[0]
+                    info['created_date'] = first_msg.date.strftime('%Y-%m-%d')
+                    info['created_msg_id'] = first_msg.id
+            except:
+                pass
+
+        # Linked channel/discussion
+        # Linked channel/discussion
+        if isinstance(entity, Channel) and full:
+            if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'linked_chat_id'):
+                if full.full_chat.linked_chat_id:
+                    info['linked_chat_id'] = full.full_chat.linked_chat_id
+
+        # Members/Subscribers count
+        if full:
+            if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'participants_count'):
+                info['count'] = full.full_chat.participants_count
+
+        # Owner and admins
+        try:
+            if isinstance(entity, Channel):
+                admins_result = client(GetParticipantsRequest(
+                    channel=entity,
+                    filter=ChannelParticipantsAdmins(),
+                    offset=0,
+                    limit=100,
+                    hash=0
+                ))
+
+                if admins_result.participants:
+                    owner = None
+                    admins = []
+
+                    for participant in admins_result.participants:
+                        if isinstance(participant, ChannelParticipantCreator):
+                            owner = participant.user_id
+                        else:
+                            if hasattr(participant, 'user_id'):
+                                admins.append(participant.user_id)
+
+                    if owner:
+                        info['owner'] = owner
+                    if admins:
+                        info['admins'] = admins
+        except:
+            pass
+
+        return info
+
+    except Exception as e:
+        print(f"{EMOJI['error']} Error retrieving entity: {e}", file=__import__('sys').stderr)
+        print_debug(e)
+        return None
+
+
+def format_entity_mdml(info):
+    """
+    Formats entity information as MDML using the MDML library.
+
+    Args:
+        info: dict returned by fetch_entity_info()
+
+    Returns:
+        str: MDML formatted text
+    """
+    from mdml.models import Document, Field, FieldValue
+    from telethon.tl.types import Channel, Chat, User
+
+    if not info:
+        return ""
+
+    now = get_date_time()
+    now_date, now_time = now.split(' ')
+
+    # Create Document with frontmatter
+    doc = Document(raw_content='')
+    if info.get('type'):
+        doc.frontmatter['type'] = info['type']
+
+    # ID
+    doc.fields['id'] = Field(
+        name='id',
+        is_list=False,
+        values=[FieldValue(value=str(info['id']))],
+        raw_content=''
+    )
+
+    # Status
+    doc.fields['status'] = Field(
+        name='status',
+        is_list=True,
+        values=[FieldValue(value='active', date=now_date, time=now_time)],
+        raw_content=''
+    )
+
+    # Discovered
+    doc.fields['discovered'] = Field(
+        name='discovered',
+        is_list=False,
+        values=[FieldValue(value=now)],
+        raw_content=''
+    )
+
+    # Username
+    if info.get('username'):
+        doc.fields['username'] = Field(
+            name='username',
+            is_list=False,
+            values=[FieldValue(
+                value=f"@{info['username']}",
+                link_url=f"https://t.me/{info['username']}"
+            )],
+            raw_content=''
+        )
+
+    # Name
+    if info.get('name'):
+        doc.fields['name'] = Field(
+            name='name',
+            is_list=False,
+            values=[FieldValue(value=info['name'])],
+            raw_content=''
+        )
+
+    # Bio
+    if info.get('bio'):
+        lines = [line.strip() for line in info['bio'].split('\n') if line.strip()]
+        if lines:
+            doc.fields['bio'] = Field(
+                name='bio',
+                is_list=False,
+                values=[FieldValue(
+                    value='',
+                    is_array=True,
+                    array_values=lines
+                )],
+                raw_content=''
+            )
+
+    # Mobile
+    if info.get('mobile'):
+        doc.fields['mobile'] = Field(
+            name='mobile',
+            is_list=False,
+            values=[FieldValue(value=info['mobile'])],
+            raw_content=''
+        )
+
+    # Activity (empty list)
+    doc.fields['activity'] = Field(
+        name='activity',
+        is_list=False,
+        values=[],
+        raw_content=''
+    )
+
+    # Invite
+    if info.get('by_invite'):
+        doc.fields['invite'] = Field(
+            name='invite',
+            is_list=False,
+            values=[FieldValue(value=f"https://t.me/+{info['by_invite']}")],
+            raw_content=''
+        )
+
+    # Only for channels/groups, not users
+    entity = info.get('entity')
+    if not isinstance(entity, User):
+        # Joined (empty list)
+        doc.fields['joined'] = Field(
+            name='joined',
+            is_list=True,
+            values=[],
+            raw_content=''
+        )
+
+        # Created
+        if info.get('created_date'):
+            entity_id = info['id']
+            msg_id = info.get('created_msg_id', 1)
+            created_link = f"https://t.me/c/{entity_id}/{msg_id}"
+
+            if msg_id == 1:
+                doc.fields['created'] = Field(
+                    name='created',
+                    is_list=False,
+                    values=[FieldValue(
+                        value=info['created_date'],
+                        link_url=created_link
+                    )],
+                    raw_content=''
+                )
+            else:
+                doc.fields['created'] = Field(
+                    name='created',
+                    is_list=False,
+                    values=[FieldValue(
+                        value=f"before {info['created_date']}",
+                        is_raw=True,
+                        link_url=created_link
+                    )],
+                    raw_content=''
+                )
+        else:
+            doc.fields['created'] = Field(
+                name='created',
+                is_list=True,
+                values=[],
+                raw_content=''
+            )
+
+    # Linked channel (for supergroups)
+    if isinstance(entity, Channel) and entity.megagroup:
+        if info.get('linked_chat_id'):
+            doc.fields['linked channel'] = Field(
+                name='linked channel',
+                is_list=False,
+                values=[FieldValue(
+                    value=f"tg_{info['linked_chat_id']}",
+                    is_wiki_link=True,
+                    wiki_link=f"tg_{info['linked_chat_id']}"
+                )],
+                raw_content=''
+            )
+
+    # Members/Subscribers
+    if info.get('count'):
+        if isinstance(entity, Channel):
+            if entity.megagroup:
+                count_field = "members"
+            elif entity.broadcast:
+                count_field = "subscribers"
+            else:
+                count_field = "members"
+        elif isinstance(entity, Chat):
+            count_field = "members"
+        else:
+            count_field = None
+
+        if count_field:
+            doc.fields[count_field] = Field(
+                name=count_field,
+                is_list=True,
+                values=[FieldValue(
+                    value=str(info['count']),
+                    date=now_date,
+                    time=now_time
+                )],
+                raw_content=''
+            )
+
+    # Discussion (for channels)
+    if isinstance(entity, Channel) and entity.broadcast:
+        if info.get('linked_chat_id'):
+            doc.fields['discussion'] = Field(
+                name='discussion',
+                is_list=False,
+                values=[FieldValue(
+                    value=f"tg_{info['linked_chat_id']}",
+                    is_wiki_link=True,
+                    wiki_link=f"tg_{info['linked_chat_id']}"
+                )],
+                raw_content=''
+            )
+
+    # Owner
+    if info.get('owner'):
+        doc.fields['owner'] = Field(
+            name='owner',
+            is_list=False,
+            values=[FieldValue(
+                value=f"tg_{info['owner']}",
+                is_wiki_link=True,
+                wiki_link=f"tg_{info['owner']}"
+            )],
+            raw_content=''
+        )
+
+    # Admins - Liste MDML avec wikilinks
+    if info.get('admins'):
+        admin_values = []
+        for uid in info['admins']:
+            admin_values.append(FieldValue(
+                value=f"tg_{uid}",
+                is_wiki_link=True,
+                wiki_link=f"tg_{uid}"
+            ))
+
+        doc.fields['admins'] = Field(
+            name='admins',
+            is_list=True,
+            values=admin_values,
+            raw_content=''
+        )
+
+    return doc
+    import json
+    return json.dumps(doc.to_dict(),indent='\t')
+
+
+def get_entity_info(client, by_id=None, by_username=None, by_invite=None):
+    """
+    Main function to fetch and output entity information as MDML.
+    """
+    try:
+        info = fetch_entity_info(client, by_id=by_id, by_username=by_username, by_invite=by_invite)
+        if info:
+            mdml = format_entity_mdml(info)
+            return mdml
+        else:
+            print(f"{EMOJI['error']} Failed to fetch entity information", file=__import__('sys').stderr)
+    except Exception as e:
+        print(f"{EMOJI['error']} Error generating MDML: {e}", file=__import__('sys').stderr)
+        print_debug(e)
+    return
+
+
 def validate_args(args):
     if args.no_skip and not (args.get_identifiers and args.invites_only):
         print(f"{EMOJI['warning']} --no-skip can only be used with --get-identifiers --invites-only")
@@ -1552,6 +2012,21 @@ def validate_args(args):
         print(f"{EMOJI['warning']} --clean can only be used with --get-identifiers")
     if args.include_users and not args.get_identifiers:
         print(f"{EMOJI['warning']} --include-users can only be used with --get-identifiers")
+    # Validate --get-info options
+    if args.get_info:
+        selectors = sum([bool(args.by_id), bool(args.by_username), bool(args.by_invite)])
+        if selectors == 0:
+            print(f"{EMOJI['error']} --get-info requires one of: --by-id, --by-username, or --by-invite")
+            exit(1)
+        elif selectors > 1:
+            print(f"{EMOJI['error']} --get-info can only use one selector at a time")
+            exit(1)
+    if any([args.by_id, args.by_username, args.by_invite]) and not args.get_info:
+        print(f"{EMOJI['warning']} --by-id, --by-username, and --by-invite require --get-info")
+    if not args.path and not args.get_info:
+        print(f"{EMOJI['error']} The following arguments are required: --path")
+        exit(2)
+
     # Write to file?
     if args.out_file:
         if Path(args.out_file).exists():
@@ -1575,6 +2050,24 @@ def main():
 
     # Validate args that only work with --get-identifiers
     validate_args(args)
+
+    # Handle --get-info mode
+    if args.get_info:
+        client = connect_to_telegram(args.user)
+        if not client:
+            return
+        try:
+            print(
+                get_entity_info(
+                    client,
+                    by_id=args.by_id,
+                    by_username=args.by_username,
+                    by_invite=args.by_invite
+                )
+            )
+        finally:
+            client.disconnect()
+        return
 
     # Parse skip-time if provided
     skip_time_seconds = None
