@@ -1599,7 +1599,7 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
     entity = None
     try:
         if by_id:
-            print(f"{EMOJI['id']} Fetching entity by ID: {by_id}...", file=__import__('sys').stderr)
+            print(f"{EMOJI['id']} Fetching entity by ID: {by_id}...")
             # Try different peer types
             try:
                 entity = client.get_entity(PeerChannel(by_id))
@@ -1613,22 +1613,22 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
                         entity = client.get_entity(by_id)
 
         elif by_username:
-            print(f"{EMOJI['handle']} Fetching entity by username: @{by_username}...", file=__import__('sys').stderr)
+            print(f"{EMOJI['handle']} Fetching entity by username: @{by_username}...")
             entity = client.get_entity(by_username)
 
         elif by_invite:
-            print(f"{EMOJI['invite']} Fetching entity by invite: +{by_invite}...", file=__import__('sys').stderr)
+            print(f"{EMOJI['invite']} Fetching entity by invite: +{by_invite}...")
             entity = client.get_entity(f'https://t.me/+{by_invite}')
 
         else:
-            print(f"{EMOJI['error']} No identifier provided", file=__import__('sys').stderr)
+            print(f"{EMOJI['error']} No identifier provided")
             return None
 
         if not entity:
-            print(f"{EMOJI['error']} Could not retrieve entity", file=__import__('sys').stderr)
+            print(f"{EMOJI['error']} Could not retrieve entity")
             return None
 
-        print(f"{EMOJI['success']} Entity retrieved!\n", file=__import__('sys').stderr)
+        print(f"{EMOJI['success']} Entity retrieved!\n")
 
         # Get full entity information
         full = None
@@ -1659,6 +1659,10 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
             'id': entity.id,
             'by_invite': by_invite
         }
+
+        # Join date (for channels and groups)
+        if isinstance(entity, (Channel, Chat)) and hasattr(entity, 'date') and entity.date:
+            info['joined_date'] = entity.date.astimezone().strftime('%Y-%m-%d %H:%M')
 
         # Username
         if hasattr(entity, 'username') and entity.username:
@@ -1694,15 +1698,22 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
         # Created date and first message
         if isinstance(entity, Channel):
             try:
+                from telethon.tl.types import MessageService, MessageActionChannelMigrateFrom
+
                 messages = client.get_messages(entity, limit=1, reverse=True)
                 if messages:
                     first_msg = messages[0]
-                    info['created_date'] = first_msg.date.strftime('%Y-%m-%d')
+                    info['created_date'] = first_msg.date.astimezone().strftime('%Y-%m-%d')
                     info['created_msg_id'] = first_msg.id
-            except:
+
+                    # Detect migration
+                    if isinstance(first_msg, MessageService) and isinstance(first_msg.action, MessageActionChannelMigrateFrom):
+                        info['is_migrated'] = True
+                        info['original_chat_id'] = first_msg.action.chat_id
+            except Exception as e:
+                print_debug(e)
                 pass
 
-        # Linked channel/discussion
         # Linked channel/discussion
         if isinstance(entity, Channel) and full:
             if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'linked_chat_id'):
@@ -1746,7 +1757,7 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
         return info
 
     except Exception as e:
-        print(f"{EMOJI['error']} Error retrieving entity: {e}", file=__import__('sys').stderr)
+        print(f"{EMOJI['error']} Error retrieving entity: {e}")
         print_debug(e)
         return None
 
@@ -1806,7 +1817,7 @@ def format_entity_mdml(info):
             is_list=False,
             values=[FieldValue(
                 value=f"@{info['username']}",
-                link_url=f"https://t.me/{info['username']}"
+                details=f"[link](https://t.me/{info['username']})"
             )],
             raw_content=''
         )
@@ -1848,7 +1859,11 @@ def format_entity_mdml(info):
     doc.fields['activity'] = Field(
         name='activity',
         is_list=False,
-        values=[],
+        values=[FieldValue(
+            value='',
+            is_array=True,
+            array_values=[]
+        )],
         raw_content=''
     )
 
@@ -1865,12 +1880,20 @@ def format_entity_mdml(info):
     entity = info.get('entity')
     if not isinstance(entity, User):
         # Joined (empty list)
-        doc.fields['joined'] = Field(
-            name='joined',
-            is_list=True,
-            values=[],
-            raw_content=''
-        )
+        if info.get('joined_date'):
+            doc.fields['joined'] = Field(
+                name='joined',
+                is_list=False,
+                values=[FieldValue(value=info['joined_date'])],
+                raw_content=''
+            )
+        else:
+            doc.fields['joined'] = Field(
+                name='joined',
+                is_list=True,
+                values=[],
+                raw_content=''
+            )
 
         # Created
         if info.get('created_date'):
@@ -1884,28 +1907,28 @@ def format_entity_mdml(info):
                     is_list=False,
                     values=[FieldValue(
                         value=info['created_date'],
-                        link_url=created_link
+                        details=f"[link]({created_link})"
                     )],
                     raw_content=''
                 )
             else:
+                if info.get('is_migrated'):
+                    value = f"before {info['created_date']}"
+                    details = f"migrated, [link]({created_link})"
+                else:
+                    value = f"before {info['created_date']}"
+                    details = f"[link]({created_link})"
+
                 doc.fields['created'] = Field(
                     name='created',
                     is_list=False,
                     values=[FieldValue(
-                        value=f"before {info['created_date']}",
-                        is_raw=True,
-                        link_url=created_link
+                        value=value,
+                        details=details,
+                        is_raw=True
                     )],
                     raw_content=''
                 )
-        else:
-            doc.fields['created'] = Field(
-                name='created',
-                is_list=True,
-                values=[],
-                raw_content=''
-            )
 
     # Linked channel (for supergroups)
     if isinstance(entity, Channel) and entity.megagroup:
@@ -2006,9 +2029,9 @@ def get_entity_info(client, by_id=None, by_username=None, by_invite=None):
             mdml = format_entity_mdml(info)
             return mdml
         else:
-            print(f"{EMOJI['error']} Failed to fetch entity information", file=__import__('sys').stderr)
+            print(f"{EMOJI['error']} Failed to fetch entity information")
     except Exception as e:
-        print(f"{EMOJI['error']} Error generating MDML: {e}", file=__import__('sys').stderr)
+        print(f"{EMOJI['error']} Error generating MDML: {e}")
         print_debug(e)
     return
 
