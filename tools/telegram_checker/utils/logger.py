@@ -18,20 +18,29 @@ class LogLevel(Enum):
 
 class Logger:
     """Logger with multiple output levels and file handlers"""
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
 
     def __init__(self, debug=False, quiet=False):
-        """
-        Initialize logger
+        # Only initialize once
+        if not hasattr(self, '_initialized'):
+            self.debug_mode = debug
+            self.quiet_mode = quiet
+            self._initialized = True
+            self.log_file = None
+            self.error_file = None
+            self.output_file = None
 
-        Args:
-            debug: Enable debug logging
-            quiet: Suppress OUTPUT on console (still goes to files)
-        """
-        self.debug_mode = debug
-        self.quiet_mode = quiet
-        self.log_file = None
-        self.error_file = None
-        self.output_file = None
+    def update_settings(self, debug=None, quiet=None):
+        """Update logger settings after initialization"""
+        if debug is not None:
+            self.debug_mode = debug
+        if quiet is not None:
+            self.quiet_mode = quiet
 
     def open_files(self, log_path=None, error_path=None, output_path=None):
         """
@@ -69,35 +78,55 @@ class Logger:
             self.output_file.close()
             self.output_file = None
 
+    @staticmethod
+    def _format_console(text):
+        """Remove Obsidian escapes for console"""
+        if not isinstance(text, str):
+            return text
+        text = text.replace('\\[[', '').replace('\\]]', '')
+        text = text.replace('\\[', '[').replace('\\]', ']')
+        return text
+
+    @staticmethod
+    def _format_file(text):
+        """Keep Obsidian links for file"""
+        if not isinstance(text, str):
+            return text
+        return text.replace('\\[[', '[[').replace('\\]]', ']]')
+
     def log(self, message, level=LogLevel.INFO, emoji='', end='\n', flush=False):
         """Generic log method"""
         formatted = f"{emoji} {message}" if emoji else message
 
+        # Format pour console et fichier
+        console_msg = self._format_console(formatted)
+        file_msg = self._format_file(formatted)
+
         if level == LogLevel.ERROR:
-            builtins.print(formatted, file=sys.stderr, end=end, flush=flush)
+            builtins.print(console_msg, file=sys.stderr, end=end, flush=flush)
             if self.log_file:
-                builtins.print(formatted, file=self.log_file, end=end, flush=flush)
+                builtins.print(file_msg, file=self.log_file, end=end, flush=flush)
             if self.error_file:
-                builtins.print(formatted, file=self.error_file, end=end, flush=flush)
+                builtins.print(file_msg, file=self.error_file, end=end, flush=flush)
 
         elif level == LogLevel.INFO:
-            builtins.print(formatted, end=end, flush=flush)
+            builtins.print(console_msg, end=end, flush=flush)
             if self.log_file:
-                builtins.print(formatted, file=self.log_file, end=end, flush=flush)
+                builtins.print(file_msg, file=self.log_file, end=end, flush=flush)
 
         elif level == LogLevel.OUTPUT:
             if not self.quiet_mode:
-                builtins.print(formatted, end=end, flush=flush)
+                builtins.print(console_msg, end=end, flush=flush)
             if self.log_file:
-                builtins.print(formatted, file=self.log_file, end=end, flush=flush)
+                builtins.print(file_msg, file=self.log_file, end=end, flush=flush)
             if self.output_file:
-                builtins.print(formatted, file=self.output_file, end=end, flush=flush)
+                builtins.print(file_msg, file=self.output_file, end=end, flush=flush)
 
         elif level == LogLevel.DEBUG:
             if self.debug_mode:
-                builtins.print(f"[DEBUG] {formatted}", file=sys.stderr, end=end, flush=flush)
+                builtins.print(f"[DEBUG] {console_msg}", file=sys.stderr, end=end, flush=flush)
                 if self.log_file:
-                    builtins.print(f"[DEBUG] {formatted}", file=self.log_file, end=end, flush=flush)
+                    builtins.print(f"[DEBUG] {file_msg}", file=self.log_file, end=end, flush=flush)
 
     def error(self, message = "", emoji='', end='\n', flush=False):
         """Log error message"""
@@ -114,6 +143,23 @@ class Logger:
     def debug(self, message = "", end='\n', flush=False):
         """Log debug message"""
         self.log(message, LogLevel.DEBUG, end=end, flush=flush)
+
+
+# Global singleton instance
+_logger_instance = None
+
+def get_logger():
+    """Get the global logger instance"""
+    global _logger_instance
+    if _logger_instance is None:
+        _logger_instance = Logger()
+    return _logger_instance
+
+def init_logger(debug=False, quiet=False):
+    """Initialize or reconfigure the global logger"""
+    logger = get_logger()
+    logger.update_settings(debug=debug, quiet=quiet)
+    return logger
 
 
 if __name__ == '__main__':

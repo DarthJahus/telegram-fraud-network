@@ -1,0 +1,63 @@
+from datetime import  datetime
+from telegram_checker.utils.logger import get_logger
+LOG = get_logger()
+
+def get_date_time(get_date=True, get_time=True):
+    dt_format = ('%Y-%m-%d' if get_date else '') + (' %H:%M' if get_time else '')
+    return datetime.now().strftime(dt_format).strip()
+
+
+def cut_text(text, limit=120):
+    if len(text) > limit:
+        return text[:(limit - 3)] + '...'
+    return text
+
+
+def format_console(el):
+    if not isinstance(el, str):
+        return el
+    el = el.replace('\\[[', '').replace('\\]]', '')
+    el = el.replace('\\[', '[').replace('\\]', ']')
+    return el
+
+
+def format_file(el):
+    if not isinstance(el, str):
+        return el
+    return el.replace('\\[[', '[[').replace('\\]]', ']]')
+
+
+def copy_to_clipboard(text):
+    try:
+        import pyperclip
+        pyperclip.copy(text)
+    except Exception as e:
+        raise Exception(f'Could not copy to clipboard {e}\nMake sure pyperclip is installed.\nOn Linux, install: xclip or xsel')
+
+
+def print_debug(e: Exception):
+    LOG.debug(type(e).__name__)
+    LOG.debug(str(e))
+
+
+def parse_time_expression(expr):
+    """
+    Parses a time expression that can be either a number or a Python expression.
+
+    Args:
+        expr (str): Time expression (e.g., "86400" or "24*60*60")
+
+    Returns:
+        int: Number of seconds
+
+    Raises:
+        ValueError: If the expression is invalid
+    """
+    try:
+        # Try to evaluate as a Python expression (allows "24*60*60")
+        result = eval(expr, {"__builtins__": {}}, {})
+        if not isinstance(result, (int, float)):
+            raise ValueError("Expression must evaluate to a number")
+        return int(result)
+    except Exception as e:
+        raise ValueError(f"Invalid time expression '{expr}': {e}")
