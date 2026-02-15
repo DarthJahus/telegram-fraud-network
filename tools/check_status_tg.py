@@ -17,7 +17,6 @@ ToDo: For --get-identifiers, add:
 """
 
 import argparse
-import builtins
 import re
 import time
 from datetime import datetime
@@ -31,7 +30,8 @@ from telethon.errors import (
     UsernameNotOccupiedError,
     InviteHashExpiredError,
     InviteHashInvalidError,
-    FloodWaitError
+    FloodWaitError,
+    ChatAdminRequiredError
 )
 from telegram_mdml.telegram_mdml import (
     TelegramEntity,
@@ -40,15 +40,16 @@ from telegram_mdml.telegram_mdml import (
     InvalidFieldError,
     InvalidTypeError
 )
+from logger import Logger
 
 # ============================================
 # CONFIGURATION
 # ============================================
-DEBUG = True
 API_ID = int(open('.secret/api_id', 'r', encoding='utf-8').read().strip())
 API_HASH = open('.secret/api_hash', 'r', encoding='utf-8').read().strip()
 SLEEP_BETWEEN_CHECKS = 20  # seconds between each check
 MAX_STATUS_ENTRIES = 10  # maximum number of status entries to keep
+LOG = Logger()
 
 # ============================================
 # REGEX
@@ -133,8 +134,6 @@ STATS_INIT = {
     }
 }
 
-OUT_FILE = None
-
 # ============================================
 # Helper functions
 # ============================================
@@ -163,19 +162,9 @@ def format_file(el):
     return el.replace('\\[[', '[[').replace('\\]]', ']]')
 
 
-def print(*args, **kwargs):
-    builtins.print(*(format_console(a) for a in args), **kwargs)
-    if OUT_FILE:
-        builtins.print(*(format_file(a) for a in args), file=OUT_FILE, **kwargs)
-
-
 def print_debug(e: Exception):
-    if not DEBUG:
-        return
-    print('\n•••DEBUG•••')
-    print(f'• {type(e).__name__}')
-    print('• ' + '\n• '.join(str(e).split('\n')))
-    print('•••••••••••\n')
+    LOG.debug(type(e).__name__)
+    LOG.debug(str(e))
 
 
 def copy_to_clipboard(text):
@@ -184,8 +173,8 @@ def copy_to_clipboard(text):
         pyperclip.copy(text)
     except Exception as e:
         print_debug(e)
-        print(f"{EMOJI['warning']} Could not copy to clipboard: {e}")
-        print(f"{EMOJI['info']} On Linux, install: xclip or xsel")
+        LOG.output(f"{EMOJI['warning']} Could not copy to clipboard: {e}")
+        LOG.output(f"{EMOJI['info']} On Linux, install: xclip or xsel")
 
 
 # ============================================
@@ -347,16 +336,16 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
             # Therefore, the entity is active, just not accessible to us
             return 'active', None, None, None, ('invite' if is_invite else 'username')
         # Other ValueError cases
-        print(f"  {EMOJI["warning"]} Unexpected ValueError: {str(e)}")
+        LOG.output(f"  {EMOJI["warning"]} Unexpected ValueError: {str(e)}")
         return 'unknown', None, None, None, 'error'
 
     except FloodWaitError as e:
-        print(f"\n\n{EMOJI["pause"]} FloodWait: waiting {e.seconds}s...")
+        LOG.output(f"\n\n{EMOJI["pause"]} FloodWait: waiting {e.seconds}s...")
         time.sleep(e.seconds)
         return check_entity_status(client, identifier, is_invite, expected_id)
 
     except Exception as e:
-        print(f"  {EMOJI["warning"]} Unexpected error: {type(e).__name__}: {str(e)}")
+        LOG.output(f"  {EMOJI["warning"]} Unexpected error: {type(e).__name__}: {str(e)}")
         return f'error_{type(e).__name__}', None, None, None, 'error'
 
 
@@ -522,7 +511,7 @@ def update_status_in_md(file_path, new_status, restriction_details=None):
             break
 
     if status_line_idx is None:
-        print(f"  {EMOJI["warning"]} No 'status:' block found in {file_path.name}")
+        LOG.output(f"  {EMOJI["warning"]} No 'status:' block found in {file_path.name}")
         return False
 
     # 2. Find the next field (end of status block)
@@ -604,35 +593,35 @@ def print_dry_run_summary(results):
     if not results:
         return
 
-    print("\n" + UI_HORIZONTAL_LINE)
-    print(f"{EMOJI["dry-run"]} DRY-RUN SUMMARY - Changes to apply:")
+    LOG.output("\n" + UI_HORIZONTAL_LINE)
+    LOG.info("DRY-RUN SUMMARY - Changes to apply:", EMOJI["dry-run"])
 
     # Group by status
     for status_type in ['active', 'banned', 'deleted', 'unknown']:
         filtered = [r for r in results if r['status'] == status_type]
         if filtered:
-            print(f"\n{filtered[0]['emoji']} {status_type.upper()} ({len(filtered)}):")
+            LOG.output(f"\n{filtered[0]['emoji']} {status_type.upper()} ({len(filtered)}):")
             for r in filtered:
-                print(f"  • {r['file']}: {r['identifier']}")
-                print(f"    → - `{r['status']}`, `{r['timestamp']}`")
+                LOG.output(f"  • {r['file']}: {r['identifier']}")
+                LOG.output(f"    → - `{r['status']}`, `{r['timestamp']}`")
                 if r.get('restriction_details'):
                     details = r['restriction_details']
                     if 'reason' in details:
-                        print(f"      - reason: `{details['reason']}`")
+                        LOG.output(f"      - reason: `{details['reason']}`")
                     if 'text' in details:
                         text = details['text'][:80] + '...' if len(details['text']) > 80 else details['text']
-                        print(f"      - text: `{text}`")
+                        LOG.output(f"      - text: `{text}`")
 
     # Errors
     errors = [r for r in results if r['status'].startswith('error_')]
     if errors:
-        print()
-        print(f"{EMOJI["error"]} ERRORS ({len(errors)}):")
+        LOG.output()
+        LOG.info("ERRORS ({len(errors)}):", EMOJI["error"])
         for r in errors:
-            print(f"  • {r['file']}: {r['identifier']} → {r['status']}")
+            LOG.output(f"  • {r['file']}: {r['identifier']} → {r['status']}")
 
-    print(f"{EMOJI["info"]} To apply these changes, run again without --dry-run")
-    print(UI_HORIZONTAL_LINE)
+    LOG.info("To apply these changes, run again without --dry-run", EMOJI["info"])
+    LOG.output(UI_HORIZONTAL_LINE)
 
 
 def parse_time_expression(expr):
@@ -661,6 +650,1301 @@ def parse_time_expression(expr):
 # ============================================
 # MAIN
 # ============================================
+
+
+
+def print_stats(stats):
+    LOG.output("\n" + UI_HORIZONTAL_LINE)
+    LOG.info("RESULTS", EMOJI["stats"])
+    LOG.output(f"Total checked:  {stats['total']}")
+    LOG.output(f"{EMOJI.get("active")     } Active:      {stats['active']     }")
+    LOG.output(f"{EMOJI.get("banned")     } Banned:      {stats['banned']     }")
+    LOG.output(f"{EMOJI.get("deleted")    } Deleted:     {stats['deleted']    }")
+    LOG.output(f"{EMOJI.get("id_mismatch")} ID Mismatch: {stats['id_mismatch']}")
+    LOG.output(f"{EMOJI.get("unknown")    } Unknown:     {stats['unknown']    }")
+    LOG.output(f"{EMOJI.get("error")      } Errors:      {stats['error']      }")
+    LOG.output()
+    LOG.info(f"Skipped (total):      {stats['skipped']}", EMOJI["skip"])
+    if stats['skipped_time'] > 0:
+        LOG.output(f"   └─ Recently checked:  {stats['skipped_time']}")
+    if stats['skipped_status'] > 0:
+        LOG.output(f"   └─ By status:         {stats['skipped_status']}")
+    if stats['skipped_no_identifier'] > 0:
+        LOG.output(f"   └─ No identifier:     {stats['skipped_no_identifier']}")
+    if stats['skipped_type'] > 0:
+        LOG.output(f"   └─ Wrong type:        {stats['skipped_type']}")
+    if stats['ignored'] > 0:
+        LOG.output()
+        LOG.info(f"total:      {stats['ignored']}", EMOJI["ignored"])
+    LOG.output()
+    if stats['method']:
+        LOG.info("Methods used:", EMOJI["methods"])
+        if stats['method']['id'] > 0:
+            LOG.output(f"   └─ By ID:        {stats['method']['id']}")
+        if stats['method']['username'] > 0:
+            LOG.output(f"   └─ By username:  {stats['method']['username']}")
+        if stats['method']['invite'] > 0:
+            LOG.output(f"   └─ By invite:    {stats['method']['invite']}")
+    LOG.output(UI_HORIZONTAL_LINE)
+
+
+def print_no_status_block(no_status_block_results):
+    LOG.output(UI_HORIZONTAL_LINE)
+    LOG.info("FILES WITHOUT 'status:' BLOCK (STATUS DETECTED)", EMOJI["warning"])
+    for item in no_status_block_results:
+        LOG.output(f"• \\[[{item['file']}\\]] → {item['emoji']} {item['status']}")
+    LOG.output(UI_HORIZONTAL_LINE)
+
+
+def print_status_changed_files(status_changed_files):
+    LOG.output("\n" + "!" * 60)
+    LOG.info("FILES WITH STATUS CHANGE (RENAME IN OBSIDIAN)", EMOJI["change"])
+    for item in status_changed_files:
+        LOG.output(f"• \\[[{item['file']}\\]] : {item['old']} → {item['new']}")
+    LOG.output(UI_HORIZONTAL_LINE)
+
+
+def print_recovered_ids(recovered_ids):
+    """
+    Prints a summary of recovered entity IDs.
+
+    Args:
+        recovered_ids (list): List of dicts with 'file', 'id', 'method', 'written'
+    """
+    if not recovered_ids:
+        return
+
+    LOG.output("\n" + UI_HORIZONTAL_LINE)
+    LOG.output(f"{EMOJI['id']} RECOVERED IDs ({len(recovered_ids)})")
+
+    # Group by method
+    by_invite = [r for r in recovered_ids if r['method'] == 'invite']
+    by_username = [r for r in recovered_ids if r['method'] == 'username']
+
+    if by_invite:
+        LOG.output(f"\n✅ Via INVITE (reliable):")
+        for item in by_invite:
+            written_mark = "✅" if item.get('written') else "⚠️"
+            LOG.output(f"  {written_mark} \\[[{item['file']}\\]] → id: `{item['id']}`")
+
+        written_count = sum(1 for r in by_invite if r.get('written'))
+        if written_count > 0:
+            LOG.output(f"\n  ✅ {written_count} ID(s) written to files")
+        not_written = len(by_invite) - written_count
+        if not_written > 0:
+            LOG.output(f"  ⚠️  {not_written} ID(s) not written (ID already exists or --write-id not enabled)")
+
+    if by_username:
+        LOG.output(f"\n⚠️  Via USERNAME (unreliable - DO NOT write):")
+        for item in by_username:
+            LOG.output(f"  • \\[[{item['file']}\\]] → id: `{item['id']}`")
+        LOG.output(f"\n  ⚠️  These IDs were recovered via username.")
+        LOG.output(f"     Verify manually before adding them to files!")
+
+    if by_invite:
+        LOG.output(f"{EMOJI['info']} IDs recovered via invite are reliable and permanent.")
+        LOG.output(f"{EMOJI['info']} Use them for faster future checks.")
+    LOG.output(UI_HORIZONTAL_LINE)
+
+
+def print_discovered_usernames(discovered_usernames):
+    """
+    Prints a summary of discovered/changed usernames.
+
+    Args:
+        discovered_usernames (list): List of dicts with 'file', 'old_username', 'new_username', 'status'
+    """
+    if not discovered_usernames:
+        return
+
+    LOG.output("\n" + UI_HORIZONTAL_LINE)
+    LOG.output(f"{EMOJI['handle']} DISCOVERED/CHANGED USERNAMES ({len(discovered_usernames)})")
+
+    # Group by status
+    discovered = [u for u in discovered_usernames if u['status'] == 'discovered']
+    changed = [u for u in discovered_usernames if u['status'] == 'changed']
+
+    if discovered:
+        LOG.output(f"\n✨ DISCOVERED (new usernames):")
+        for item in discovered:
+            LOG.output(f"  • \\{item['file']}\\]] → @{item['new_username']}")
+        LOG.output(f"\n  {EMOJI["info"]}  {len(discovered)} username(s) discovered")
+
+    if changed:
+        LOG.output(f"\n🔄 CHANGED (username updates):")
+        for item in changed:
+            LOG.output(f"  • \\[[{item['file']}\\]] : @{item['old_username']} → @{item['new_username']}")
+        LOG.output(f"\n  ⚠️  {len(changed)} username(s) changed")
+
+    LOG.output(f"{EMOJI['warning']} Usernames can change frequently - verify before updating files!")
+    LOG.output(f"{EMOJI['info']} Consider manually updating the markdown files with new usernames.")
+    LOG.output(UI_HORIZONTAL_LINE)
+
+
+def check_and_display(client, identifier, is_invite, expected_id, label, stats):
+    """
+    Helper function to check status and display result.
+
+    Returns:
+        tuple: (status, restriction_details, actual_id, actual_username, method_used)
+    """
+    LOG.output(f"{label}...", end=' ', flush=True)
+    status, restriction_details, actual_id, actual_username, method_used = check_entity_status(
+        client, identifier, is_invite, expected_id
+    )
+
+    if method_used in stats['method']:
+        stats['method'][method_used] += 1
+
+    emoji = EMOJI.get(status, EMOJI["no_emoji"])
+    LOG.output(f"{emoji} {status}")
+
+    return status, restriction_details, actual_id, actual_username, method_used
+
+
+def format_display_id(expected_id, identifiers, method_used):
+    """
+    Formats a display ID based on what method succeeded.
+
+    Returns:
+        str: Formatted display ID
+    """
+    if method_used == 'id':
+        return f"ID:{expected_id}"
+    elif method_used == 'invite':
+        invite_list = identifiers if isinstance(identifiers, list) else [identifiers]
+        return f"+{invite_list[0][:10]}... ({len(invite_list)} invite(s))"
+    elif method_used == 'username':
+        return f"@{identifiers}"
+    else:
+        return "???"
+
+
+def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stats):
+    """
+    Checks entity status with priority fallback: ID → Invites → Username.
+
+    Args:
+        client: TelegramClient instance
+        expected_id: Entity ID (or None)
+        identifiers: Username or list of invite hashes (or None)
+        is_invite: Whether identifiers are invite links
+        stats: Statistics dictionary to update
+
+    Returns:
+        tuple: (status, restriction_details, actual_id, actual_username, method_used, display_id)
+    """
+    status = None
+    restriction_details = None
+    actual_id = None
+    actual_username = None
+    method_used = None
+
+    # PRIORITY 1: Try by ID first (most reliable)
+    if expected_id:
+        status, restriction_details, actual_id, actual_username, method_used = check_and_display(
+            client, None, False, expected_id,
+            f"  {EMOJI.get('id')} Checking by ID: {expected_id}",
+            stats
+        )
+
+    # PRIORITY 2: Fallback to invite links (if ID failed or no ID)
+    if status is None or status == 'unknown':
+        if is_invite and identifiers:
+            invite_list = identifiers if isinstance(identifiers, list) else [identifiers]
+            LOG.output(f"  {EMOJI['fallback']} Fallback: Checking {len(invite_list)} invite(s)...")
+
+            for idx, invite_hash in enumerate(invite_list, 1):
+                status, restriction_details, actual_id, actual_username, method_used = check_and_display(
+                    client, invite_hash, True, expected_id,
+                    f"    {EMOJI['invite']} \\[{idx}/{len(invite_list)}\\] +{invite_hash}",
+                    stats
+                )
+
+                if actual_id and not expected_id:
+                    LOG.output(f"      {EMOJI['id']} ID recovered: {actual_id}")
+
+                if actual_username:
+                    LOG.output(f"      {EMOJI['handle']} Username: @{actual_username}")
+
+                # Stop if we get a definitive answer
+                if status != 'unknown':
+                    break
+
+                # Sleep between invite checks
+                if idx < len(invite_list):
+                    time.sleep(5)
+
+    # PRIORITY 3: Fallback to username (last resort)
+    if status is None or status == 'unknown':
+        if not is_invite and identifiers:
+            status, restriction_details, actual_id, actual_username, method_used = check_and_display(
+                client, identifiers, False, expected_id,
+                f"  {EMOJI['handle']} Fallback: Checking @{identifiers}",
+                stats
+            )
+
+            if actual_id and not expected_id:
+                LOG.output(f"    {EMOJI['id']} ID recovered: {actual_id} (via username - unreliable)")
+
+            if actual_username:
+                LOG.output(f"    {EMOJI['handle']} Username: @{actual_username}")
+
+    # Final fallback (should rarely happen)
+    if status is None:
+        status = 'unknown'
+        method_used = 'error'
+
+    # Format display ID based on what succeeded
+    display_id = format_display_id(expected_id, identifiers, method_used)
+
+    return status, restriction_details, actual_id, actual_username, method_used, display_id
+
+
+def process_and_update_file(md_file, status, restriction_details, actual_id, expected_id, last_status, should_ignore, is_dry_run):
+    """
+    Displays additional info, updates file if needed, and prepares result data.
+
+    Args:
+        md_file: Path to markdown file
+        status: Current status
+        restriction_details: Restriction details (if any)
+        actual_id: Actual entity ID (for id_mismatch)
+        expected_id: Expected entity ID
+        last_status: Previous status
+        should_ignore: Whether to ignore this status
+        is_dry_run: Whether in dry-run mode
+
+    Returns:
+        tuple: (should_track_change, was_updated)
+            - should_track_change: True if status changed
+            - was_updated: True if file was actually updated
+    """
+    # Display additional info
+    if status == 'id_mismatch' and actual_id:
+        LOG.output(f"  {EMOJI["id_mismatch"]} Expected ID: {expected_id}, found ID: {actual_id}")
+
+    if last_status is not None and last_status != status:
+        LOG.output(f"  {EMOJI["change"]} STATUS CHANGE: {last_status} → {status}")
+
+    if restriction_details:
+        if 'reason' in restriction_details:
+            LOG.output(f"  {EMOJI["reason"]} Reason: {restriction_details['reason']}")
+        if 'text' in restriction_details:
+            text_preview = cut_text(restriction_details['text'], 120-11)
+            LOG.output(f"  {EMOJI["text"]} Text: {text_preview}")
+
+    # Handle file updates
+    should_track_change = False
+    was_updated = False
+
+    if should_ignore:
+        LOG.output(f"  {EMOJI["ignored"]} Ignoring status '{status}' (not updating file)")
+    else:
+        # Track status change
+        if last_status != status:
+            should_track_change = True
+
+        # Update file
+        if not is_dry_run:
+            if update_status_in_md(md_file, status, restriction_details):
+                LOG.output(f"  {EMOJI["saved"]} File updated")
+                was_updated = True
+        else:
+            # Show what WOULD be written
+            LOG.output(f"  {EMOJI["dry-run"]} Would add:")
+            LOG.output(f"    `{status}`, `{get_date_time()}`")
+            if restriction_details:
+                if 'reason' in restriction_details:
+                    LOG.output(f"    - reason: `{restriction_details['reason']}`")
+                if 'text' in restriction_details:
+                    LOG.output(f"    - text: `{restriction_details['text'][:50]}...`")
+
+    return should_track_change, was_updated
+
+
+def print_identifiers(identifiers_list, md_tasks=True, valid_only=False, clean=False):
+    if not identifiers_list:
+        return
+
+    md_check_list = ''
+    if md_tasks:
+        md_check_list = '- [ ] '
+
+    # Print results
+    if len(identifiers_list) > 1:
+        LOG.output(f"\n{EMOJI['invite']} Found {len(identifiers_list)} identifiers:\n")
+
+    for ident in identifiers_list:
+        type_indicator = ' ' + (EMOJI['invite'] if "+" in ident['full_link'] else EMOJI['handle'])
+        if ident['valid'] is True:
+            LOG.output(f"{md_check_list}{EMOJI["active"]}{type_indicator} {ident['full_link']}")
+            if not clean:
+                if ident['user_id']:
+                    LOG.output(f"  {EMOJI["id"]      } {ident['user_id']}")
+                LOG.output(f"  {EMOJI["file"]    } {ident['file']}")
+                LOG.output()
+        elif ident['valid'] is False and not valid_only:
+            LOG.output(f"{md_check_list}{EMOJI["no_emoji"]}{type_indicator} {ident['full_link']}")
+            if not clean:
+                LOG.output(f"  {EMOJI["file"]    } {ident['file']}")
+                LOG.output(f"  {EMOJI["text"]    } {ident['reason']}")
+                LOG.output(f"  {EMOJI["text"]    } {ident['message']}")
+                LOG.output()
+        elif ident['valid'] is None:  # valid is None, because we haven't checked for validity
+            LOG.output(f"{md_check_list}{type_indicator} {ident['full_link']}")
+            if not clean:
+                LOG.output(f"  {EMOJI["file"]    } {ident['file']}")
+                LOG.output()
+
+
+def validate_invite(client, invite_hash):
+    """
+    Validates an invitation link by checking the invite info.
+    Uses CheckChatInviteRequest to validate the invite,
+    then attempts to retrieve the entity ID via get_entity.
+
+    Args:
+        client: TelegramClient instance
+        invite_hash: Invite hash to validate
+
+    Returns:
+        tuple: (is_valid, user_id or None, reason or None, message or None)
+    """
+    try:
+        # Check the invite (returns ChatInviteAlready, ChatInvite, or ChatInvitePeek)
+        result = client(CheckChatInviteRequest(hash=invite_hash))
+
+        # Invitation is valid - now try to get the entity ID
+        entity_id = None
+        message = None
+        try:
+            entity = client.get_entity(f'https://t.me/+{invite_hash}')
+            if hasattr(entity, 'id'):
+                entity_id = entity.id
+            else:
+                # Should never happen
+                print_debug(Exception("SHOULD NEVER HAVE HAPPENED"))
+        except ValueError as e:
+            message = str(e)
+        except Exception as e:
+            print_debug(e)
+            # Can't get entity, but invite is still valid
+            pass
+
+        # Determine reason based on result type
+        if isinstance(result, ChatInviteAlready):
+            reason = 'ALREADY_MEMBER'
+        elif isinstance(result, ChatInvite):
+            reason = 'VALID_PREVIEW'
+        elif isinstance(result, ChatInvitePeek):
+            reason = 'VALID_PEEK'
+        else:
+            reason = 'VALID_UNKNOWN_TYPE'
+
+        return True, entity_id, reason, message
+
+    except InviteHashExpiredError as e:
+        return False, None, 'EXPIRED', str(e)
+    except InviteHashInvalidError as e:
+        return False, None, 'INVALID', str(e)
+
+    except FloodWaitError as e:
+        # Handle flood wait with recursive retry
+        LOG.output(f"{EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
+        time.sleep(e.seconds)
+        return validate_invite(client, invite_hash)
+
+    except Exception as e:
+        print_debug(e)
+        return False, None, 'ERROR', f'{type(e).__name__}: {str(e)}'
+
+
+def validate_handle(client, username):
+    """
+    Validates if a Telegram handle (@username) is valid and leads somewhere.
+
+    Args:
+        client: TelegramClient instance
+        username: Username without @ (e.g., 'example_channel')
+
+    Returns:
+        tuple: (is_valid, reason, message)
+            - is_valid: True if handle is accessible
+            - reason: 'valid', 'invalid', 'not_occupied', 'private', or 'error'
+            - message: Descriptive message or None
+    """
+    try:
+        entity = client.get_entity(username)
+        # If we get here, the handle is valid and accessible
+        return True, entity.id, 'valid', None
+    except ValueError as e:
+        return False, None, 'NO_USER', str(e)
+    except UsernameNotOccupiedError:
+        return False, None, 'not_occupied', 'Username not occupied'
+    except UsernameInvalidError:
+        return False, None, 'invalid', 'Invalid username format'
+    except ChannelPrivateError:
+        # Handle exists but is private/requires membership
+        return True, None, 'private', 'Channel/group is private'
+    except FloodWaitError as e:
+        # Handle flood wait with recursive retry
+        LOG.output(f"  {EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
+        time.sleep(e.seconds)
+        return validate_handle(client, username)
+    except Exception as e:
+        print_debug(e)
+        return False, None, 'ERROR', f'{type(e).__name__}: {str(e)}'
+
+
+def connect_to_telegram(user):
+    # Load phone number for user
+    session_dir = Path('.secret')
+    session_dir.mkdir(exist_ok=True)
+    mobile_file = session_dir / f'{user}.mobile'
+
+    if not mobile_file.exists():
+        LOG.error("Mobile file not found: {mobile_file}", EMOJI["error"])
+        LOG.info(f"  Create it with:")
+        LOG.info(f"    echo '+1234567890' > {mobile_file}")
+        return
+
+    phone = mobile_file.read_text(encoding='utf-8').strip()
+
+    # Connect to Telegram
+    session_file = session_dir / user
+    LOG.info(f"User: {user}", EMOJI["handle"])
+    LOG.info("Connecting to Telegram...", EMOJI["connecting"])
+    client = TelegramClient(str(session_file), API_ID, API_HASH)
+    client.start(phone=phone)
+    LOG.info("Connected!\n", EMOJI["success"])
+    return client
+
+
+def list_identifiers(client, md_files, args):
+    identifiers_list = []
+    for md_file in md_files:
+        try:
+            entity = TelegramEntity.from_file(md_file)
+
+            # Skip files with type = 'user' or 'bot'
+            if not args.include_users:
+                try:
+                    if entity.get_type() in ('user', 'bot'):
+                        continue
+                except MissingFieldError:
+                    # No type detected
+                    # Process as if not user
+                    pass
+                except InvalidTypeError:
+                    # Probably 'website' or placeholder
+                    # Skip
+                    continue
+
+            # Skip files with banned/unknown status unless --no-skip
+            if not args.no_skip:
+                last_status, _, _ = get_last_status(entity)
+                if last_status in ['banned', 'unknown', 'deleted']:
+                    continue
+
+            # Get invites
+            invites = entity.get_invites().active()
+
+            for invite in invites:
+                invite_entry = {
+                    'file': md_file.name,
+                    'short': invite.hash,
+                    'full_link': f'https://t.me/+{invite.hash}',
+                }
+
+                # Validate if in 'valid' mode
+                if args.get_identifiers == 'valid':
+                    (
+                        invite_entry['valid'],
+                        invite_entry['user_id'],
+                        invite_entry['reason'],
+                        invite_entry['message']
+                    ) = validate_invite(client, invite.hash)
+                    time.sleep(SLEEP_BETWEEN_CHECKS)  # Rate limiting
+                else:
+                    # 'all' mode - no validation
+                    invite_entry['valid'] = None
+                    invite_entry['reason'] = None
+                    invite_entry['message'] = "Not validated"
+
+                if args.continuous:
+                    print_identifiers([invite_entry], args.md_tasks, args.valid_only, args.clean)
+                else:
+                    identifiers_list.append(invite_entry)
+
+            # Add usernames if not --invites-only
+            if not args.invites_only:
+                usernames = entity.get_usernames().active()
+                for username in usernames:
+                    username_entry = {
+                        'file': md_file.name,
+                        'short': '@' + username.value,
+                        'full_link': f'https://t.me/{username.value}',
+                    }
+
+                    # Validate if in 'valid' mode
+                    if args.get_identifiers == 'valid':
+                        (
+                            username_entry['valid'],
+                            username_entry['user_id'],
+                            username_entry['reason'],
+                            username_entry['message']
+                        ) = validate_handle(client, username.value)
+                        time.sleep(SLEEP_BETWEEN_CHECKS)
+                    else:
+                        username_entry['valid'] = None
+                        username_entry['reason'] = None
+                        username_entry['message'] = "Not validated"
+
+                    if args.continuous:
+                        print_identifiers([username_entry], args.md_tasks, args.valid_only, args.clean)
+                    else:
+                        identifiers_list.append(username_entry)
+
+        except Exception as e:
+            print_debug(e)
+            continue
+
+    # Print results and cleanup
+    if not args.continuous:
+        print_identifiers(identifiers_list, args.md_tasks, args.valid_only, args.clean)
+
+
+def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
+    # Statistics
+    stats = STATS_INIT.copy()
+    # Store results for dry-run summary
+    results = []
+    status_changed_files = []
+    no_status_block_results = []
+    recovered_ids = []  # List of {file, id, method, written}
+    discovered_usernames = []  # List of {file, old_username, new_username, status}
+    try:
+        for md_file in md_files:
+            # parsing the file through MDML
+            try:
+                entity = TelegramEntity.from_file(md_file)
+                LOG.output()
+                LOG.info("\\[[{md_file.name}\\]]", EMOJI["file"])
+
+                # Check type filter
+                try:
+                    entity_type = entity.get_type()
+                except (InvalidTypeError, MissingFieldError):
+                    entity_type = None
+                except Exception as e:
+                    LOG.output(f"{EMOJI['error']} Error: {e}")
+                    entity_type = None
+
+                if args.type != 'all' and entity_type != args.type:
+                    stats['skipped'] += 1
+                    stats['skipped_type'] += 1
+                    continue
+
+                # Extract ALL identifiers upfront
+                try:
+                    expected_id = entity.get_id()
+                except InvalidFieldError:
+                    expected_id = None
+                except Exception as e:
+                    LOG.output(f"{EMOJI['error']} Error: {e}")
+                    expected_id = None
+
+                identifiers, is_invite = extract_telegram_identifiers(entity)
+
+                # If no ID AND no identifiers, skip entirely
+                if not expected_id and not identifiers:
+                    LOG.output(f"  {EMOJI["skip"]} Skipped: No identifier found")
+                    stats['skipped'] += 1
+                    stats['skipped_no_identifier'] += 1
+                    continue
+
+                # Get last status info
+                last_status, last_datetime, has_status_block = get_last_status(entity)
+
+                # Check if we should skip based on last status
+                should_skip, skip_reason = should_skip_entity(entity, skip_time_seconds, args.skip, not args.no_skip_unknown)
+                if should_skip:
+                    LOG.output(f"  {EMOJI["skip"]} Skipped: ({skip_reason})")
+                    stats['skipped'] += 1
+                    if 'checked' in skip_reason and 'ago' in skip_reason:
+                        stats['skipped_time'] += 1
+                    elif 'last status' in skip_reason:
+                        stats['skipped_status'] += 1
+                    continue
+
+                # Check entity status with priority fallback
+                status, restriction_details, actual_id, actual_username, method_used, display_id = check_entity_with_fallback(
+                    client, expected_id, identifiers, is_invite, stats
+                )
+
+                # Check and write the retrieved ID
+                if actual_id and not expected_id:
+                    id_written = False
+
+                    # Write ID retrieved via invite, if --write-id
+                    if method_used == 'invite' and args.write_id and not args.dry_run:
+                        if write_id_to_md(md_file, actual_id):
+                            LOG.output(f"  {EMOJI['saved']} ID written to file: `{actual_id}`")
+                            id_written = True
+                        else:
+                            LOG.output(f"  {EMOJI['info']} ID already present in file.")
+
+                    # Add to list of retrieved ID
+                    recovered_ids.append({
+                        'file': md_file.name,
+                        'id': actual_id,
+                        'method': method_used,
+                        'written': id_written
+                    })
+
+                # Track discovered / changed usernames
+                if actual_username:
+                    username = entity.get_username(allow_strikethrough=False)
+                    if username:
+                        existing_username = username.value  # username without @
+                    else:
+                        existing_username = None
+
+                    # Cas 1 : Discovered username not in MDML
+                    if not existing_username:
+                        LOG.output(f"  {EMOJI['handle']} Username discovered: @{actual_username}")
+                        discovered_usernames.append({
+                            'file': md_file.name,
+                            'old_username': None,
+                            'new_username': actual_username,
+                            'status': 'discovered'
+                        })
+
+                    # Cas 2 : Username has changed AND is different from username in MDML
+                    elif existing_username.lower() != actual_username.lower():
+                        LOG.output(f"  {EMOJI['change']} Username changed: @{existing_username} → @{actual_username}")
+                        discovered_usernames.append({
+                            'file': md_file.name,
+                            'old_username': existing_username,
+                            'new_username': actual_username,
+                            'status': 'changed'
+                        })
+
+                # Update statistics
+                stats['total'] += 1
+                if status == 'active':
+                    stats['active'] += 1
+                elif status == 'banned':
+                    stats['banned'] += 1
+                elif status == 'deleted':
+                    stats['deleted'] += 1
+                elif status == 'id_mismatch':
+                    stats['id_mismatch'] += 1
+                elif status == 'unknown':
+                    stats['unknown'] += 1
+                else:
+                    stats['error'] += 1
+
+                # Process result and update file if needed
+                should_ignore = ignore_statuses and status in ignore_statuses
+                if should_ignore:
+                    stats['ignored'] += 1
+
+                should_track_change, _ = process_and_update_file(
+                    md_file, status, restriction_details, actual_id,
+                    expected_id, last_status,
+                    should_ignore, args.dry_run
+                )
+
+                # Store result for reports
+                result = {
+                    'file': md_file.name,
+                    'identifier': display_id,
+                    'status': status,
+                    'timestamp': get_date_time(),
+                    'emoji': EMOJI.get(status, EMOJI["no_emoji"]),
+                    'restriction_details': restriction_details
+                }
+                results.append(result)
+
+                # Track files without status block
+                if not has_status_block:
+                    no_status_block_results.append(result)
+
+                # Track status changes
+                if should_track_change:
+                    status_changed_files.append({
+                        'file': md_file.name,
+                        'old': last_status,
+                        'new': status
+                    })
+
+                # Sleep between checks to avoid rate limiting
+                if md_file != md_files[-1]:
+                    time.sleep(SLEEP_BETWEEN_CHECKS)
+            except FileNotFoundError:
+                LOG.output("File not found.")
+            except TelegramMDMLError:
+                LOG.output("Parsing failed.")
+            except Exception as e:
+                LOG.output("Failed to read MDML entity from file.")
+                print_debug(e)
+    except KeyboardInterrupt:
+        client.disconnect()
+        exit(0)
+    finally:
+        # Always disconnect, even if there's an error
+        client.disconnect()
+    # Final statistics
+    print_stats(stats)
+    # Dry-run summary
+    if args.dry_run:
+        print_dry_run_summary(results)
+    if status_changed_files:
+        print_status_changed_files(status_changed_files)
+    if no_status_block_results:
+        print_no_status_block(no_status_block_results)
+    if recovered_ids:
+        print_recovered_ids(recovered_ids)
+    if discovered_usernames:
+        print_discovered_usernames(discovered_usernames)
+
+
+def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
+    """
+    Fetches comprehensive information about a Telegram entity.
+
+    Args:
+        client: TelegramClient instance
+        by_id: Entity ID (int)
+        by_username: Username (str, with or without @)
+        by_invite: Invite hash (str)
+
+    Returns:
+        dict: Entity information or None on error
+    """
+    from telethon.tl.functions.channels import GetFullChannelRequest, GetParticipantsRequest
+    from telethon.tl.functions.users import GetFullUserRequest
+    from telethon.tl.types import (
+        Channel, User, Chat, PeerChannel, PeerUser, PeerChat,
+        ChannelParticipantsAdmins, ChannelParticipantCreator
+    )
+
+    # Determine which method to use
+    entity = None
+    try:
+        if by_id:
+            LOG.info(f"Fetching entity by ID: {by_id}...", EMOJI['id'])
+            try:
+                # Try different peer types
+                try:
+                    entity = client.get_entity(PeerChannel(by_id))
+                except:
+                    try:
+                        entity = client.get_entity(PeerUser(by_id))
+                    except:
+                        try:
+                            entity = client.get_entity(PeerChat(by_id))
+                        except:
+                            entity = client.get_entity(by_id)
+            except ValueError as e:
+                # ID not in session cache - need to encounter it first
+                LOG.error(f"Cannot resolve ID {by_id}: not found in session cache", EMOJI['error'])
+                LOG.info("This ID hasn't been encountered yet in this session.", EMOJI['info'])
+                LOG.info("Try using --by-username or --by-invite to resolve the entity first.", EMOJI['info'])
+                return None
+
+        elif by_username:
+            if by_username[0] != '@': by_username = '@' + by_username
+            LOG.info(f"Fetching entity by username: {by_username}...", EMOJI['handle'])
+            entity = client.get_entity(by_username)
+
+        elif by_invite:
+            LOG.info(f"Fetching entity by invite: {by_invite}...", EMOJI['invite'])
+
+            # Extract hash from URL
+            invite_hash = by_invite.split('+')[-1] if '+' in by_invite else by_invite.split('/')[-1]
+            invite_link = by_invite if '+' in by_invite else f'https://t.me/+{by_invite}'
+
+            # Try to get entity first
+            try:
+                entity = client.get_entity(f'https://t.me/+{invite_hash}')
+                print("SUCCESS : got entity = client.get_entity")
+            except ValueError as e:
+                if "Cannot get entity from a channel" in str(e):
+                    # Not a member - use CheckChatInviteRequest for preview
+                    LOG.info("Not a member. Trying invite preview...", EMOJI['info'])
+
+                    try:
+                        from telethon.tl.functions.messages import CheckChatInviteRequest
+                        from telethon.tl.types import ChatInvite, ChatInvitePeek, ChatInviteAlready
+
+                        result = client(CheckChatInviteRequest(hash=invite_hash))
+                        print("SUCCESS : got result = client(CheckChatInviteRequest())")
+
+                        # Already a member (shouldn't happen after ValueError, but safety check)
+                        if isinstance(result, ChatInviteAlready):
+                            entity = result.chat
+
+                        # Preview available
+                        elif isinstance(result, (ChatInvite, ChatInvitePeek)):
+                            info = {
+                                'type': 'channel' if result.broadcast else 'group',
+                                'id': None,
+                                'name': result.title,
+                                'count': result.participants_count if hasattr(result, 'participants_count') else None,
+                                'by_invite': invite_link,
+                                'is_preview': True
+                            }
+                            # Add photo/bio if available in preview
+                            if hasattr(result, 'about') and result.about:
+                                info['bio'] = result.about
+
+                            return info
+
+                    except InviteHashExpiredError:
+                        LOG.error("Invite link has expired", EMOJI['error'])
+                        return None
+
+                    except InviteHashInvalidError:
+                        LOG.error("Invite link is invalid", EMOJI['error'])
+                        return None
+
+                    except Exception as e:
+                        LOG.error(f"Failed to get invite preview: {type(e).__name__}", EMOJI['error'])
+                        print_debug(e)
+                        return None
+                else:
+                    # Other ValueError
+                    LOG.error(f"Error with invite: {str(e)}", EMOJI['error'])
+                    print_debug(e)
+                    return None
+
+        if not entity:
+            LOG.error(f"{EMOJI['error']} Could not retrieve entity")
+            return None
+
+        LOG.info(f"Entity retrieved!", EMOJI['success'])
+
+        # Get full entity information
+        full = None
+        if isinstance(entity, Channel):
+            full = client(GetFullChannelRequest(entity))
+        elif isinstance(entity, User):
+            full = client(GetFullUserRequest(entity))
+
+        # Determine entity type
+        entity_type = None
+        if isinstance(entity, User):
+            entity_type = 'bot' if entity.bot else 'user'
+        elif isinstance(entity, Channel):
+            if entity.megagroup:
+                entity_type = 'group'
+            elif entity.broadcast:
+                entity_type = 'channel'
+            else:
+                entity_type = 'group'
+        elif isinstance(entity, Chat):
+            entity_type = 'group'
+
+        # Build info dict
+        info = {
+            'entity': entity,
+            'full': full,
+            'type': entity_type,
+            'id': entity.id,
+            'by_invite': by_invite
+        }
+
+        # Join date (only for channels/groups where we are members)
+        if isinstance(entity, (Channel, Chat)):
+            # Check if we are actually a member
+            is_member = False
+            if isinstance(entity, Channel):
+                # For channels, check if we have access (not just preview)
+                is_member = not entity.left  # Si left=False, on est membre
+            elif isinstance(entity, Chat):
+                is_member = True  # For Chats, if we have access, then we are members
+            if is_member and hasattr(entity, 'date') and entity.date:
+                info['joined_date'] = entity.date.astimezone().strftime('%Y-%m-%d %H:%M')
+
+        # Username
+        if hasattr(entity, 'username') and entity.username:
+            info['username'] = entity.username
+
+        # Name
+        if isinstance(entity, User):
+            parts = []
+            if entity.first_name:
+                parts.append(entity.first_name)
+            if entity.last_name:
+                parts.append(entity.last_name)
+            info['name'] = ' '.join(parts) if parts else None
+        elif isinstance(entity, (Channel, Chat)):
+            info['name'] = entity.title
+
+        # Bio
+        if full:
+            bio_text = None
+            if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'about'):
+                bio_text = full.full_chat.about
+            elif hasattr(full, 'full_user') and hasattr(full.full_user, 'about'):
+                bio_text = full.full_user.about
+
+            # Only add bio if it exists and is not empty/whitespace
+            if bio_text and bio_text.strip():
+                info['bio'] = bio_text.strip()
+
+        # Mobile (phone)
+        if isinstance(entity, User) and hasattr(entity, 'phone') and entity.phone:
+            info['mobile'] = entity.phone
+
+        # Created date and first message
+        if isinstance(entity, Channel):
+            try:
+                from telethon.tl.types import MessageService, MessageActionChannelMigrateFrom
+                messages = client.get_messages(entity, limit=1, reverse=True)
+                if hasattr(messages, 'total') and messages.total > 0 and len(messages) == 0:
+                    # Messages exist, but access is restrained
+                    LOG.debug(f"Channel has {messages.total} messages but history is restricted")
+                elif len(messages) > 0:
+                    first_msg = messages[0]
+                    info['created_date'] = first_msg.date.astimezone().strftime('%Y-%m-%d')
+                    info['created_msg_id'] = first_msg.id
+                    # Detect migration
+                    if isinstance(first_msg, MessageService) and isinstance(first_msg.action, MessageActionChannelMigrateFrom):
+                        info['is_migrated'] = True
+                        info['original_chat_id'] = first_msg.action.chat_id
+            except Exception as e:
+                print_debug(e)
+                pass
+
+        # Linked channel/discussion
+        if isinstance(entity, Channel) and full:
+            if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'linked_chat_id'):
+                if full.full_chat.linked_chat_id:
+                    info['linked_chat_id'] = full.full_chat.linked_chat_id
+
+        # Members/Subscribers count
+        if full:
+            if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'participants_count'):
+                info['count'] = full.full_chat.participants_count
+
+        # Owner and admins
+        try:
+            if isinstance(entity, Channel):
+                admins_result = client(GetParticipantsRequest(
+                    channel=entity,
+                    filter=ChannelParticipantsAdmins(),
+                    offset=0,
+                    limit=100,
+                    hash=0
+                ))
+
+                if admins_result.participants:
+                    owner = None
+                    admins = []
+
+                    for participant in admins_result.participants:
+                        if isinstance(participant, ChannelParticipantCreator):
+                            owner = participant.user_id
+                        else:
+                            if hasattr(participant, 'user_id'):
+                                admins.append(participant.user_id)
+
+                    if owner:
+                        info['owner'] = owner
+                    if admins:
+                        info['admins'] = admins
+        except ChatAdminRequiredError:
+            LOG.debug("Cannot get admins and owner. You do not have permissions to access this information.")
+        except Exception as e:
+            print_debug(e)
+            pass
+
+        return info
+
+    except ValueError as e:
+        LOG.error(f"Invalid ID.", EMOJI['error'])
+        print_debug(e)
+        return None
+    except Exception as e:
+        LOG.output(f"Error retrieving entity: {e}", EMOJI['error'])
+        print_debug(e)
+        return None
+
+
+def format_entity_mdml(info):
+    """
+    Formats entity information as MDML using the MDML library.
+
+    Args:
+        info: dict returned by fetch_entity_info()
+
+    Returns:
+        str: MDML formatted text
+    """
+    from mdml.models import Document, Field, FieldValue
+    from telethon.tl.types import Channel, Chat, User
+
+    if not info:
+        return ""
+
+    now = get_date_time()
+    now_date, now_time = now.split(' ')
+
+    # Create Document with frontmatter
+    doc = Document(raw_content='')
+    if info.get('type'):
+        doc.frontmatter['type'] = info['type']
+
+    # ID
+    doc.fields['id'] = Field(
+        name='id',
+        is_list=False,
+        values=[FieldValue(value= str(info['id']) if info['id'] else "ID")],
+        raw_content=''
+    )
+
+    # Status
+    doc.fields['status'] = Field(
+        name='status',
+        is_list=True,
+        values=[FieldValue(value='active', date=now_date, time=now_time)],
+        raw_content=''
+    )
+
+    # Discovered
+    doc.fields['discovered'] = Field(
+        name='discovered',
+        is_list=False,
+        values=[FieldValue(value=now)],
+        raw_content=''
+    )
+
+    # Username
+    if info.get('username'):
+        doc.fields['username'] = Field(
+            name='username',
+            is_list=False,
+            values=[FieldValue(
+                value=f"@{info['username']}",
+                details=f"[link](https://t.me/{info['username']})"
+            )],
+            raw_content=''
+        )
+
+    # Name
+    if info.get('name'):
+        doc.fields['name'] = Field(
+            name='name',
+            is_list=False,
+            values=[FieldValue(value=info['name'])],
+            raw_content=''
+        )
+
+    # Bio
+    if info.get('bio'):
+        lines = [line.strip() for line in info['bio'].split('\n') if line.strip()]
+        if lines:
+            doc.fields['bio'] = Field(
+                name='bio',
+                is_list=False,
+                values=[FieldValue(
+                    value='',
+                    is_array=True,
+                    array_values=lines
+                )],
+                raw_content=''
+            )
+
+    # Mobile
+    if info.get('mobile'):
+        doc.fields['mobile'] = Field(
+            name='mobile',
+            is_list=False,
+            values=[FieldValue(value=info['mobile'])],
+            raw_content=''
+        )
+
+    # Activity (empty list)
+    doc.fields['activity'] = Field(
+        name='activity',
+        is_list=False,
+        values=[FieldValue(
+            value='',
+            is_array=True,
+            array_values=[]
+        )],
+        raw_content=''
+    )
+
+    # Invite
+    if info.get('by_invite'):
+        doc.fields['invite'] = Field(
+            name='invite',
+            is_list=False,
+            values=[FieldValue(info['by_invite'])],
+            raw_content=''
+        )
+
+    # Only for channels/groups, not users
+    entity = info.get('entity')
+    if not isinstance(entity, User):
+        # Joined (empty list)
+        doc.fields['joined'] = Field(
+            name='joined',
+            is_list=False,
+            values=[FieldValue(value=info['joined_date'] if info.get('joined_date') else 'DATE')],
+            raw_content=''
+        )
+
+        # Created
+        if info.get('created_date'):
+            entity_id = info['id']
+            msg_id = info.get('created_msg_id', 1)
+            created_link = f"https://t.me/c/{entity_id}/{msg_id}"
+
+            if msg_id == 1:
+                doc.fields['created'] = Field(
+                    name='created',
+                    is_list=False,
+                    values=[FieldValue(
+                        value=info['created_date'],
+                        details=f"[link]({created_link})"
+                    )],
+                    raw_content=''
+                )
+            else:
+                if info.get('is_migrated'):
+                    value = f"before {info['created_date']}"
+                    details = f"migrated, [link]({created_link})"
+                else:
+                    value = f"before {info['created_date']}"
+                    details = f"[link]({created_link})"
+
+                doc.fields['created'] = Field(
+                    name='created',
+                    is_list=False,
+                    values=[FieldValue(
+                        value=value,
+                        details=details,
+                        is_raw=True
+                    )],
+                    raw_content=''
+                )
+        else:
+            doc.fields['created'] = Field(
+                name='created',
+                is_list=False,
+                values=[FieldValue('DATE')],
+                raw_content=''
+            )
+
+    # Linked channel (for supergroups)
+    if isinstance(entity, Channel) and entity.megagroup:
+        if info.get('linked_chat_id'):
+            doc.fields['linked channel'] = Field(
+                name='linked channel',
+                is_list=False,
+                values=[FieldValue(
+                    value=f"tg_{info['linked_chat_id']}",
+                    is_wiki_link=True,
+                    wiki_link=f"tg_{info['linked_chat_id']}"
+                )],
+                raw_content=''
+            )
+
+    # Members/Subscribers
+    if info.get('count'):
+        if isinstance(entity, Channel):
+            if entity.megagroup:
+                count_field = "members"
+            elif entity.broadcast:
+                count_field = "subscribers"
+            else:
+                count_field = "members"
+        elif isinstance(entity, Chat):
+            count_field = "members"
+        else:
+            count_field = None
+
+        if count_field:
+            doc.fields[count_field] = Field(
+                name=count_field,
+                is_list=True,
+                values=[FieldValue(
+                    value=str(info['count']),
+                    date=now_date,
+                    time=now_time
+                )],
+                raw_content=''
+            )
+
+    # Discussion (for channels)
+    if isinstance(entity, Channel) and entity.broadcast:
+        if info.get('linked_chat_id'):
+            doc.fields['discussion'] = Field(
+                name='discussion',
+                is_list=False,
+                values=[FieldValue(
+                    value=f"tg_{info['linked_chat_id']}",
+                    is_wiki_link=True,
+                    wiki_link=f"tg_{info['linked_chat_id']}"
+                )],
+                raw_content=''
+            )
+
+    # Owner
+    if info.get('owner'):
+        doc.fields['owner'] = Field(
+            name='owner',
+            is_list=False,
+            values=[FieldValue(
+                value=f"tg_{info['owner']}",
+                is_wiki_link=True,
+                wiki_link=f"tg_{info['owner']}"
+            )],
+            raw_content=''
+        )
+
+    # Admins - Liste MDML avec wikilinks
+    if info.get('admins'):
+        admin_values = []
+        for uid in info['admins']:
+            admin_values.append(FieldValue(
+                value=f"tg_{uid}",
+                is_wiki_link=True,
+                wiki_link=f"tg_{uid}"
+            ))
+
+        doc.fields['admins'] = Field(
+            name='admins',
+            is_list=True,
+            values=admin_values,
+            raw_content=''
+        )
+
+    return doc
+
+
+def get_entity_info(client, by_id=None, by_username=None, by_invite=None):
+    """
+    Main function to fetch and output entity information as MDML.
+    """
+    try:
+        info = fetch_entity_info(client, by_id=by_id, by_username=by_username, by_invite=by_invite)
+        if info:
+            mdml = format_entity_mdml(info)
+            return mdml
+        else:
+            LOG.error(f"Failed to fetch entity information.", EMOJI['error'])
+    except Exception as e:
+        LOG.error(f"Error generating MDML: {e}", EMOJI['error'])
+        print_debug(e)
+    return None
+
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(
@@ -814,1230 +2098,30 @@ def build_arg_parser():
         action='store_true',
         help='Copy --get-info MDML result to clipboard.'
     )
+    parser.add_argument(
+        '--quiet',
+        action='store_true',
+        help='Suppress OUTPUT from console (still goes to --out-file if specified)'
+    )
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='Show DEBUG messages on console'
+    )
+    parser.add_argument(
+        '--log-full',
+        type=str,
+        metavar='FILE',
+        help='Log everything (INFO, ERROR, OUTPUT, DEBUG) to file'
+    )
+    parser.add_argument(
+        '--log-error',
+        type=str,
+        metavar='FILE',
+        help='Log errors only to file'
+    )
 
     return parser
-
-
-def print_stats(stats):
-    print("\n" + UI_HORIZONTAL_LINE)
-    print(f"{EMOJI["stats"]} RESULTS")
-    print(f"Total checked:  {stats['total']}")
-    print(f"{EMOJI.get("active")     } Active:      {stats['active']     }")
-    print(f"{EMOJI.get("banned")     } Banned:      {stats['banned']     }")
-    print(f"{EMOJI.get("deleted")    } Deleted:     {stats['deleted']    }")
-    print(f"{EMOJI.get("id_mismatch")} ID Mismatch: {stats['id_mismatch']}")
-    print(f"{EMOJI.get("unknown")    } Unknown:     {stats['unknown']    }")
-    print(f"{EMOJI.get("error")      } Errors:      {stats['error']      }")
-    print()
-    print(f"{EMOJI["skip"]} Skipped (total):      {stats['skipped']}")
-    if stats['skipped_time'] > 0:
-        print(f"   └─ Recently checked:  {stats['skipped_time']}")
-    if stats['skipped_status'] > 0:
-        print(f"   └─ By status:         {stats['skipped_status']}")
-    if stats['skipped_no_identifier'] > 0:
-        print(f"   └─ No identifier:     {stats['skipped_no_identifier']}")
-    if stats['skipped_type'] > 0:
-        print(f"   └─ Wrong type:        {stats['skipped_type']}")
-    if stats['ignored'] > 0:
-        print()
-        print(f"{EMOJI["ignored"]} total:      {stats['ignored']}")
-    print()
-    if stats['method']:
-        print(f"{EMOJI["methods"]} Methods used:")
-        if stats['method']['id'] > 0:
-            print(f"   └─ By ID:        {stats['method']['id']}")
-        if stats['method']['username'] > 0:
-            print(f"   └─ By username:  {stats['method']['username']}")
-        if stats['method']['invite'] > 0:
-            print(f"   └─ By invite:    {stats['method']['invite']}")
-    print(UI_HORIZONTAL_LINE)
-
-
-def print_no_status_block(no_status_block_results):
-    print(UI_HORIZONTAL_LINE)
-    print(f"{EMOJI["warning"]} FILES WITHOUT 'status:' BLOCK (STATUS DETECTED)")
-    for item in no_status_block_results:
-        print(f"• \\[[{item['file']}\\]] → {item['emoji']} {item['status']}")
-    print(UI_HORIZONTAL_LINE)
-
-
-def print_status_changed_files(status_changed_files):
-    print("\n" + "!" * 60)
-    print(f"{EMOJI["change"]} FILES WITH STATUS CHANGE (RENAME IN OBSIDIAN)")
-    for item in status_changed_files:
-        print(f"• \\[[{item['file']}\\]] : {item['old']} → {item['new']}")
-    print(UI_HORIZONTAL_LINE)
-
-
-def print_recovered_ids(recovered_ids):
-    """
-    Prints a summary of recovered entity IDs.
-
-    Args:
-        recovered_ids (list): List of dicts with 'file', 'id', 'method', 'written'
-    """
-    if not recovered_ids:
-        return
-
-    print("\n" + UI_HORIZONTAL_LINE)
-    print(f"{EMOJI['id']} RECOVERED IDs ({len(recovered_ids)})")
-
-    # Group by method
-    by_invite = [r for r in recovered_ids if r['method'] == 'invite']
-    by_username = [r for r in recovered_ids if r['method'] == 'username']
-
-    if by_invite:
-        print(f"\n✅ Via INVITE (reliable):")
-        for item in by_invite:
-            written_mark = "✅" if item.get('written') else "⚠️"
-            print(f"  {written_mark} \\[[{item['file']}\\]] → id: `{item['id']}`")
-
-        written_count = sum(1 for r in by_invite if r.get('written'))
-        if written_count > 0:
-            print(f"\n  ✅ {written_count} ID(s) written to files")
-        not_written = len(by_invite) - written_count
-        if not_written > 0:
-            print(f"  ⚠️  {not_written} ID(s) not written (ID already exists or --write-id not enabled)")
-
-    if by_username:
-        print(f"\n⚠️  Via USERNAME (unreliable - DO NOT write):")
-        for item in by_username:
-            print(f"  • \\[[{item['file']}\\]] → id: `{item['id']}`")
-        print(f"\n  ⚠️  These IDs were recovered via username.")
-        print(f"     Verify manually before adding them to files!")
-
-    if by_invite:
-        print(f"{EMOJI['info']} IDs recovered via invite are reliable and permanent.")
-        print(f"{EMOJI['info']} Use them for faster future checks.")
-    print(UI_HORIZONTAL_LINE)
-
-
-def print_discovered_usernames(discovered_usernames):
-    """
-    Prints a summary of discovered/changed usernames.
-
-    Args:
-        discovered_usernames (list): List of dicts with 'file', 'old_username', 'new_username', 'status'
-    """
-    if not discovered_usernames:
-        return
-
-    print("\n" + UI_HORIZONTAL_LINE)
-    print(f"{EMOJI['handle']} DISCOVERED/CHANGED USERNAMES ({len(discovered_usernames)})")
-
-    # Group by status
-    discovered = [u for u in discovered_usernames if u['status'] == 'discovered']
-    changed = [u for u in discovered_usernames if u['status'] == 'changed']
-
-    if discovered:
-        print(f"\n✨ DISCOVERED (new usernames):")
-        for item in discovered:
-            print(f"  • \\{item['file']}\\]] → @{item['new_username']}")
-        print(f"\n  {EMOJI["info"]}  {len(discovered)} username(s) discovered")
-
-    if changed:
-        print(f"\n🔄 CHANGED (username updates):")
-        for item in changed:
-            print(f"  • \\[[{item['file']}\\]] : @{item['old_username']} → @{item['new_username']}")
-        print(f"\n  ⚠️  {len(changed)} username(s) changed")
-
-    print(f"{EMOJI['warning']} Usernames can change frequently - verify before updating files!")
-    print(f"{EMOJI['info']} Consider manually updating the markdown files with new usernames.")
-    print(UI_HORIZONTAL_LINE)
-
-
-def check_and_display(client, identifier, is_invite, expected_id, label, stats):
-    """
-    Helper function to check status and display result.
-
-    Returns:
-        tuple: (status, restriction_details, actual_id, actual_username, method_used)
-    """
-    print(f"{label}...", end=' ', flush=True)
-    status, restriction_details, actual_id, actual_username, method_used = check_entity_status(
-        client, identifier, is_invite, expected_id
-    )
-
-    if method_used in stats['method']:
-        stats['method'][method_used] += 1
-
-    emoji = EMOJI.get(status, EMOJI["no_emoji"])
-    print(f"{emoji} {status}")
-
-    return status, restriction_details, actual_id, actual_username, method_used
-
-
-def format_display_id(expected_id, identifiers, method_used):
-    """
-    Formats a display ID based on what method succeeded.
-
-    Returns:
-        str: Formatted display ID
-    """
-    if method_used == 'id':
-        return f"ID:{expected_id}"
-    elif method_used == 'invite':
-        invite_list = identifiers if isinstance(identifiers, list) else [identifiers]
-        return f"+{invite_list[0][:10]}... ({len(invite_list)} invite(s))"
-    elif method_used == 'username':
-        return f"@{identifiers}"
-    else:
-        return "???"
-
-
-def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stats):
-    """
-    Checks entity status with priority fallback: ID → Invites → Username.
-
-    Args:
-        client: TelegramClient instance
-        expected_id: Entity ID (or None)
-        identifiers: Username or list of invite hashes (or None)
-        is_invite: Whether identifiers are invite links
-        stats: Statistics dictionary to update
-
-    Returns:
-        tuple: (status, restriction_details, actual_id, actual_username, method_used, display_id)
-    """
-    status = None
-    restriction_details = None
-    actual_id = None
-    actual_username = None
-    method_used = None
-
-    # PRIORITY 1: Try by ID first (most reliable)
-    if expected_id:
-        status, restriction_details, actual_id, actual_username, method_used = check_and_display(
-            client, None, False, expected_id,
-            f"  {EMOJI.get('id')} Checking by ID: {expected_id}",
-            stats
-        )
-
-    # PRIORITY 2: Fallback to invite links (if ID failed or no ID)
-    if status is None or status == 'unknown':
-        if is_invite and identifiers:
-            invite_list = identifiers if isinstance(identifiers, list) else [identifiers]
-            print(f"  {EMOJI['fallback']} Fallback: Checking {len(invite_list)} invite(s)...")
-
-            for idx, invite_hash in enumerate(invite_list, 1):
-                status, restriction_details, actual_id, actual_username, method_used = check_and_display(
-                    client, invite_hash, True, expected_id,
-                    f"    {EMOJI['invite']} \\[{idx}/{len(invite_list)}\\] +{invite_hash}",
-                    stats
-                )
-
-                if actual_id and not expected_id:
-                    print(f"      {EMOJI['id']} ID recovered: {actual_id}")
-
-                if actual_username:
-                    print(f"      {EMOJI['handle']} Username: @{actual_username}")
-
-                # Stop if we get a definitive answer
-                if status != 'unknown':
-                    break
-
-                # Sleep between invite checks
-                if idx < len(invite_list):
-                    time.sleep(5)
-
-    # PRIORITY 3: Fallback to username (last resort)
-    if status is None or status == 'unknown':
-        if not is_invite and identifiers:
-            status, restriction_details, actual_id, actual_username, method_used = check_and_display(
-                client, identifiers, False, expected_id,
-                f"  {EMOJI['handle']} Fallback: Checking @{identifiers}",
-                stats
-            )
-
-            if actual_id and not expected_id:
-                print(f"    {EMOJI['id']} ID recovered: {actual_id} (via username - unreliable)")
-
-            if actual_username:
-                print(f"    {EMOJI['handle']} Username: @{actual_username}")
-
-    # Final fallback (should rarely happen)
-    if status is None:
-        status = 'unknown'
-        method_used = 'error'
-
-    # Format display ID based on what succeeded
-    display_id = format_display_id(expected_id, identifiers, method_used)
-
-    return status, restriction_details, actual_id, actual_username, method_used, display_id
-
-
-def process_and_update_file(md_file, status, restriction_details, actual_id, expected_id, last_status, should_ignore, is_dry_run):
-    """
-    Displays additional info, updates file if needed, and prepares result data.
-
-    Args:
-        md_file: Path to markdown file
-        status: Current status
-        restriction_details: Restriction details (if any)
-        actual_id: Actual entity ID (for id_mismatch)
-        expected_id: Expected entity ID
-        last_status: Previous status
-        should_ignore: Whether to ignore this status
-        is_dry_run: Whether in dry-run mode
-
-    Returns:
-        tuple: (should_track_change, was_updated)
-            - should_track_change: True if status changed
-            - was_updated: True if file was actually updated
-    """
-    # Display additional info
-    if status == 'id_mismatch' and actual_id:
-        print(f"  {EMOJI["id_mismatch"]} Expected ID: {expected_id}, found ID: {actual_id}")
-
-    if last_status is not None and last_status != status:
-        print(f"  {EMOJI["change"]} STATUS CHANGE: {last_status} → {status}")
-
-    if restriction_details:
-        if 'reason' in restriction_details:
-            print(f"  {EMOJI["reason"]} Reason: {restriction_details['reason']}")
-        if 'text' in restriction_details:
-            text_preview = cut_text(restriction_details['text'], 120-11)
-            print(f"  {EMOJI["text"]} Text: {text_preview}")
-
-    # Handle file updates
-    should_track_change = False
-    was_updated = False
-
-    if should_ignore:
-        print(f"  {EMOJI["ignored"]} Ignoring status '{status}' (not updating file)")
-    else:
-        # Track status change
-        if last_status != status:
-            should_track_change = True
-
-        # Update file
-        if not is_dry_run:
-            if update_status_in_md(md_file, status, restriction_details):
-                print(f"  {EMOJI["saved"]} File updated")
-                was_updated = True
-        else:
-            # Show what WOULD be written
-            print(f"  {EMOJI["dry-run"]} Would add:")
-            print(f"    `{status}`, `{get_date_time()}`")
-            if restriction_details:
-                if 'reason' in restriction_details:
-                    print(f"    - reason: `{restriction_details['reason']}`")
-                if 'text' in restriction_details:
-                    print(f"    - text: `{restriction_details['text'][:50]}...`")
-
-    return should_track_change, was_updated
-
-
-def print_identifiers(identifiers_list, md_tasks=True, valid_only=False, clean=False):
-    if not identifiers_list:
-        return
-
-    md_check_list = ''
-    if md_tasks:
-        md_check_list = '- [ ] '
-
-    # Print results
-    if len(identifiers_list) > 1:
-        print(f"\n{EMOJI['invite']} Found {len(identifiers_list)} identifiers:\n")
-
-    for ident in identifiers_list:
-        type_indicator = ' ' + (EMOJI['invite'] if "+" in ident['full_link'] else EMOJI['handle'])
-        if ident['valid'] is True:
-            print(f"{md_check_list}{EMOJI["active"]}{type_indicator} {ident['full_link']}")
-            if not clean:
-                if ident['user_id']:
-                    print(f"  {EMOJI["id"]      } {ident['user_id']}")
-                print(f"  {EMOJI["file"]    } {ident['file']}")
-                print()
-        elif ident['valid'] is False and not valid_only:
-            print(f"{md_check_list}{EMOJI["no_emoji"]}{type_indicator} {ident['full_link']}")
-            if not clean:
-                print(f"  {EMOJI["file"]    } {ident['file']}")
-                print(f"  {EMOJI["text"]    } {ident['reason']}")
-                print(f"  {EMOJI["text"]    } {ident['message']}")
-                print()
-        elif ident['valid'] is None:  # valid is None, because we haven't checked for validity
-            print(f"{md_check_list}{type_indicator} {ident['full_link']}")
-            if not clean:
-                print(f"  {EMOJI["file"]    } {ident['file']}")
-                print()
-
-
-def validate_invite(client, invite_hash):
-    """
-    Validates an invitation link by checking the invite info.
-    Uses CheckChatInviteRequest to validate the invite,
-    then attempts to retrieve the entity ID via get_entity.
-
-    Args:
-        client: TelegramClient instance
-        invite_hash: Invite hash to validate
-
-    Returns:
-        tuple: (is_valid, user_id or None, reason or None, message or None)
-    """
-    try:
-        # Check the invite (returns ChatInviteAlready, ChatInvite, or ChatInvitePeek)
-        result = client(CheckChatInviteRequest(hash=invite_hash))
-
-        # Invitation is valid - now try to get the entity ID
-        entity_id = None
-        message = None
-        try:
-            entity = client.get_entity(f'https://t.me/+{invite_hash}')
-            if hasattr(entity, 'id'):
-                entity_id = entity.id
-            else:
-                # Should never happen
-                print_debug(Exception("SHOULD NEVER HAVE HAPPENED"))
-        except ValueError as e:
-            message = str(e)
-        except Exception as e:
-            print_debug(e)
-            # Can't get entity, but invite is still valid
-            pass
-
-        # Determine reason based on result type
-        if isinstance(result, ChatInviteAlready):
-            reason = 'ALREADY_MEMBER'
-        elif isinstance(result, ChatInvite):
-            reason = 'VALID_PREVIEW'
-        elif isinstance(result, ChatInvitePeek):
-            reason = 'VALID_PEEK'
-        else:
-            reason = 'VALID_UNKNOWN_TYPE'
-
-        return True, entity_id, reason, message
-
-    except InviteHashExpiredError as e:
-        return False, None, 'EXPIRED', str(e)
-    except InviteHashInvalidError as e:
-        return False, None, 'INVALID', str(e)
-
-    except FloodWaitError as e:
-        # Handle flood wait with recursive retry
-        print(f"{EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
-        time.sleep(e.seconds)
-        return validate_invite(client, invite_hash)
-
-    except Exception as e:
-        print_debug(e)
-        return False, None, 'ERROR', f'{type(e).__name__}: {str(e)}'
-
-
-def validate_handle(client, username):
-    """
-    Validates if a Telegram handle (@username) is valid and leads somewhere.
-
-    Args:
-        client: TelegramClient instance
-        username: Username without @ (e.g., 'example_channel')
-
-    Returns:
-        tuple: (is_valid, reason, message)
-            - is_valid: True if handle is accessible
-            - reason: 'valid', 'invalid', 'not_occupied', 'private', or 'error'
-            - message: Descriptive message or None
-    """
-    try:
-        entity = client.get_entity(username)
-        # If we get here, the handle is valid and accessible
-        return True, entity.id, 'valid', None
-    except ValueError as e:
-        return False, None, 'NO_USER', str(e)
-    except UsernameNotOccupiedError:
-        return False, None, 'not_occupied', 'Username not occupied'
-    except UsernameInvalidError:
-        return False, None, 'invalid', 'Invalid username format'
-    except ChannelPrivateError:
-        # Handle exists but is private/requires membership
-        return True, None, 'private', 'Channel/group is private'
-    except FloodWaitError as e:
-        # Handle flood wait with recursive retry
-        print(f"  {EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
-        time.sleep(e.seconds)
-        return validate_handle(client, username)
-    except Exception as e:
-        print_debug(e)
-        return False, None, 'ERROR', f'{type(e).__name__}: {str(e)}'
-
-
-def connect_to_telegram(user):
-    # Load phone number for user
-    session_dir = Path('.secret')
-    session_dir.mkdir(exist_ok=True)
-    mobile_file = session_dir / f'{user}.mobile'
-
-    if not mobile_file.exists():
-        print(f"{EMOJI["error"]} Mobile file not found: {mobile_file}")
-        print(f"  Create it with:")
-        print(f"    echo '+1234567890' > {mobile_file}")
-        return
-
-    phone = mobile_file.read_text(encoding='utf-8').strip()
-
-    # Connect to Telegram
-    session_file = session_dir / user
-    print(f"{EMOJI["handle"]} User: {user}")
-    print(f"{EMOJI["connecting"]} Connecting to Telegram...")
-    client = TelegramClient(str(session_file), API_ID, API_HASH)
-    client.start(phone=phone)
-    print(f"{EMOJI["success"]} Connected!\n")
-    return client
-
-
-def list_identifiers(client, md_files, args):
-    identifiers_list = []
-    for md_file in md_files:
-        try:
-            entity = TelegramEntity.from_file(md_file)
-
-            # Skip files with type = 'user' or 'bot'
-            if not args.include_users:
-                try:
-                    if entity.get_type() in ('user', 'bot'):
-                        continue
-                except MissingFieldError:
-                    # No type detected
-                    # Process as if not user
-                    pass
-                except InvalidTypeError:
-                    # Probably 'website' or placeholder
-                    # Skip
-                    continue
-
-            # Skip files with banned/unknown status unless --no-skip
-            if not args.no_skip:
-                last_status, _, _ = get_last_status(entity)
-                if last_status in ['banned', 'unknown', 'deleted']:
-                    continue
-
-            # Get invites
-            invites = entity.get_invites().active()
-
-            for invite in invites:
-                invite_entry = {
-                    'file': md_file.name,
-                    'short': invite.hash,
-                    'full_link': f'https://t.me/+{invite.hash}',
-                }
-
-                # Validate if in 'valid' mode
-                if args.get_identifiers == 'valid':
-                    (
-                        invite_entry['valid'],
-                        invite_entry['user_id'],
-                        invite_entry['reason'],
-                        invite_entry['message']
-                    ) = validate_invite(client, invite.hash)
-                    time.sleep(SLEEP_BETWEEN_CHECKS)  # Rate limiting
-                else:
-                    # 'all' mode - no validation
-                    invite_entry['valid'] = None
-                    invite_entry['reason'] = None
-                    invite_entry['message'] = "Not validated"
-
-                if args.continuous:
-                    print_identifiers([invite_entry], args.md_tasks, args.valid_only, args.clean)
-                else:
-                    identifiers_list.append(invite_entry)
-
-            # Add usernames if not --invites-only
-            if not args.invites_only:
-                usernames = entity.get_usernames().active()
-                for username in usernames:
-                    username_entry = {
-                        'file': md_file.name,
-                        'short': '@' + username.value,
-                        'full_link': f'https://t.me/{username.value}',
-                    }
-
-                    # Validate if in 'valid' mode
-                    if args.get_identifiers == 'valid':
-                        (
-                            username_entry['valid'],
-                            username_entry['user_id'],
-                            username_entry['reason'],
-                            username_entry['message']
-                        ) = validate_handle(client, username.value)
-                        time.sleep(SLEEP_BETWEEN_CHECKS)
-                    else:
-                        username_entry['valid'] = None
-                        username_entry['reason'] = None
-                        username_entry['message'] = "Not validated"
-
-                    if args.continuous:
-                        print_identifiers([username_entry], args.md_tasks, args.valid_only, args.clean)
-                    else:
-                        identifiers_list.append(username_entry)
-
-        except Exception as e:
-            print_debug(e)
-            continue
-
-    # Print results and cleanup
-    if not args.continuous:
-        print_identifiers(identifiers_list, args.md_tasks, args.valid_only, args.clean)
-
-
-def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
-    # Statistics
-    stats = STATS_INIT.copy()
-    # Store results for dry-run summary
-    results = []
-    status_changed_files = []
-    no_status_block_results = []
-    recovered_ids = []  # List of {file, id, method, written}
-    discovered_usernames = []  # List of {file, old_username, new_username, status}
-    try:
-        for md_file in md_files:
-            # parsing the file through MDML
-            try:
-                entity = TelegramEntity.from_file(md_file)
-                print()
-                print(f"{EMOJI["file"]} \\[[{md_file.name}\\]]")
-
-                # Check type filter
-                try:
-                    entity_type = entity.get_type()
-                except (InvalidTypeError, MissingFieldError):
-                    entity_type = None
-                except Exception as e:
-                    print(f"{EMOJI['error']} Error: {e}")
-                    entity_type = None
-
-                if args.type != 'all' and entity_type != args.type:
-                    stats['skipped'] += 1
-                    stats['skipped_type'] += 1
-                    continue
-
-                # Extract ALL identifiers upfront
-                try:
-                    expected_id = entity.get_id()
-                except InvalidFieldError:
-                    expected_id = None
-                except Exception as e:
-                    print(f"{EMOJI['error']} Error: {e}")
-                    expected_id = None
-
-                identifiers, is_invite = extract_telegram_identifiers(entity)
-
-                # If no ID AND no identifiers, skip entirely
-                if not expected_id and not identifiers:
-                    print(f"  {EMOJI["skip"]} Skipped: No identifier found")
-                    stats['skipped'] += 1
-                    stats['skipped_no_identifier'] += 1
-                    continue
-
-                # Get last status info
-                last_status, last_datetime, has_status_block = get_last_status(entity)
-
-                # Check if we should skip based on last status
-                should_skip, skip_reason = should_skip_entity(entity, skip_time_seconds, args.skip, not args.no_skip_unknown)
-                if should_skip:
-                    print(f"  {EMOJI["skip"]} Skipped: ({skip_reason})")
-                    stats['skipped'] += 1
-                    if 'checked' in skip_reason and 'ago' in skip_reason:
-                        stats['skipped_time'] += 1
-                    elif 'last status' in skip_reason:
-                        stats['skipped_status'] += 1
-                    continue
-
-                # Check entity status with priority fallback
-                status, restriction_details, actual_id, actual_username, method_used, display_id = check_entity_with_fallback(
-                    client, expected_id, identifiers, is_invite, stats
-                )
-
-                # Check and write the retrieved ID
-                if actual_id and not expected_id:
-                    id_written = False
-
-                    # Write ID retrieved via invite, if --write-id
-                    if method_used == 'invite' and args.write_id and not args.dry_run:
-                        if write_id_to_md(md_file, actual_id):
-                            print(f"  {EMOJI['saved']} ID written to file: `{actual_id}`")
-                            id_written = True
-                        else:
-                            print(f"  {EMOJI['info']} ID already present in file.")
-
-                    # Add to list of retrieved ID
-                    recovered_ids.append({
-                        'file': md_file.name,
-                        'id': actual_id,
-                        'method': method_used,
-                        'written': id_written
-                    })
-
-                # Track discovered / changed usernames
-                if actual_username:
-                    username = entity.get_username(allow_strikethrough=False)
-                    if username:
-                        existing_username = username.value  # username without @
-                    else:
-                        existing_username = None
-
-                    # Cas 1 : Discovered username not in MDML
-                    if not existing_username:
-                        print(f"  {EMOJI['handle']} Username discovered: @{actual_username}")
-                        discovered_usernames.append({
-                            'file': md_file.name,
-                            'old_username': None,
-                            'new_username': actual_username,
-                            'status': 'discovered'
-                        })
-
-                    # Cas 2 : Username has changed AND is different from username in MDML
-                    elif existing_username.lower() != actual_username.lower():
-                        print(f"  {EMOJI['change']} Username changed: @{existing_username} → @{actual_username}")
-                        discovered_usernames.append({
-                            'file': md_file.name,
-                            'old_username': existing_username,
-                            'new_username': actual_username,
-                            'status': 'changed'
-                        })
-
-                # Update statistics
-                stats['total'] += 1
-                if status == 'active':
-                    stats['active'] += 1
-                elif status == 'banned':
-                    stats['banned'] += 1
-                elif status == 'deleted':
-                    stats['deleted'] += 1
-                elif status == 'id_mismatch':
-                    stats['id_mismatch'] += 1
-                elif status == 'unknown':
-                    stats['unknown'] += 1
-                else:
-                    stats['error'] += 1
-
-                # Process result and update file if needed
-                should_ignore = ignore_statuses and status in ignore_statuses
-                if should_ignore:
-                    stats['ignored'] += 1
-
-                should_track_change, _ = process_and_update_file(
-                    md_file, status, restriction_details, actual_id,
-                    expected_id, last_status,
-                    should_ignore, args.dry_run
-                )
-
-                # Store result for reports
-                result = {
-                    'file': md_file.name,
-                    'identifier': display_id,
-                    'status': status,
-                    'timestamp': get_date_time(),
-                    'emoji': EMOJI.get(status, EMOJI["no_emoji"]),
-                    'restriction_details': restriction_details
-                }
-                results.append(result)
-
-                # Track files without status block
-                if not has_status_block:
-                    no_status_block_results.append(result)
-
-                # Track status changes
-                if should_track_change:
-                    status_changed_files.append({
-                        'file': md_file.name,
-                        'old': last_status,
-                        'new': status
-                    })
-
-                # Sleep between checks to avoid rate limiting
-                if md_file != md_files[-1]:
-                    time.sleep(SLEEP_BETWEEN_CHECKS)
-            except FileNotFoundError:
-                print("File not found.")
-            except TelegramMDMLError:
-                print("Parsing failed.")
-            except Exception as e:
-                print("Failed to read MDML entity from file.")
-                print_debug(e)
-    except KeyboardInterrupt:
-        client.disconnect()
-        exit(0)
-    finally:
-        # Always disconnect, even if there's an error
-        client.disconnect()
-    # Final statistics
-    print_stats(stats)
-    # Dry-run summary
-    if args.dry_run:
-        print_dry_run_summary(results)
-    if status_changed_files:
-        print_status_changed_files(status_changed_files)
-    if no_status_block_results:
-        print_no_status_block(no_status_block_results)
-    if recovered_ids:
-        print_recovered_ids(recovered_ids)
-    if discovered_usernames:
-        print_discovered_usernames(discovered_usernames)
-
-
-def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
-    """
-    Fetches comprehensive information about a Telegram entity.
-
-    Args:
-        client: TelegramClient instance
-        by_id: Entity ID (int)
-        by_username: Username (str, without @)
-        by_invite: Invite hash (str)
-
-    Returns:
-        dict: Entity information or None on error
-    """
-    from telethon.tl.functions.channels import GetFullChannelRequest, GetParticipantsRequest
-    from telethon.tl.functions.users import GetFullUserRequest
-    from telethon.tl.types import (
-        Channel, User, Chat, PeerChannel, PeerUser, PeerChat,
-        ChannelParticipantsAdmins, ChannelParticipantCreator
-    )
-
-    # Determine which method to use
-    entity = None
-    try:
-        if by_id:
-            print(f"{EMOJI['id']} Fetching entity by ID: {by_id}...")
-            # Try different peer types
-            try:
-                entity = client.get_entity(PeerChannel(by_id))
-            except:
-                try:
-                    entity = client.get_entity(PeerUser(by_id))
-                except:
-                    try:
-                        entity = client.get_entity(PeerChat(by_id))
-                    except:
-                        entity = client.get_entity(by_id)
-
-        elif by_username:
-            print(f"{EMOJI['handle']} Fetching entity by username: @{by_username}...")
-            entity = client.get_entity(by_username)
-
-        elif by_invite:
-            print(f"{EMOJI['invite']} Fetching entity by invite: +{by_invite}...")
-            entity = client.get_entity(f'https://t.me/+{by_invite}')
-
-        else:
-            print(f"{EMOJI['error']} No identifier provided")
-            return None
-
-        if not entity:
-            print(f"{EMOJI['error']} Could not retrieve entity")
-            return None
-
-        print(f"{EMOJI['success']} Entity retrieved!\n")
-
-        # Get full entity information
-        full = None
-        if isinstance(entity, Channel):
-            full = client(GetFullChannelRequest(entity))
-        elif isinstance(entity, User):
-            full = client(GetFullUserRequest(entity))
-
-        # Determine entity type
-        entity_type = None
-        if isinstance(entity, User):
-            entity_type = 'bot' if entity.bot else 'user'
-        elif isinstance(entity, Channel):
-            if entity.megagroup:
-                entity_type = 'group'
-            elif entity.broadcast:
-                entity_type = 'channel'
-            else:
-                entity_type = 'group'
-        elif isinstance(entity, Chat):
-            entity_type = 'group'
-
-        # Build info dict
-        info = {
-            'entity': entity,
-            'full': full,
-            'type': entity_type,
-            'id': entity.id,
-            'by_invite': by_invite
-        }
-
-        # Join date (for channels and groups)
-        if isinstance(entity, (Channel, Chat)) and hasattr(entity, 'date') and entity.date:
-            info['joined_date'] = entity.date.astimezone().strftime('%Y-%m-%d %H:%M')
-
-        # Username
-        if hasattr(entity, 'username') and entity.username:
-            info['username'] = entity.username
-
-        # Name
-        if isinstance(entity, User):
-            parts = []
-            if entity.first_name:
-                parts.append(entity.first_name)
-            if entity.last_name:
-                parts.append(entity.last_name)
-            info['name'] = ' '.join(parts) if parts else None
-        elif isinstance(entity, (Channel, Chat)):
-            info['name'] = entity.title
-
-        # Bio
-        if full:
-            bio_text = None
-            if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'about'):
-                bio_text = full.full_chat.about
-            elif hasattr(full, 'full_user') and hasattr(full.full_user, 'about'):
-                bio_text = full.full_user.about
-
-            # Only add bio if it exists and is not empty/whitespace
-            if bio_text and bio_text.strip():
-                info['bio'] = bio_text.strip()
-
-        # Mobile (phone)
-        if isinstance(entity, User) and hasattr(entity, 'phone') and entity.phone:
-            info['mobile'] = entity.phone
-
-        # Created date and first message
-        if isinstance(entity, Channel):
-            try:
-                from telethon.tl.types import MessageService, MessageActionChannelMigrateFrom
-
-                messages = client.get_messages(entity, limit=1, reverse=True)
-                if messages:
-                    first_msg = messages[0]
-                    info['created_date'] = first_msg.date.astimezone().strftime('%Y-%m-%d')
-                    info['created_msg_id'] = first_msg.id
-
-                    # Detect migration
-                    if isinstance(first_msg, MessageService) and isinstance(first_msg.action, MessageActionChannelMigrateFrom):
-                        info['is_migrated'] = True
-                        info['original_chat_id'] = first_msg.action.chat_id
-            except Exception as e:
-                print_debug(e)
-                pass
-
-        # Linked channel/discussion
-        if isinstance(entity, Channel) and full:
-            if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'linked_chat_id'):
-                if full.full_chat.linked_chat_id:
-                    info['linked_chat_id'] = full.full_chat.linked_chat_id
-
-        # Members/Subscribers count
-        if full:
-            if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'participants_count'):
-                info['count'] = full.full_chat.participants_count
-
-        # Owner and admins
-        try:
-            if isinstance(entity, Channel):
-                admins_result = client(GetParticipantsRequest(
-                    channel=entity,
-                    filter=ChannelParticipantsAdmins(),
-                    offset=0,
-                    limit=100,
-                    hash=0
-                ))
-
-                if admins_result.participants:
-                    owner = None
-                    admins = []
-
-                    for participant in admins_result.participants:
-                        if isinstance(participant, ChannelParticipantCreator):
-                            owner = participant.user_id
-                        else:
-                            if hasattr(participant, 'user_id'):
-                                admins.append(participant.user_id)
-
-                    if owner:
-                        info['owner'] = owner
-                    if admins:
-                        info['admins'] = admins
-        except:
-            pass
-
-        return info
-
-    except ValueError as e:
-        print(f"{EMOJI['error']} Invalid ID.")
-        return
-    except Exception as e:
-        print(f"{EMOJI['error']} Error retrieving entity: {e}")
-        print_debug(e)
-        return
-
-
-def format_entity_mdml(info):
-    """
-    Formats entity information as MDML using the MDML library.
-
-    Args:
-        info: dict returned by fetch_entity_info()
-
-    Returns:
-        str: MDML formatted text
-    """
-    from mdml.models import Document, Field, FieldValue
-    from telethon.tl.types import Channel, Chat, User
-
-    if not info:
-        return ""
-
-    now = get_date_time()
-    now_date, now_time = now.split(' ')
-
-    # Create Document with frontmatter
-    doc = Document(raw_content='')
-    if info.get('type'):
-        doc.frontmatter['type'] = info['type']
-
-    # ID
-    doc.fields['id'] = Field(
-        name='id',
-        is_list=False,
-        values=[FieldValue(value=str(info['id']))],
-        raw_content=''
-    )
-
-    # Status
-    doc.fields['status'] = Field(
-        name='status',
-        is_list=True,
-        values=[FieldValue(value='active', date=now_date, time=now_time)],
-        raw_content=''
-    )
-
-    # Discovered
-    doc.fields['discovered'] = Field(
-        name='discovered',
-        is_list=False,
-        values=[FieldValue(value=now)],
-        raw_content=''
-    )
-
-    # Username
-    if info.get('username'):
-        doc.fields['username'] = Field(
-            name='username',
-            is_list=False,
-            values=[FieldValue(
-                value=f"@{info['username']}",
-                details=f"[link](https://t.me/{info['username']})"
-            )],
-            raw_content=''
-        )
-
-    # Name
-    if info.get('name'):
-        doc.fields['name'] = Field(
-            name='name',
-            is_list=False,
-            values=[FieldValue(value=info['name'])],
-            raw_content=''
-        )
-
-    # Bio
-    if info.get('bio'):
-        lines = [line.strip() for line in info['bio'].split('\n') if line.strip()]
-        if lines:
-            doc.fields['bio'] = Field(
-                name='bio',
-                is_list=False,
-                values=[FieldValue(
-                    value='',
-                    is_array=True,
-                    array_values=lines
-                )],
-                raw_content=''
-            )
-
-    # Mobile
-    if info.get('mobile'):
-        doc.fields['mobile'] = Field(
-            name='mobile',
-            is_list=False,
-            values=[FieldValue(value=info['mobile'])],
-            raw_content=''
-        )
-
-    # Activity (empty list)
-    doc.fields['activity'] = Field(
-        name='activity',
-        is_list=False,
-        values=[FieldValue(
-            value='',
-            is_array=True,
-            array_values=[]
-        )],
-        raw_content=''
-    )
-
-    # Invite
-    if info.get('by_invite'):
-        doc.fields['invite'] = Field(
-            name='invite',
-            is_list=False,
-            values=[FieldValue(value=f"https://t.me/+{info['by_invite']}")],
-            raw_content=''
-        )
-
-    # Only for channels/groups, not users
-    entity = info.get('entity')
-    if not isinstance(entity, User):
-        # Joined (empty list)
-        if info.get('joined_date'):
-            doc.fields['joined'] = Field(
-                name='joined',
-                is_list=False,
-                values=[FieldValue(value=info['joined_date'])],
-                raw_content=''
-            )
-        else:
-            doc.fields['joined'] = Field(
-                name='joined',
-                is_list=True,
-                values=[],
-                raw_content=''
-            )
-
-        # Created
-        if info.get('created_date'):
-            entity_id = info['id']
-            msg_id = info.get('created_msg_id', 1)
-            created_link = f"https://t.me/c/{entity_id}/{msg_id}"
-
-            if msg_id == 1:
-                doc.fields['created'] = Field(
-                    name='created',
-                    is_list=False,
-                    values=[FieldValue(
-                        value=info['created_date'],
-                        details=f"[link]({created_link})"
-                    )],
-                    raw_content=''
-                )
-            else:
-                if info.get('is_migrated'):
-                    value = f"before {info['created_date']}"
-                    details = f"migrated, [link]({created_link})"
-                else:
-                    value = f"before {info['created_date']}"
-                    details = f"[link]({created_link})"
-
-                doc.fields['created'] = Field(
-                    name='created',
-                    is_list=False,
-                    values=[FieldValue(
-                        value=value,
-                        details=details,
-                        is_raw=True
-                    )],
-                    raw_content=''
-                )
-
-    # Linked channel (for supergroups)
-    if isinstance(entity, Channel) and entity.megagroup:
-        if info.get('linked_chat_id'):
-            doc.fields['linked channel'] = Field(
-                name='linked channel',
-                is_list=False,
-                values=[FieldValue(
-                    value=f"tg_{info['linked_chat_id']}",
-                    is_wiki_link=True,
-                    wiki_link=f"tg_{info['linked_chat_id']}"
-                )],
-                raw_content=''
-            )
-
-    # Members/Subscribers
-    if info.get('count'):
-        if isinstance(entity, Channel):
-            if entity.megagroup:
-                count_field = "members"
-            elif entity.broadcast:
-                count_field = "subscribers"
-            else:
-                count_field = "members"
-        elif isinstance(entity, Chat):
-            count_field = "members"
-        else:
-            count_field = None
-
-        if count_field:
-            doc.fields[count_field] = Field(
-                name=count_field,
-                is_list=True,
-                values=[FieldValue(
-                    value=str(info['count']),
-                    date=now_date,
-                    time=now_time
-                )],
-                raw_content=''
-            )
-
-    # Discussion (for channels)
-    if isinstance(entity, Channel) and entity.broadcast:
-        if info.get('linked_chat_id'):
-            doc.fields['discussion'] = Field(
-                name='discussion',
-                is_list=False,
-                values=[FieldValue(
-                    value=f"tg_{info['linked_chat_id']}",
-                    is_wiki_link=True,
-                    wiki_link=f"tg_{info['linked_chat_id']}"
-                )],
-                raw_content=''
-            )
-
-    # Owner
-    if info.get('owner'):
-        doc.fields['owner'] = Field(
-            name='owner',
-            is_list=False,
-            values=[FieldValue(
-                value=f"tg_{info['owner']}",
-                is_wiki_link=True,
-                wiki_link=f"tg_{info['owner']}"
-            )],
-            raw_content=''
-        )
-
-    # Admins - Liste MDML avec wikilinks
-    if info.get('admins'):
-        admin_values = []
-        for uid in info['admins']:
-            admin_values.append(FieldValue(
-                value=f"tg_{uid}",
-                is_wiki_link=True,
-                wiki_link=f"tg_{uid}"
-            ))
-
-        doc.fields['admins'] = Field(
-            name='admins',
-            is_list=True,
-            values=admin_values,
-            raw_content=''
-        )
-
-    return doc
-    import json
-    return json.dumps(doc.to_dict(),indent='\t')
-
-
-def get_entity_info(client, by_id=None, by_username=None, by_invite=None):
-    """
-    Main function to fetch and output entity information as MDML.
-    """
-    try:
-        info = fetch_entity_info(client, by_id=by_id, by_username=by_username, by_invite=by_invite)
-        if info:
-            mdml = format_entity_mdml(info)
-            return mdml
-        else:
-            print(f"{EMOJI['error']} Failed to fetch entity information.")
-    except Exception as e:
-        print(f"{EMOJI['error']} Error generating MDML: {e}")
-        print_debug(e)
-    return
 
 
 def validate_args(args):
@@ -2053,6 +2137,7 @@ def validate_args(args):
         print(f"{EMOJI['warning']} --clean can only be used with --get-identifiers")
     if args.include_users and not args.get_identifiers:
         print(f"{EMOJI['warning']} --include-users can only be used with --get-identifiers")
+
     # Validate --get-info options
     if args.get_info:
         selectors = sum([bool(args.by_id), bool(args.by_username), bool(args.by_invite)])
@@ -2062,13 +2147,34 @@ def validate_args(args):
         elif selectors > 1:
             print(f"{EMOJI['error']} --get-info can only use one selector at a time")
             exit(1)
+
     if any([args.by_id, args.by_username, args.by_invite, args.copy]) and not args.get_info:
         print(f"{EMOJI['warning']} --by-id, --by-username, --by-invite and --copy require --get-info")
+
     if not args.path and not args.get_info:
         print(f"{EMOJI['error']} The following arguments are required: --path")
         exit(2)
 
-    # Write to file?
+    # Validate log file paths
+    if args.log_full:
+        log_path = Path(args.log_full)
+        if log_path.exists():
+            print(f"{EMOJI['warning']} Log file already exists: {args.log_full}")
+            response = input("Overwrite? (y/n): ").strip().lower()
+            if response not in ['y', 'yes']:
+                print(f"{EMOJI['error']} Cancelled by user")
+                exit(1)
+
+    if args.log_error:
+        error_path = Path(args.log_error)
+        if error_path.exists():
+            print(f"{EMOJI['warning']} Error log file already exists: {args.log_error}")
+            response = input("Overwrite? (y/n): ").strip().lower()
+            if response not in ['y', 'yes']:
+                print(f"{EMOJI['error']} Cancelled by user")
+                exit(1)
+
+    # Validate --out-file (keep existing validation)
     if args.out_file:
         if Path(args.out_file).exists():
             print(f"\n{EMOJI['warning']} Output file already exists: {args.out_file}")
@@ -2076,14 +2182,6 @@ def validate_args(args):
             if response not in ['y', 'yes']:
                 print(f"{EMOJI['error']} Script cancelled by user.")
                 exit(1)
-        try:
-            global OUT_FILE
-            OUT_FILE = open(args.out_file, 'w', encoding='UTF-8')
-            print(f"{EMOJI['log']} Logging to: {args.out_file}")
-        except Exception as e:
-            OUT_FILE = None
-            print(f"{EMOJI["error"]} Output file {args.out_file} cannot be created/accessed:\n{e}")
-            exit(1)
 
 
 def main():
@@ -2091,6 +2189,18 @@ def main():
 
     # Validate args that only work with --get-identifiers
     validate_args(args)
+
+    # logging
+    global LOG
+    LOG = Logger(debug=args.verbose, quiet=args.quiet)
+
+    # Open log files if specified
+    if args.log_full or args.log_error:
+        LOG.open_files(
+            log_path=args.log_full if hasattr(args, 'log_full') else None,
+            error_path=args.log_error if hasattr(args, 'log_error') else None,
+            output_path=args.out_file if hasattr(args, 'out_file') else None
+        )
 
     # Handle --get-info mode
     if args.get_info:
@@ -2106,10 +2216,10 @@ def main():
             )
             if not entity_info:
                 return
-            print(entity_info)
+            LOG.output(str(entity_info))
             if args.copy:
                 copy_to_clipboard(entity_info)
-                print(f"{EMOJI['reason']} Copied to clipboard!")
+                LOG.output(f"{EMOJI['reason']} Copied to clipboard!")
         finally:
             client.disconnect()
         return
@@ -2120,41 +2230,41 @@ def main():
         try:
             skip_time_seconds = parse_time_expression(args.skip_time)
             hours = skip_time_seconds / 3600
-            print(f"{EMOJI["time"]} Skip time: {skip_time_seconds}s ({hours:.1f} hours)")
+            LOG.info("Skip time: {skip_time_seconds}s ({hours:.1f} hours)", EMOJI["time"])
         except ValueError as e:
-            print(f"{EMOJI["error"]} Error: {e}")
+            LOG.info("Error: {e}", EMOJI["error"])
             return
 
     # Parse skip statuses
     if args.skip:
-        print(f"{EMOJI["skip"]} Skip statuses: {', '.join(args.skip)}")
+        LOG.info("Skip statuses: {', '.join(args.skip)}", EMOJI["skip"])
 
     # Parse ignore statuses
     ignore_statuses = args.ignore if args.ignore else None
     if ignore_statuses:
-        print(f"{EMOJI["ignored"]} Ignore statuses: {', '.join(ignore_statuses)}")
+        LOG.info("Ignore statuses: {', '.join(ignore_statuses)}", EMOJI["ignored"])
 
     # Parse no-skip-unknown
     if args.no_skip_unknown:
-        print(f"{EMOJI["info"]} {EMOJI["file"]} with {EMOJI["unknown"]} status will be checked")
+        LOG.output(f"{EMOJI["info"]} {EMOJI["file"]} with {EMOJI["unknown"]} status will be checked")
 
     # Find all .md files
     path = Path(args.path)
     if not path.exists():
-        print(f"{EMOJI["error"]} Path does not exist: {path}")
+        LOG.info("Path does not exist: {path}", EMOJI["error"])
         return
 
     md_files = list(path.glob('*.md'))
 
     if not md_files:
-        print(f"{EMOJI["error"]} No .md files found in {path}")
+        LOG.info("No .md files found in {path}", EMOJI["error"])
         return
 
-    print(f"{EMOJI["folder"]} {len(md_files)} .md files found")
-    print(f"🔍 Filter: {args.type}")
+    LOG.info("{len(md_files)} .md files found", EMOJI["folder"])
+    LOG.output(f"🔍 Filter: {args.type}")
     if args.dry_run:
-        print(f"🔎 Mode: DRY-RUN (no file modifications)")
-    print()
+        LOG.output(f"🔎 Mode: DRY-RUN (no file modifications)")
+    LOG.output()
 
     # Connect to Telegram
     client = None
@@ -2174,7 +2284,7 @@ def main():
 
     full_check(client, args, ignore_statuses, md_files, skip_time_seconds)
 
-    print(f"\n{EMOJI["info"]} Done!")
+    LOG.output(f"\n{EMOJI["info"]} Done!")
 
 
 if __name__ == '__main__':
