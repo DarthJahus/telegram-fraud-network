@@ -94,9 +94,10 @@ class Logger:
             return text
         return text.replace('\\[[', '[[').replace('\\]]', ']]')
 
-    def log(self, message, level=LogLevel.INFO, emoji='', end='\n', flush=False):
+    def log(self, message, level=LogLevel.INFO, emoji='', padding=0, end='\n', flush=False):
         """Generic log method"""
-        formatted = f"{emoji} {message}" if emoji else message
+        padding = padding * ' '
+        formatted = f"{padding}{emoji} {message}" if emoji else f"{padding}{message}"
 
         # Format pour console et fichier
         console_msg = self._format_console(formatted)
@@ -128,21 +129,21 @@ class Logger:
                 if self.log_file:
                     builtins.print(f"[DEBUG] {file_msg}", file=self.log_file, end=end, flush=flush)
 
-    def error(self, message = "", emoji='', end='\n', flush=False):
+    def error(self, message = "", emoji='', padding=0, end='\n', flush=False):
         """Log error message"""
-        self.log(message, level=LogLevel.ERROR, emoji=emoji, end=end, flush=flush)
+        self.log(message, level=LogLevel.ERROR, emoji=emoji, padding=padding, end=end, flush=flush)
 
-    def info(self, message = "", emoji='', end='\n', flush=False):
+    def info(self, message = "", emoji='', padding=0, end='\n', flush=False):
         """Log info message"""
-        self.log(message, LogLevel.INFO, emoji, end=end, flush=flush)
+        self.log(message, LogLevel.INFO, emoji=emoji, padding=padding, end=end, flush=flush)
 
-    def output(self, message = "", end='\n', flush=False):
+    def output(self, message = "", emoji='', padding=0, end='\n', flush=False):
         """Log output data"""
-        self.log(message, LogLevel.OUTPUT, end=end, flush=flush)
+        self.log(message, LogLevel.OUTPUT, emoji=emoji, padding=padding, end=end, flush=flush)
 
-    def debug(self, message = "", end='\n', flush=False):
+    def debug(self, message = "", emoji='', padding=0, end='\n', flush=False):
         """Log debug message"""
-        self.log(message, LogLevel.DEBUG, end=end, flush=flush)
+        self.log(message, LogLevel.DEBUG, emoji=emoji, padding=padding, end=end, flush=flush)
 
 
 # Global singleton instance

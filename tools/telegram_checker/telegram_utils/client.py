@@ -13,9 +13,9 @@ def connect_to_telegram(user):
     mobile_file = session_dir / f'{user}.mobile'
 
     if not mobile_file.exists():
-        LOG.error("Mobile file not found: {mobile_file}", EMOJI["error"])
-        LOG.info(f"  Create it with:")
-        LOG.info(f"    echo '+1234567890' > {mobile_file}")
+        LOG.error(f"Mobile file not found: {mobile_file}", EMOJI["error"])
+        LOG.info("Create it with:", padding=2)
+        LOG.info(f"echo '+1234567890' > {mobile_file}", padding=4)
         return
 
     phone = mobile_file.read_text(encoding='utf-8').strip()

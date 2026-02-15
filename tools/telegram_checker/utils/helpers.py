@@ -32,7 +32,10 @@ def copy_to_clipboard(text):
         import pyperclip
         pyperclip.copy(text)
     except Exception as e:
-        raise Exception(f'Could not copy to clipboard {e}\nMake sure pyperclip is installed.\nOn Linux, install: xclip or xsel')
+        LOG.error(f"Could not copy to clipboard {str(e)}")
+        LOG.error("Make sure pyperclip is installed.")
+        LOG.error("On Linux, install: xclip or xsel")
+        print_debug(e)
 
 
 def print_debug(e: Exception):

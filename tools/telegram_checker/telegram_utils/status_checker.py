@@ -170,27 +170,27 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
             # Therefore, the entity is active, just not accessible to us
             return 'active', None, None, None, ('invite' if is_invite else 'username')
         # Other ValueError cases
-        LOG.output(f"  {EMOJI["warning"]} Unexpected ValueError: {str(e)}")
+        LOG.error(f"Unexpected ValueError: {str(e)}", EMOJI["warning"], padding=2)
         return 'unknown', None, None, None, 'error'
 
     except FloodWaitError as e:
-        LOG.output(f"\n\n{EMOJI["pause"]} FloodWait: waiting {e.seconds}s...")
+        LOG.info(f"\n\nFloodWait: waiting {e.seconds}s...", EMOJI["pause"])
         sleep(e.seconds)
         return check_entity_status(client, identifier, is_invite, expected_id)
 
     except Exception as e:
-        LOG.output(f"  {EMOJI["warning"]} Unexpected error: {type(e).__name__}: {str(e)}")
+        LOG.error(f"Unexpected error: {type(e).__name__}: {str(e)}", EMOJI["warning"], padding=2)
         return f'error_{type(e).__name__}', None, None, None, 'error'
 
 
-def check_and_display(client, identifier, is_invite, expected_id, label, stats):
+def check_and_display(client, identifier, is_invite, expected_id, stats, label, emoji='', padding=0):
     """
     Helper function to check status and display result.
 
     Returns:
         tuple: (status, restriction_details, actual_id, actual_username, method_used)
     """
-    LOG.output(f"{label}...", end=' ', flush=True)
+    LOG.info(f"{label}...", end=' ', flush=True, padding=padding, emoji=emoji)
     status, restriction_details, actual_id, actual_username, method_used = check_entity_status(
         client, identifier, is_invite, expected_id
     )
@@ -198,8 +198,7 @@ def check_and_display(client, identifier, is_invite, expected_id, label, stats):
     if method_used in stats['method']:
         stats['method'][method_used] += 1
 
-    emoji = EMOJI.get(status, EMOJI["no_emoji"])
-    LOG.output(f"{emoji} {status}")
+    LOG.info(status, padding=padding, emoji=EMOJI.get(status, EMOJI["no_emoji"]))
 
     return status, restriction_details, actual_id, actual_username, method_used
 
@@ -246,28 +245,32 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
     if expected_id:
         status, restriction_details, actual_id, actual_username, method_used = check_and_display(
             client, None, False, expected_id,
-            f"  {EMOJI.get('id')} Checking by ID: {expected_id}",
-            stats
+            label=f"Checking by ID: {expected_id}",
+            padding=2,
+            stats=stats,
+            emoji=EMOJI['id']
         )
 
     # PRIORITY 2: Fallback to invite links (if ID failed or no ID)
     if status is None or status == 'unknown':
         if is_invite and identifiers:
             invite_list = identifiers if isinstance(identifiers, list) else [identifiers]
-            LOG.output(f"  {EMOJI['fallback']} Fallback: Checking {len(invite_list)} invite(s)...")
+            LOG.info(f"  {EMOJI['fallback']} Fallback: Checking {len(invite_list)} invite(s)...")
 
             for idx, invite_hash in enumerate(invite_list, 1):
                 status, restriction_details, actual_id, actual_username, method_used = check_and_display(
                     client, invite_hash, True, expected_id,
-                    f"    {EMOJI['invite']} \\[{idx}/{len(invite_list)}\\] +{invite_hash}",
-                    stats
+                    label=f"\\[{idx}/{len(invite_list)}\\] +{invite_hash}",
+                    padding=4,
+                    emoji=EMOJI['invite'],
+                    stats=stats
                 )
 
                 if actual_id and not expected_id:
-                    LOG.output(f"      {EMOJI['id']} ID recovered: {actual_id}")
+                    LOG.info(f"ID recovered: {actual_id}", padding=6, emoji=EMOJI['id'])
 
                 if actual_username:
-                    LOG.output(f"      {EMOJI['handle']} Username: @{actual_username}")
+                    LOG.info(f"Username: @{actual_username}", padding=6, emoji=EMOJI['handle'])
 
                 # Stop if we get a definitive answer
                 if status != 'unknown':
@@ -275,22 +278,24 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
 
                 # Sleep between invite checks
                 if idx < len(invite_list):
-                    time.sleep(5)
+                    sleep(5)
 
     # PRIORITY 3: Fallback to username (last resort)
     if status is None or status == 'unknown':
         if not is_invite and identifiers:
             status, restriction_details, actual_id, actual_username, method_used = check_and_display(
                 client, identifiers, False, expected_id,
-                f"  {EMOJI['handle']} Fallback: Checking @{identifiers}",
-                stats
+                label=f"Fallback: Checking @{identifiers}",
+                padding=2,
+                emoji=EMOJI['handle'],
+                stats=stats
             )
 
             if actual_id and not expected_id:
-                LOG.output(f"    {EMOJI['id']} ID recovered: {actual_id} (via username - unreliable)")
+                LOG.info(f"ID recovered: {actual_id} (via username - unreliable)", padding=4, emoji=EMOJI['id'])
 
             if actual_username:
-                LOG.output(f"    {EMOJI['handle']} Username: @{actual_username}")
+                LOG.info(f"Username: @{actual_username}", padding=4, emoji=EMOJI['handle'])
 
     # Final fallback (should rarely happen)
     if status is None:

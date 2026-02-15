@@ -16,35 +16,37 @@ def print_dry_run_summary(results):
     if not results:
         return
 
-    LOG.output("\n" + UI_HORIZONTAL_LINE)
+    # Note: print_dry_run_summary uses INFO log level instead of OUTPUT
+
+    LOG.info("\n" + UI_HORIZONTAL_LINE)
     LOG.info("DRY-RUN SUMMARY - Changes to apply:", EMOJI["dry-run"])
 
     # Group by status
     for status_type in ['active', 'banned', 'deleted', 'unknown']:
         filtered = [r for r in results if r['status'] == status_type]
         if filtered:
-            LOG.output(f"\n{filtered[0]['emoji']} {status_type.upper()} ({len(filtered)}):")
+            LOG.info(f"\n{filtered[0]['emoji']} {status_type.upper()} ({len(filtered)}):")
             for r in filtered:
-                LOG.output(f"  • {r['file']}: {r['identifier']}")
-                LOG.output(f"    → - `{r['status']}`, `{r['timestamp']}`")
+                LOG.info(f"  • {r['file']}: {r['identifier']}")
+                LOG.info(f"    → - `{r['status']}`, `{r['timestamp']}`")
                 if r.get('restriction_details'):
                     details = r['restriction_details']
                     if 'reason' in details:
-                        LOG.output(f"      - reason: `{details['reason']}`")
+                        LOG.info(f"- reason: `{details['reason']}`", padding=6)
                     if 'text' in details:
                         text = details['text'][:80] + '...' if len(details['text']) > 80 else details['text']
-                        LOG.output(f"      - text: `{text}`")
+                        LOG.info(f"- text: `{text}`", padding=6)
 
     # Errors
     errors = [r for r in results if r['status'].startswith('error_')]
     if errors:
-        LOG.output()
-        LOG.info("ERRORS ({len(errors)}):", EMOJI["error"])
+        LOG.info()
+        LOG.info(f"ERRORS ({len(errors)}):", EMOJI["error"])
         for r in errors:
-            LOG.output(f"  • {r['file']}: {r['identifier']} → {r['status']}")
+            LOG.info(f"  • {r['file']}: {r['identifier']} → {r['status']}")
 
     LOG.info("To apply these changes, run again without --dry-run", EMOJI["info"])
-    LOG.output(UI_HORIZONTAL_LINE)
+    LOG.info(UI_HORIZONTAL_LINE)
 
 
 # ============================================
@@ -53,7 +55,7 @@ def print_dry_run_summary(results):
 
 def print_stats(stats):
     LOG.output("\n" + UI_HORIZONTAL_LINE)
-    LOG.info("RESULTS", EMOJI["stats"])
+    LOG.output("RESULTS", EMOJI["stats"])
     LOG.output(f"Total checked:  {stats['total']}")
     LOG.output(f"{EMOJI.get("active")     } Active:      {stats['active']     }")
     LOG.output(f"{EMOJI.get("banned")     } Banned:      {stats['banned']     }")
@@ -62,7 +64,7 @@ def print_stats(stats):
     LOG.output(f"{EMOJI.get("unknown")    } Unknown:     {stats['unknown']    }")
     LOG.output(f"{EMOJI.get("error")      } Errors:      {stats['error']      }")
     LOG.output()
-    LOG.info(f"Skipped (total):      {stats['skipped']}", EMOJI["skip"])
+    LOG.output(f"Skipped (total):      {stats['skipped']}", EMOJI["skip"])
     if stats['skipped_time'] > 0:
         LOG.output(f"   └─ Recently checked:  {stats['skipped_time']}")
     if stats['skipped_status'] > 0:
@@ -73,10 +75,10 @@ def print_stats(stats):
         LOG.output(f"   └─ Wrong type:        {stats['skipped_type']}")
     if stats['ignored'] > 0:
         LOG.output()
-        LOG.info(f"total:      {stats['ignored']}", EMOJI["ignored"])
+        LOG.output(f"total:      {stats['ignored']}", EMOJI["ignored"])
     LOG.output()
     if stats['method']:
-        LOG.info("Methods used:", EMOJI["methods"])
+        LOG.output("Methods used:", EMOJI["methods"])
         if stats['method']['id'] > 0:
             LOG.output(f"   └─ By ID:        {stats['method']['id']}")
         if stats['method']['username'] > 0:
@@ -88,7 +90,7 @@ def print_stats(stats):
 
 def print_no_status_block(no_status_block_results):
     LOG.output(UI_HORIZONTAL_LINE)
-    LOG.info("FILES WITHOUT 'status:' BLOCK (STATUS DETECTED)", EMOJI["warning"])
+    LOG.output("Files without 'status:' block, but status detected", EMOJI["warning"])
     for item in no_status_block_results:
         LOG.output(f"• \\[[{item['file']}\\]] → {item['emoji']} {item['status']}")
     LOG.output(UI_HORIZONTAL_LINE)
@@ -96,7 +98,7 @@ def print_no_status_block(no_status_block_results):
 
 def print_status_changed_files(status_changed_files):
     LOG.output("\n" + "!" * 60)
-    LOG.info("FILES WITH STATUS CHANGE (RENAME IN OBSIDIAN)", EMOJI["change"])
+    LOG.output("Files with status change. Rename file in Obsidian", EMOJI["change"])
     for item in status_changed_files:
         LOG.output(f"• \\[[{item['file']}\\]] : {item['old']} → {item['new']}")
     LOG.output(UI_HORIZONTAL_LINE)

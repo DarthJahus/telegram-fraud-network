@@ -67,7 +67,7 @@ def main():
             log.output(str(entity_info))
             if args.copy:
                 copy_to_clipboard(entity_info)
-                log.output(f"{EMOJI['reason']} Copied to clipboard!")
+                log.info(f"{EMOJI['reason']} Copied to clipboard!")
         finally:
             client.disconnect()
         return
@@ -94,7 +94,7 @@ def main():
 
     # Parse no-skip-unknown
     if args.no_skip_unknown:
-        log.output(f"{EMOJI["info"]} {EMOJI["file"]} with {EMOJI["unknown"]} status will be checked")
+        log.info(f"{EMOJI["info"]} {EMOJI["file"]} with {EMOJI["unknown"]} status will be checked")
 
     # Find all .md files
     path = Path(args.path)
@@ -109,10 +109,10 @@ def main():
         return
 
     log.info(f"{len(md_files)} .md files found", EMOJI["folder"])
-    log.output(f"🔍 Filter: {args.type}")
+    log.info(f"🔍 Filter: {args.type}")
     if args.dry_run:
-        log.output(f"🔎 Mode: DRY-RUN (no file modifications)")
-    log.output()
+        log.info(f"🔎 Mode: DRY-RUN (no file modifications)")
+    log.info()
 
     # Connect to Telegram
     client = None
@@ -132,7 +132,7 @@ def main():
 
     full_check(client, args, ignore_statuses, md_files, skip_time_seconds)
 
-    log.output(f"\n{EMOJI["info"]} Done!")
+    log.info(f"\n{EMOJI["info"]} Done!")
 
 
 if __name__ == '__main__':

@@ -82,7 +82,7 @@ def update_status_in_md(file_path, new_status, restriction_details=None):
             break
 
     if status_line_idx is None:
-        LOG.output(f"  {EMOJI["warning"]} No 'status:' block found in {file_path.name}")
+        LOG.info(f"{EMOJI['warning']} No 'status:' block found in {file_path.name}", padding=2)
         return False
 
     # 2. Find the next field (end of status block)
@@ -171,24 +171,24 @@ def process_and_update_file(md_file, status, restriction_details, actual_id, exp
     """
     # Display additional info
     if status == 'id_mismatch' and actual_id:
-        LOG.output(f"  {EMOJI["id_mismatch"]} Expected ID: {expected_id}, found ID: {actual_id}")
+        LOG.info(f"  {EMOJI["id_mismatch"]} Expected ID: {expected_id}, found ID: {actual_id}")
 
     if last_status is not None and last_status != status:
-        LOG.output(f"  {EMOJI["change"]} STATUS CHANGE: {last_status} → {status}")
+        LOG.info(f"  {EMOJI["change"]} STATUS CHANGE: {last_status} → {status}")
 
     if restriction_details:
         if 'reason' in restriction_details:
-            LOG.output(f"  {EMOJI["reason"]} Reason: {restriction_details['reason']}")
+            LOG.info(f"{EMOJI["reason"]} Reason: {restriction_details['reason']}", padding=2)
         if 'text' in restriction_details:
             text_preview = cut_text(restriction_details['text'], 120-11)
-            LOG.output(f"  {EMOJI["text"]} Text: {text_preview}")
+            LOG.info(f"{EMOJI["text"]} Text: {text_preview}", padding=2)
 
     # Handle file updates
     should_track_change = False
     was_updated = False
 
     if should_ignore:
-        LOG.output(f"  {EMOJI["ignored"]} Ignoring status '{status}' (not updating file)")
+        LOG.info(f"{EMOJI["ignored"]} Ignoring status '{status}' (not updating file)", padding=2)
     else:
         # Track status change
         if last_status != status:
@@ -197,16 +197,16 @@ def process_and_update_file(md_file, status, restriction_details, actual_id, exp
         # Update file
         if not is_dry_run:
             if update_status_in_md(md_file, status, restriction_details):
-                LOG.output(f"  {EMOJI["saved"]} File updated")
+                LOG.info(f"File updated", EMOJI["saved"], padding=2)
                 was_updated = True
         else:
             # Show what WOULD be written
-            LOG.output(f"  {EMOJI["dry-run"]} Would add:")
-            LOG.output(f"    `{status}`, `{get_date_time()}`")
+            LOG.info(f"Would add:", EMOJI["dry-run"], padding=2)
+            LOG.info(f"`{status}`, `{get_date_time()}`", padding=4)
             if restriction_details:
                 if 'reason' in restriction_details:
-                    LOG.output(f"    - reason: `{restriction_details['reason']}`")
+                    LOG.info(f"- reason: `{restriction_details['reason']}`", padding=4)
                 if 'text' in restriction_details:
-                    LOG.output(f"    - text: `{restriction_details['text'][:50]}...`")
+                    LOG.info(f"- text: `{restriction_details['text'][:50]}...`", padding=4)
 
     return should_track_change, was_updated

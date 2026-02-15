@@ -79,7 +79,7 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
             # parsing the file through MDML
             try:
                 entity = TelegramEntity.from_file(md_file)
-                LOG.output()
+                LOG.info()
                 LOG.info(f"\\[[{md_file.name}\\]]", EMOJI["file"])
 
                 # Check type filter
@@ -88,7 +88,7 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                 except (InvalidTypeError, MissingFieldError):
                     entity_type = None
                 except Exception as e:
-                    LOG.output(f"{EMOJI['error']} Error: {e}")
+                    LOG.error(f"{EMOJI['error']} Error: {e}")
                     entity_type = None
 
                 if args.type != 'all' and entity_type != args.type:
@@ -102,14 +102,14 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                 except InvalidFieldError:
                     expected_id = None
                 except Exception as e:
-                    LOG.output(f"{EMOJI['error']} Error: {e}")
+                    LOG.error(f"{EMOJI['error']} Error: {e}")
                     expected_id = None
 
                 identifiers, is_invite = extract_telegram_identifiers(entity)
 
                 # If no ID AND no identifiers, skip entirely
                 if not expected_id and not identifiers:
-                    LOG.output(f"  {EMOJI["skip"]} Skipped: No identifier found")
+                    LOG.info(f"  {EMOJI["skip"]} Skipped: No identifier found")
                     stats['skipped'] += 1
                     stats['skipped_no_identifier'] += 1
                     continue
@@ -120,7 +120,7 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                 # Check if we should skip based on last status
                 should_skip, skip_reason = should_skip_entity(entity, skip_time_seconds, args.skip, not args.no_skip_unknown)
                 if should_skip:
-                    LOG.output(f"  {EMOJI["skip"]} Skipped: ({skip_reason})")
+                    LOG.info(f"  {EMOJI["skip"]} Skipped: ({skip_reason})")
                     stats['skipped'] += 1
                     if 'checked' in skip_reason and 'ago' in skip_reason:
                         stats['skipped_time'] += 1
@@ -140,10 +140,10 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                     # Write ID retrieved via invite, if --write-id
                     if method_used == 'invite' and args.write_id and not args.dry_run:
                         if write_id_to_md(md_file, actual_id):
-                            LOG.output(f"  {EMOJI['saved']} ID written to file: `{actual_id}`")
+                            LOG.info(f"  {EMOJI['saved']} ID written to file: `{actual_id}`")
                             id_written = True
                         else:
-                            LOG.output(f"  {EMOJI['info']} ID already present in file.")
+                            LOG.info(f"  {EMOJI['info']} ID already present in file.")
 
                     # Add to list of retrieved ID
                     recovered_ids.append({
@@ -163,7 +163,7 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
 
                     # Cas 1 : Discovered username not in MDML
                     if not existing_username:
-                        LOG.output(f"  {EMOJI['handle']} Username discovered: @{actual_username}")
+                        LOG.info(f"  {EMOJI['handle']} Username discovered: @{actual_username}")
                         discovered_usernames.append({
                             'file': md_file.name,
                             'old_username': None,
@@ -173,7 +173,7 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
 
                     # Cas 2 : Username has changed AND is different from username in MDML
                     elif existing_username.lower() != actual_username.lower():
-                        LOG.output(f"  {EMOJI['change']} Username changed: @{existing_username} → @{actual_username}")
+                        LOG.info(f"  {EMOJI['change']} Username changed: @{existing_username} → @{actual_username}")
                         discovered_usernames.append({
                             'file': md_file.name,
                             'old_username': existing_username,
@@ -234,11 +234,11 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                 if md_file != md_files[-1]:
                     sleep(SLEEP_BETWEEN_CHECKS)
             except FileNotFoundError:
-                LOG.output("File not found.")
+                LOG.error("File not found.", EMOJI['error'])
             except TelegramMDMLError:
-                LOG.output("Parsing failed.")
+                LOG.error("Parsing failed.", EMOJI['error'])
             except Exception as e:
-                LOG.output("Failed to read MDML entity from file.")
+                LOG.error("Failed to read MDML entity from file.", EMOJI['error'])
                 print_debug(e)
     except KeyboardInterrupt:
         client.disconnect()
