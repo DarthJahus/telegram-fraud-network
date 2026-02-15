@@ -7,9 +7,7 @@ from telegram_mdml.telegram_mdml import (
     MissingFieldError,
     InvalidTypeError
 )
-from telegram_checker.mdml_utils.mdml_parser import (
-    get_last_status
-)
+from telegram_checker.mdml_utils.mdml_parser import get_last_status
 from telegram_checker.telegram_utils.validators import validate_invite, validate_handle
 from telegram_checker.utils.helpers import print_debug
 

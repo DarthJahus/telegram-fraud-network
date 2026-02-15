@@ -1,4 +1,6 @@
 import argparse
+from pathlib import Path
+from telegram_checker.config.constants import EMOJI
 from telegram_checker.utils.logger import get_logger
 LOG = get_logger()
 
@@ -180,9 +182,6 @@ def build_arg_parser():
 
     return parser
 
-from pathlib import Path
-from telegram_checker.config.constants import EMOJI
-
 
 def validate_args(args):
     if args.no_skip and not (args.get_identifiers and args.invites_only):
@@ -220,7 +219,7 @@ def validate_args(args):
         log_path = Path(args.log_full)
         if log_path.exists():
             print(f"{EMOJI['warning']} Log file already exists: {args.log_full}")
-            response = input("Overwrite? (y/n): ").strip().lower()
+            response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
                 print(f"{EMOJI['error']} Cancelled by user")
                 exit(1)
@@ -229,7 +228,7 @@ def validate_args(args):
         error_path = Path(args.log_error)
         if error_path.exists():
             print(f"{EMOJI['warning']} Error log file already exists: {args.log_error}")
-            response = input("Overwrite? (y/n): ").strip().lower()
+            response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
                 print(f"{EMOJI['error']} Cancelled by user")
                 exit(1)
@@ -238,7 +237,7 @@ def validate_args(args):
     if args.out_file:
         if Path(args.out_file).exists():
             print(f"\n{EMOJI['warning']} Output file already exists: {args.out_file}")
-            response = input("Overwrite? (y/n): ").strip().lower()
+            response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
                 print(f"{EMOJI['error']} Script cancelled by user.")
                 exit(1)

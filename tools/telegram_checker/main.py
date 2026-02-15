@@ -109,9 +109,9 @@ def main():
         return
 
     log.info(f"{len(md_files)} .md files found", EMOJI["folder"])
-    log.info(f"🔍 Filter: {args.type}")
+    log.info(f"Filter: {args.type}", emoji='🔍')
     if args.dry_run:
-        log.info(f"🔎 Mode: DRY-RUN (no file modifications)")
+        log.info(f"Mode: DRY-RUN (no file modifications)", emoji='🔎')
     log.info()
 
     # Connect to Telegram

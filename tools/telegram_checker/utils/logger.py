@@ -6,6 +6,8 @@ Logging system with multiple levels and file outputs
 import sys
 import builtins
 from enum import Enum
+from random import choice
+from telegram_checker.config.constants import EMOJI
 
 
 class LogLevel(Enum):
@@ -124,10 +126,11 @@ class Logger:
                 builtins.print(file_msg, file=self.output_file, end=end, flush=flush)
 
         elif level == LogLevel.DEBUG:
+            # DEBUG does not use emoji and padding
             if self.debug_mode:
-                builtins.print(f"[DEBUG] {console_msg}", file=sys.stderr, end=end, flush=flush)
+                builtins.print(console_msg, file=sys.stderr, end=end, flush=flush)
                 if self.log_file:
-                    builtins.print(f"[DEBUG] {file_msg}", file=self.log_file, end=end, flush=flush)
+                    builtins.print(file_msg, file=self.log_file, end=end, flush=flush)
 
     def error(self, message = "", emoji='', padding=0, end='\n', flush=False):
         """Log error message"""
@@ -141,9 +144,9 @@ class Logger:
         """Log output data"""
         self.log(message, LogLevel.OUTPUT, emoji=emoji, padding=padding, end=end, flush=flush)
 
-    def debug(self, message = "", emoji='', padding=0, end='\n', flush=False):
+    def debug(self, message = "", padding=0, end='\n', flush=False):
         """Log debug message"""
-        self.log(message, LogLevel.DEBUG, emoji=emoji, padding=padding, end=end, flush=flush)
+        self.log(message, LogLevel.DEBUG, emoji=choice(EMOJI["list_bugs"]), padding=padding, end=end, flush=flush)
 
 
 # Global singleton instance

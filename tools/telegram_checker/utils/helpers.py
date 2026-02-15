@@ -1,4 +1,4 @@
-from datetime import  datetime
+from datetime import datetime
 from telegram_checker.utils.logger import get_logger
 LOG = get_logger()
 
@@ -39,6 +39,7 @@ def copy_to_clipboard(text):
 
 
 def print_debug(e: Exception):
+    LOG.debug()
     LOG.debug(type(e).__name__)
     LOG.debug(str(e))
 

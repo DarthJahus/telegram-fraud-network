@@ -28,23 +28,31 @@ def check_entity_by_id(client, entity_id):
         tuple: (success, entity_or_error)
     """
     try:
-        from telethon.tl.types import PeerChannel, PeerUser
+        from telethon.tl.types import PeerChannel, PeerUser, PeerChat
 
-        # Try as channel/group first (most common for your use case)
+        # Try different peer types in order of likelihood
         try:
             entity = client.get_entity(PeerChannel(entity_id))
             return True, entity
-        except Exception as e:
-            print_debug(e)
-            # If that fails, try as user
+        except:
             try:
                 entity = client.get_entity(PeerUser(entity_id))
                 return True, entity
-            except Exception as e:
-                print_debug(e)
-                # Try direct ID as last resort
-                entity = client.get_entity(entity_id)
-                return True, entity
+            except:
+                try:
+                    entity = client.get_entity(PeerChat(entity_id))
+                    return True, entity
+                except:
+                    # Try direct ID as last resort
+                    entity = client.get_entity(entity_id)
+                    return True, entity
+
+    except ValueError as e:
+        # ID not in session cache - need to encounter it first
+        error_msg = f"Cannot resolve ID {entity_id}: not found in session cache. "
+        error_msg += "This ID hasn't been encountered yet in this session. "
+        error_msg += "Try using username or invite link to resolve the entity first."
+        return False, ValueError(error_msg)
 
     except Exception as e:
         return False, e
@@ -193,7 +201,7 @@ def check_and_display(client, identifier, is_invite, expected_id, stats, label, 
     Returns:
         tuple: (status, restriction_details, actual_id, actual_username, method_used)
     """
-    LOG.info(f"{label}...", end=' ', flush=True, padding=padding, emoji=emoji)
+    LOG.info(f"{label}...", end='\n', flush=True, padding=padding, emoji=emoji)  # end = ' ' ?
     status, restriction_details, actual_id, actual_username, method_used = check_entity_status(
         client, identifier, is_invite, expected_id
     )
