@@ -1,6 +1,7 @@
 from time import sleep
 from telegram_checker.utils.logger import get_logger
-from telegram_checker.config.constants import EMOJI, SLEEP_BETWEEN_CHECKS
+from telegram_checker.config.constants import EMOJI
+from telegram_checker.config.api import SLEEP_BETWEEN_CHECKS
 from telegram_mdml.telegram_mdml import TelegramEntity
 from telegram_mdml.telegram_mdml import (
     MissingFieldError,

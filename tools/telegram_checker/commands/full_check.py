@@ -2,9 +2,9 @@ from time import sleep
 from datetime import datetime
 from telegram_checker.config.constants import (
     EMOJI,
-    STATS_INIT,
-    SLEEP_BETWEEN_CHECKS
+    STATS_INIT
 )
+from telegram_checker.config.api import SLEEP_BETWEEN_CHECKS
 from telegram_mdml.telegram_mdml import TelegramEntity
 from telegram_mdml.telegram_mdml import (
     TelegramMDMLError,

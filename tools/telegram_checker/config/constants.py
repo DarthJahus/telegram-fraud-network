@@ -1,14 +1,6 @@
 import re
 
 # ============================================
-# CONFIGURATION
-# ============================================
-API_ID = int(open('.secret/api_id', 'r', encoding='utf-8').read().strip())
-API_HASH = open('.secret/api_hash', 'r', encoding='utf-8').read().strip()
-SLEEP_BETWEEN_CHECKS = 20  # seconds between each check
-MAX_STATUS_ENTRIES = 10  # maximum number of status entries to keep
-
-# ============================================
 # REGEX
 # ============================================
 
@@ -35,6 +27,7 @@ REGEX_NEXT_FIELD = re.compile(pattern=r'^[a-z_]+:\s', flags=re.MULTILINE)
 # ============================================
 # Variables & other constants
 # ============================================
+MAX_STATUS_ENTRIES = 10  # maximum number of status entries to keep
 
 UI_HORIZONTAL_LINE = f"\n{60 * "•"}\n"
 
