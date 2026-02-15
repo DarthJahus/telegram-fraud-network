@@ -8,6 +8,7 @@ from telethon.errors import (
     InviteHashInvalidError,
     FloodWaitError
 )
+from telegram_checker.utils.helpers import print_debug
 from telegram_checker.utils.logger import get_logger
 LOG = get_logger()
 
@@ -33,12 +34,14 @@ def check_entity_by_id(client, entity_id):
         try:
             entity = client.get_entity(PeerChannel(entity_id))
             return True, entity
-        except Exception:
+        except Exception as e:
+            print_debug(e)
             # If that fails, try as user
             try:
                 entity = client.get_entity(PeerUser(entity_id))
                 return True, entity
-            except Exception:
+            except Exception as e:
+                print_debug(e)
                 # Try direct ID as last resort
                 entity = client.get_entity(entity_id)
                 return True, entity
