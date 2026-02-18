@@ -8,8 +8,8 @@ discovered: `{{date}} {{time}}`
 reports:
 - [ ] registrar:
 - [ ] ESET
-- [ ] ChainAbuse
-- [ ] CloudFlare
+- [ ] [ChainAbuse](https://chainabuse.com/)
+- [ ] [CloudFlare](https://www.cloudflare.com/trust-hub/reporting-abuse/)
 
 metadata:
 - whois: 
