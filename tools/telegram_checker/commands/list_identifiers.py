@@ -1,3 +1,4 @@
+from inspect import currentframe
 from time import sleep
 from telegram_checker.utils.logger import get_logger
 from telegram_checker.config.constants import EMOJI
@@ -135,7 +136,7 @@ def list_identifiers(client, md_files, args):
                         identifiers_list.append(username_entry)
 
         except Exception as e:
-            print_debug(e)
+            print_debug(e, currentframe().f_code.co_name)
             continue
 
     # Print results and cleanup

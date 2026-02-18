@@ -1,3 +1,4 @@
+from inspect import currentframe
 from time import sleep
 from telethon.tl.functions.messages import CheckChatInviteRequest
 from telethon.tl.types import ChatInviteAlready, ChatInvite, ChatInvitePeek
@@ -11,7 +12,8 @@ from telethon.errors import (
 )
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.utils.helpers import print_debug
-from telegram_checker.utils.logger import get_logger
+from telegram_checker.utils.logger import get_logger, DebugException
+
 LOG = get_logger()
 
 
@@ -41,11 +43,11 @@ def validate_invite(client, invite_hash):
                 entity_id = entity.id
             else:
                 # Should never happen
-                print_debug(Exception("SHOULD NEVER HAVE HAPPENED"))
+                print_debug(DebugException("SHOULD NEVER HAVE HAPPENED"))
         except ValueError as e:
             message = str(e)
         except Exception as e:
-            print_debug(e)
+            print_debug(e, currentframe().f_code.co_name)
             # Can't get entity, but invite is still valid
             pass
 
@@ -73,7 +75,7 @@ def validate_invite(client, invite_hash):
         return validate_invite(client, invite_hash)
 
     except Exception as e:
-        print_debug(e)
+        print_debug(e, currentframe().f_code.co_name)
         return False, None, 'ERROR', f'{type(e).__name__}: {str(e)}'
 
 
@@ -110,5 +112,5 @@ def validate_handle(client, username):
         sleep(e.seconds)
         return validate_handle(client, username)
     except Exception as e:
-        print_debug(e)
+        print_debug(e, currentframe().f_code.co_name)
         return False, None, 'ERROR', f'{type(e).__name__}: {str(e)}'

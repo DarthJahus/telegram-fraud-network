@@ -1,5 +1,7 @@
+from inspect import currentframe
 from datetime import datetime
-from telegram_checker.utils.logger import get_logger
+from telegram_checker.utils.logger import get_logger, DebugException
+
 LOG = get_logger()
 
 def get_date_time(get_date=True, get_time=True):
@@ -35,12 +37,16 @@ def copy_to_clipboard(text):
         LOG.error(f"Could not copy to clipboard {str(e)}")
         LOG.error("Make sure pyperclip is installed.")
         LOG.error("On Linux, install: xclip or xsel")
-        print_debug(e)
+        print_debug(e, currentframe().f_code.co_name)
 
 
-def print_debug(e: Exception):
+def print_debug(e: Exception, source=None):
     LOG.debug()
     LOG.debug(type(e).__name__)
+    if isinstance(e, DebugException):
+        LOG.debug(f'from {e.func_name}:{e.line_no_in_func} at {e.file_name}:{e.line_no}')
+    elif source:
+        LOG.debug(f'from {source}:')
     LOG.debug(str(e))
 
 

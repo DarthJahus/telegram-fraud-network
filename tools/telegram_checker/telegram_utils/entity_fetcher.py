@@ -1,3 +1,4 @@
+from inspect import currentframe
 from telegram_checker.config.constants import EMOJI
 from telethon.errors import (
     InviteHashExpiredError,
@@ -5,7 +6,8 @@ from telethon.errors import (
     ChatAdminRequiredError
 )
 from telegram_checker.utils.helpers import print_debug
-from telegram_checker.utils.logger import get_logger
+from telegram_checker.utils.logger import get_logger, DebugException
+
 LOG = get_logger()
 
 
@@ -38,15 +40,21 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
                 # Try different peer types
                 try:
                     entity = client.get_entity(PeerChannel(by_id))
-                except:
+                except Exception as e:
+                    print_debug(DebugException('From client.get_entity(PeerChannel(by_id))'))
+                    print_debug(e, currentframe().f_code.co_name)
                     try:
                         entity = client.get_entity(PeerUser(by_id))
-                    except:
+                    except Exception as e:
+                        print_debug(DebugException('From client.get_entity(PeerUser(by_id))'))
+                        print_debug(e, currentframe().f_code.co_name)
                         try:
                             entity = client.get_entity(PeerChat(by_id))
-                        except:
+                        except Exception as e:
+                            print_debug(DebugException('From client.get_entity(PeerChat(by_id))'))
+                            print_debug(e, currentframe().f_code.co_name)
                             entity = client.get_entity(by_id)
-            except ValueError as e:
+            except ValueError:
                 # ID not in session cache - need to encounter it first
                 LOG.error(f"Cannot resolve ID {by_id}: not found in session cache", EMOJI['error'])
                 LOG.info("This ID hasn't been encountered yet in this session.", EMOJI['info'])
@@ -68,7 +76,7 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
             # Try to get entity first
             try:
                 entity = client.get_entity(f'https://t.me/+{invite_hash}')
-                print("SUCCESS : got entity = client.get_entity")
+                print_debug(DebugException("got entity = client.get_entity"), currentframe().f_code.co_name)
             except ValueError as e:
                 if "Cannot get entity from a channel" in str(e):
                     # Not a member - use CheckChatInviteRequest for preview
@@ -79,7 +87,7 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
                         from telethon.tl.types import ChatInvite, ChatInvitePeek, ChatInviteAlready
 
                         result = client(CheckChatInviteRequest(hash=invite_hash))
-                        print("SUCCESS : got result = client(CheckChatInviteRequest())")
+                        print_debug(DebugException("got result = client(CheckChatInviteRequest())"), currentframe().f_code.co_name)
 
                         # Already a member (shouldn't happen after ValueError, but safety check)
                         if isinstance(result, ChatInviteAlready):
@@ -111,12 +119,12 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
 
                     except Exception as e:
                         LOG.error(f"Failed to get invite preview: {type(e).__name__}", EMOJI['error'])
-                        print_debug(e)
+                        print_debug(e, currentframe().f_code.co_name)
                         return None
                 else:
                     # Other ValueError
                     LOG.error(f"Error with invite: {str(e)}", EMOJI['error'])
-                    print_debug(e)
+                    print_debug(e, currentframe().f_code.co_name)
                     return None
 
         if not entity:
@@ -215,7 +223,7 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
                         info['is_migrated'] = True
                         info['original_chat_id'] = first_msg.action.chat_id
             except Exception as e:
-                print_debug(e)
+                print_debug(e, currentframe().f_code.co_name)
                 pass
 
         # Linked channel/discussion
@@ -258,18 +266,16 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
         except ChatAdminRequiredError:
             LOG.debug("Cannot get admins and owner. You do not have permissions to access this information.")
         except Exception as e:
-            print_debug(e)
+            print_debug(e, currentframe().f_code.co_name)
             pass
 
         return info
 
     except ValueError as e:
         LOG.error(f"Invalid ID.", EMOJI['error'])
-        print_debug(e)
+        print_debug(e, currentframe().f_code.co_name)
         return None
     except Exception as e:
         LOG.output(f"Error retrieving entity: {e}", EMOJI['error'])
-        print_debug(e)
+        print_debug(e, currentframe().f_code.co_name)
         return None
-
-

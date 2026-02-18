@@ -196,7 +196,7 @@ def format_entity_mdml(info):
         elif isinstance(entity, Chat):
             count_field = "members"
         else:
-            count_field = None
+            count_field = {"channel": "subscribers", "group": "members"}.get(info.get("type"))
 
         if count_field:
             doc.fields[count_field] = Field(

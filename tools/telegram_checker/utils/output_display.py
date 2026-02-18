@@ -56,6 +56,7 @@ def print_dry_run_summary(results):
 def print_stats(stats):
     LOG.output("\n" + UI_HORIZONTAL_LINE)
     LOG.output("RESULTS", EMOJI["stats"])
+    LOG.output()
     LOG.output(f"Total checked:  {stats['total']}")
     LOG.output(f"{EMOJI.get("active")     } Active:      {stats['active']     }")
     LOG.output(f"{EMOJI.get("banned")     } Banned:      {stats['banned']     }")
@@ -167,7 +168,7 @@ def print_discovered_usernames(discovered_usernames):
     if discovered:
         LOG.output(f"\n✨ DISCOVERED (new usernames):")
         for item in discovered:
-            LOG.output(f"  • \\{item['file']}\\]] → @{item['new_username']}")
+            LOG.output(f"  • \\[[{item['file']}\\]] → @{item['new_username']}")
         LOG.output(f"\n  {EMOJI["info"]}  {len(discovered)} username(s) discovered")
 
     if changed:

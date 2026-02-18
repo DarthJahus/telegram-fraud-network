@@ -1,3 +1,4 @@
+from inspect import currentframe
 from time import sleep
 from datetime import datetime
 from telegram_checker.config.constants import (
@@ -239,7 +240,7 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                 LOG.error("Parsing failed.", EMOJI['error'])
             except Exception as e:
                 LOG.error("Failed to read MDML entity from file.", EMOJI['error'])
-                print_debug(e)
+                print_debug(e,currentframe().f_code.co_name)
     except KeyboardInterrupt:
         client.disconnect()
         exit(0)
