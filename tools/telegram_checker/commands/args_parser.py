@@ -192,7 +192,7 @@ def validate_args(args):
         elif get_info.isdecimal() and not get_info.startswith('0') and len(get_info) <= 15:
             # UserID
             pass
-        elif get_info.startswith('@') and REGEX_USERNAME_RAW.match(get_info) and '__' not in get_info:
+        elif get_info.startswith('@') and REGEX_USERNAME_RAW.match(get_info[1:]) and '__' not in get_info:
             # Username starting with @
             pass
         elif REGEX_USERNAME_RAW.match(get_info) and '__' not in get_info:
