@@ -113,7 +113,7 @@ def format_entity_mdml(info):
         doc.fields['invite'] = Field(
             name='invite',
             is_list=False,
-            values=[FieldValue(info['by_invite'])],
+            values=[FieldValue(info['by_invite'], is_raw_url=True)],
             raw_content=''
         )
 
