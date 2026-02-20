@@ -180,18 +180,32 @@ def format_entity_mdml(info):
                 raw_content=''
             )
 
-    if info.get('personal_chat'):
-        doc.fields['personal chat'] = Field(
-            name='personal chat',
-            is_list=False,
-            values=[FieldValue(
-                value=f"tg_{info['personal_chat'].id}",
-                is_wiki_link=True,
-                wiki_link=f"tg_{info['personal_chat'].id}",
-                details=('@' + info['personal_chat'].username) if info['personal_chat'].username else None
-            )],
-            raw_content=''
-        )
+    # Linked chats (for users)
+    if info.get('linked_chats'):
+
+        chat_list = []
+        for chat in info['linked_chats']:
+            details = []
+            if chat.username:
+                details.append(f'`@{chat.username}`')
+            if chat.id == info.get('personal_chat_id'):
+                details.append('personal')
+            details = ', '.join(details) if details else None
+            chat_list.append(
+                FieldValue(
+                    value=f"tg_{chat.id}",
+                    is_wiki_link=True,
+                    wiki_link=f"tg_{chat.id}",
+                    details=details
+                )
+            )
+        if chat_list:
+            doc.fields['linked chats'] = Field(
+                name='linked chats',
+                is_list=True,
+                values=chat_list,
+                raw_content=''
+            )
 
     # Members/Subscribers
     if info.get('count'):

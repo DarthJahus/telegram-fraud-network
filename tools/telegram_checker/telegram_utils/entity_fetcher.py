@@ -212,11 +212,11 @@ def fetch_entity_info(client, identifier: str):
             if bio_text and bio_text.strip():
                 info['bio'] = bio_text.strip()
 
-            # Personal chat
-            personal_chat = None
-            if hasattr(full, 'chats') and len(full.chats) > 0:
-                personal_chat = full.chats[0]
-            info['personal_chat'] = personal_chat
+            # Linked chats and personal chat
+            if hasattr(full, 'chats'):
+                info['linked_chats'] = full.chats
+            if hasattr(full, 'full_user') and hasattr(full.full_user, 'personal_channel_id'):
+                info['personal_chat_id'] = full.full_user.personal_channel_id
 
         # Mobile (phone)
         if isinstance(entity, User) and hasattr(entity, 'phone') and entity.phone:
