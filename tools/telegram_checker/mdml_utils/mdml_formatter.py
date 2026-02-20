@@ -181,8 +181,7 @@ def format_entity_mdml(info):
             )
 
     # Linked chats (for users)
-    if info.get('linked_chats'):
-
+    if info.get('type') == 'user' and info.get('linked_chats'):
         chat_list = []
         for chat in info['linked_chats']:
             details = []
