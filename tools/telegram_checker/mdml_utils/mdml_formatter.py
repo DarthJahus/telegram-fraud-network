@@ -44,13 +44,7 @@ def format_entity_mdml(info):
         raw_content=''
     )
 
-    # Discovered
-    doc.fields['discovered'] = Field(
-        name='discovered',
-        is_list=False,
-        values=[FieldValue(value=now)],
-        raw_content=''
-    )
+    doc.fields['discovered'] = None
 
     # Username
     if info.get('username'):
@@ -120,12 +114,13 @@ def format_entity_mdml(info):
 
     # Only for channels/groups, not users
     entity = info.get('entity')
+    joined = None
     if not isinstance(entity, User):
-        # Joined (empty list)
+        if info.get('joined_date'): joined = info['joined_date']
         doc.fields['joined'] = Field(
             name='joined',
             is_list=False,
-            values=[FieldValue(value=info['joined_date'] if info.get('joined_date') else 'DATE')],
+            values=[FieldValue(value=joined if joined else 'DATE')],
             raw_content=''
         )
 
@@ -254,5 +249,17 @@ def format_entity_mdml(info):
             values=admin_values,
             raw_content=''
         )
+
+    # Discovered
+    # if join < discovered: discovered := join else discovered := now
+    discovered = now
+    if joined and joined < discovered:
+        discovered = joined
+    doc.fields['discovered'] = Field(
+        name='discovered',
+        is_list=False,
+        values=[FieldValue(value=discovered)],
+        raw_content=''
+    )
 
     return doc

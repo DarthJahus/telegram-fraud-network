@@ -4,6 +4,7 @@ from telegram_checker.mdml_utils.mdml_formatter import format_entity_mdml
 from telegram_checker.telegram_utils.entity_fetcher import fetch_entity_info
 from telegram_checker.utils.helpers import print_debug
 from telegram_checker.utils.logger import get_logger
+
 LOG = get_logger()
 
 
