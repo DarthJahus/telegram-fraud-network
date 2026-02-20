@@ -29,9 +29,8 @@ def fetch_entity_info(client, identifier: str):
     """
 
     # Determine which method to use
-    by_invite, by_id, by_username = False, False, False
-
     entity = None
+    invite_link = None
     try:
         if identifier.isdecimal():
             # By ID
@@ -68,7 +67,7 @@ def fetch_entity_info(client, identifier: str):
 
             # Get hash without + or extract hash from URL
             invite_hash = identifier.split('+')[-1] if '+' in identifier else identifier.split('/')[-1]
-            invite_link = identifier if '+' in identifier else f'https://t.me/+{identifier}'
+            invite_link = f'https://t.me/+{invite_hash}'
 
             # Try to get entity first
             try:
@@ -97,7 +96,7 @@ def fetch_entity_info(client, identifier: str):
                                 'id': None,
                                 'name': result.title,
                                 'count': result.participants_count if hasattr(result, 'participants_count') else None,
-                                'by_invite': invite_link,
+                                'invite_link': invite_link,
                                 'is_preview': True
                             }
                             # Add photo/bio if available in preview
@@ -163,7 +162,7 @@ def fetch_entity_info(client, identifier: str):
             'full': full,
             'type': entity_type,
             'id': entity.id,
-            'by_invite': by_invite
+            'invite_link': invite_link
         }
 
         # Join date (only for channels/groups where we are members)

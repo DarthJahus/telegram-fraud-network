@@ -104,11 +104,11 @@ def format_entity_mdml(info):
     )
 
     # Invite
-    if info.get('by_invite'):
+    if info.get('invite_link'):
         doc.fields['invite'] = Field(
             name='invite',
             is_list=False,
-            values=[FieldValue(info['by_invite'], is_raw_url=True)],
+            values=[FieldValue(info['invite_link'], is_raw_url=True)],
             raw_content=''
         )
 
