@@ -199,8 +199,9 @@ def fetch_entity_info(client, identifier: str):
         elif isinstance(entity, (Channel, Chat)):
             info['name'] = entity.title
 
-        # Bio
+
         if full:
+            # Bio
             bio_text = None
             if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'about'):
                 bio_text = full.full_chat.about
@@ -210,6 +211,12 @@ def fetch_entity_info(client, identifier: str):
             # Only add bio if it exists and is not empty/whitespace
             if bio_text and bio_text.strip():
                 info['bio'] = bio_text.strip()
+
+            # Personal chat
+            personal_chat = None
+            if hasattr(full, 'chats') and len(full.chats) > 0:
+                personal_chat = full.chats[0]
+            info['personal_chat'] = personal_chat
 
         # Mobile (phone)
         if isinstance(entity, User) and hasattr(entity, 'phone') and entity.phone:

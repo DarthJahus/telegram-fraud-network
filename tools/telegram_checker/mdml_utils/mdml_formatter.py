@@ -180,6 +180,19 @@ def format_entity_mdml(info):
                 raw_content=''
             )
 
+    if info.get('personal_chat'):
+        doc.fields['personal chat'] = Field(
+            name='personal chat',
+            is_list=False,
+            values=[FieldValue(
+                value=f"tg_{info['personal_chat'].id}",
+                is_wiki_link=True,
+                wiki_link=f"tg_{info['personal_chat'].id}",
+                details=('@' + info['personal_chat'].username) if info['personal_chat'].username else None
+            )],
+            raw_content=''
+        )
+
     # Members/Subscribers
     if info.get('count'):
         if isinstance(entity, Channel):
