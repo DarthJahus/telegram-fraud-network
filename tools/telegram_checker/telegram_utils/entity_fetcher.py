@@ -207,7 +207,7 @@ def fetch_entity_info(client, identifier: str):
 
         # Mobile (phone)
         if isinstance(entity, User) and hasattr(entity, 'phone') and entity.phone:
-            info['mobile'] = entity.phone
+            info['mobile'] = entity.phone if entity.phone.startswith('+') else f"+{entity.phone}"
 
         # Created date and first message
         if isinstance(entity, Channel):
