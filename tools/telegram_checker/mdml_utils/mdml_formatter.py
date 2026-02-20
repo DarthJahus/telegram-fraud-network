@@ -28,12 +28,13 @@ def format_entity_mdml(info):
         doc.frontmatter['type'] = info['type']
 
     # ID
-    doc.fields['id'] = Field(
-        name='id',
-        is_list=False,
-        values=[FieldValue(value= str(info['id']) if info['id'] else "ID")],
-        raw_content=''
-    )
+    if info['id']:  # ToDo: Still check why ID is duplicated by the main check routine
+        doc.fields['id'] = Field(
+            name='id',
+            is_list=False,
+            values=[FieldValue(value= str(info['id']) if info['id'] else "ID")],
+            raw_content=''
+        )
 
     # Status
     doc.fields['status'] = Field(
