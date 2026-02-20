@@ -181,6 +181,13 @@ def fetch_entity_info(client, identifier: str):
         # Username
         if hasattr(entity, 'username') and entity.username:
             info['username'] = entity.username
+        elif hasattr(entity, 'usernames') and entity.usernames:
+            # for groups that might have more than one username (Fragment)
+            for un in entity.usernames:
+                # ToDo: make it a list?
+                if un.active:
+                    info['username'] = un.username
+                    continue
 
         # Name
         if isinstance(entity, User):
