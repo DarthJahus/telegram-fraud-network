@@ -7,12 +7,12 @@ from telegram_checker.utils.logger import get_logger
 LOG = get_logger()
 
 
-def get_entity_info(client, by_id=None, by_username=None, by_invite=None):
+def get_entity_info(client, identifier):
     """
     Main function to fetch and output entity information as MDML.
     """
     try:
-        info = fetch_entity_info(client, by_id=by_id, by_username=by_username, by_invite=by_invite)
+        info = fetch_entity_info(client, identifier)
         if info:
             mdml = format_entity_mdml(info)
             return mdml

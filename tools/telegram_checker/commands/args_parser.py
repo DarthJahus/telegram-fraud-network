@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 from telegram_checker.config.constants import EMOJI
+from telegram_checker.config.constants import REGEX_INVITE_LINK_RAW, REGEX_USERNAME_RAW, REGEX_INVITE_HASH
 from telegram_checker.utils.logger import get_logger
 LOG = get_logger()
 
@@ -131,26 +132,7 @@ def build_arg_parser():
     )
     parser.add_argument(
         '--get-info',
-        action='store_true',
         help='Get full information about a Telegram entity and output as MDML'
-    )
-    parser.add_argument(
-        '--by-id',
-        type=int,
-        metavar='ID',
-        help='Entity ID to retrieve information for (use with --get-info)'
-    )
-    parser.add_argument(
-        '--by-username',
-        type=str,
-        metavar='USERNAME',
-        help='Username to retrieve information for (use with --get-info, without @)'
-    )
-    parser.add_argument(
-        '--by-invite',
-        type=str,
-        metavar='HASH',
-        help='Invite hash to retrieve information for (use with --get-info)'
     )
     parser.add_argument(
         '--copy',
@@ -199,16 +181,33 @@ def validate_args(args):
 
     # Validate --get-info options
     if args.get_info:
-        selectors = sum([bool(args.by_id), bool(args.by_username), bool(args.by_invite)])
-        if selectors == 0:
-            print(f"{EMOJI['error']} --get-info requires one of: --by-id, --by-username, or --by-invite")
-            exit(1)
-        elif selectors > 1:
-            print(f"{EMOJI['error']} --get-info can only use one selector at a time")
+        get_info = args.get_info.strip()
+        # ToDo: better validate URL, usernames and ID
+        if REGEX_INVITE_LINK_RAW.match(get_info):
+            # invite link
+            pass
+        elif REGEX_INVITE_HASH.match(get_info):
+            # invite hash
+            pass
+        elif get_info.isdecimal() and not get_info.startswith('0') and len(get_info) <= 15:
+            # UserID
+            pass
+        elif get_info.startswith('@') and REGEX_USERNAME_RAW.match(get_info) and '__' not in get_info:
+            # Username starting with @
+            pass
+        elif REGEX_USERNAME_RAW.match(get_info) and '__' not in get_info:
+            # Username
+            pass
+        else:
+            print("Make sure you use a correct identifier:")
+            print("  - Invite link: https://t.me/+hlQ3QhNi6q05ZDIx")
+            print("  - Invite hash: +hlQ3QhNi6q05ZDIx")
+            print("  - ID: 3456721728")
+            print("  - Username: @username or username")
             exit(1)
 
-    if any([args.by_id, args.by_username, args.by_invite, args.copy]) and not args.get_info:
-        print(f"{EMOJI['warning']} --by-id, --by-username, --by-invite and --copy require --get-info")
+    if args.copy and not args.get_info:
+        print(f"{EMOJI['warning']} --copy requires --get-info")
 
     if not args.path and not args.get_info:
         print(f"{EMOJI['error']} The following arguments are required: --path")

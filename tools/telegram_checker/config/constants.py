@@ -24,6 +24,12 @@ REGEX_STATUS_SUB_ITEM = re.compile(pattern=r'^\s{2,}-\s')
 
 REGEX_NEXT_FIELD = re.compile(pattern=r'^[a-z_]+:\s', flags=re.MULTILINE)
 
+REGEX_INVITE_LINK_RAW = re.compile(r"^https?://(t\.me|telegram\.me|telegram\.dog)/\+[a-zA-Z0-9_-]{10,32}$")
+
+REGEX_USERNAME_RAW = re.compile(r'^[a-zA-Z][a-zA-Z0-9_]{3,30}[a-zA-Z0-9]$')
+
+REGEX_INVITE_HASH = re.compile(r'^\+[a-zA-Z0-9_-]{10,32}$')
+
 # ============================================
 # Variables & other constants
 # ============================================

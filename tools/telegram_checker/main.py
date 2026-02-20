@@ -58,9 +58,7 @@ def main():
         try:
             entity_info = get_entity_info(
                 client,
-                by_id=args.by_id,
-                by_username=args.by_username,
-                by_invite=args.by_invite
+                identifier=args.get_info
             )
             if not entity_info:
                 return

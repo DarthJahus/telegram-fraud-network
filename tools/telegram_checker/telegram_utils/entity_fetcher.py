@@ -5,73 +5,70 @@ from telethon.errors import (
     InviteHashInvalidError,
     ChatAdminRequiredError
 )
+from telethon.tl.functions.channels import GetFullChannelRequest, GetParticipantsRequest
+from telethon.tl.functions.users import GetFullUserRequest
+from telethon.tl.types import (
+    Channel, User, Chat, PeerChannel, PeerUser, PeerChat,
+    ChannelParticipantsAdmins, ChannelParticipantCreator
+)
 from telegram_checker.utils.helpers import print_debug
 from telegram_checker.utils.logger import get_logger, DebugException
 
 LOG = get_logger()
 
 
-def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
+def fetch_entity_info(client, identifier: str):
     """
     Fetches comprehensive information about a Telegram entity.
 
     Args:
         client: TelegramClient instance
-        by_id: Entity ID (int)
-        by_username: Username (str, with or without @)
-        by_invite: Invite hash (str)
-
+        identifier: invite, invite hash, id or [@]username
     Returns:
         dict: Entity information or None on error
     """
-    from telethon.tl.functions.channels import GetFullChannelRequest, GetParticipantsRequest
-    from telethon.tl.functions.users import GetFullUserRequest
-    from telethon.tl.types import (
-        Channel, User, Chat, PeerChannel, PeerUser, PeerChat,
-        ChannelParticipantsAdmins, ChannelParticipantCreator
-    )
 
     # Determine which method to use
+    by_invite, by_id, by_username = False, False, False
+
     entity = None
     try:
-        if by_id:
-            LOG.info(f"Fetching entity by ID: {by_id}...", EMOJI['id'])
+        if identifier.isdecimal():
+            # By ID
+            LOG.info(f"Fetching entity by ID: {identifier}...", EMOJI['id'])
+            identifier = int(identifier)
             try:
                 # Try different peer types
                 try:
-                    entity = client.get_entity(PeerChannel(by_id))
+                    entity = client.get_entity(PeerChannel(identifier))
                 except Exception as e:
-                    print_debug(DebugException('From client.get_entity(PeerChannel(by_id))'))
+                    print_debug(DebugException('From client.get_entity(PeerChannel(identifier))'))
                     print_debug(e, currentframe().f_code.co_name)
                     try:
-                        entity = client.get_entity(PeerUser(by_id))
+                        entity = client.get_entity(PeerUser(identifier))
                     except Exception as e:
-                        print_debug(DebugException('From client.get_entity(PeerUser(by_id))'))
+                        print_debug(DebugException('From client.get_entity(PeerUser(identifier))'))
                         print_debug(e, currentframe().f_code.co_name)
                         try:
-                            entity = client.get_entity(PeerChat(by_id))
+                            entity = client.get_entity(PeerChat(identifier))
                         except Exception as e:
-                            print_debug(DebugException('From client.get_entity(PeerChat(by_id))'))
+                            print_debug(DebugException('From client.get_entity(PeerChat(identifier))'))
                             print_debug(e, currentframe().f_code.co_name)
-                            entity = client.get_entity(by_id)
+                            entity = client.get_entity(identifier)
             except ValueError:
                 # ID not in session cache - need to encounter it first
-                LOG.error(f"Cannot resolve ID {by_id}: not found in session cache", EMOJI['error'])
+                LOG.error(f"Cannot resolve ID {identifier}: not found in session cache", EMOJI['error'])
                 LOG.info("This ID hasn't been encountered yet in this session.", EMOJI['info'])
                 LOG.info("Try using --by-username or --by-invite to resolve the entity first.", EMOJI['info'])
                 return None
 
-        elif by_username:
-            if by_username[0] != '@': by_username = '@' + by_username
-            LOG.info(f"Fetching entity by username: {by_username}...", EMOJI['handle'])
-            entity = client.get_entity(by_username)
+        elif '+' in identifier:
+            # By invite
+            LOG.info(f"Fetching entity by invite: {identifier}...", EMOJI['invite'])
 
-        elif by_invite:
-            LOG.info(f"Fetching entity by invite: {by_invite}...", EMOJI['invite'])
-
-            # Extract hash from URL
-            invite_hash = by_invite.split('+')[-1] if '+' in by_invite else by_invite.split('/')[-1]
-            invite_link = by_invite if '+' in by_invite else f'https://t.me/+{by_invite}'
+            # Get hash without + or extract hash from URL
+            invite_hash = identifier.split('+')[-1] if '+' in identifier else identifier.split('/')[-1]
+            invite_link = identifier if '+' in identifier else f'https://t.me/+{identifier}'
 
             # Try to get entity first
             try:
@@ -126,6 +123,12 @@ def fetch_entity_info(client, by_id=None, by_username=None, by_invite=None):
                     LOG.error(f"Error with invite: {str(e)}", EMOJI['error'])
                     print_debug(e, currentframe().f_code.co_name)
                     return None
+
+        else:
+            # By username
+            if not identifier.startswith('@'): identifier = '@' + identifier
+            LOG.info(f"Fetching entity by username: {identifier}...", EMOJI['handle'])
+            entity = client.get_entity(identifier)
 
         if not entity:
             LOG.error(f"{EMOJI['error']} Could not retrieve entity")
