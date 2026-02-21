@@ -70,7 +70,7 @@ def validate_invite(client, invite_hash):
 
     except FloodWaitError as e:
         # Handle flood wait with recursive retry
-        LOG.output(f"{EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
+        LOG.error(f"{EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
         sleep(e.seconds)
         return validate_invite(client, invite_hash)
 
@@ -108,7 +108,7 @@ def validate_handle(client, username):
         return True, None, 'private', 'Channel/group is private'
     except FloodWaitError as e:
         # Handle flood wait with recursive retry
-        LOG.output(f"  {EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
+        LOG.error(f"  {EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
         sleep(e.seconds)
         return validate_handle(client, username)
     except Exception as e:

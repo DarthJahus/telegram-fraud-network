@@ -185,7 +185,7 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
         return 'unknown', None, None, None, 'error'
 
     except FloodWaitError as e:
-        LOG.info(f"\n\nFloodWait: waiting {e.seconds}s...", EMOJI["pause"])
+        LOG.error(f"\n\nFloodWait: waiting {e.seconds}s...", EMOJI["pause"])
         sleep(e.seconds)
         return check_entity_status(client, identifier, is_invite, expected_id)
 
