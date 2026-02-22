@@ -51,15 +51,37 @@ def format_entity_mdml(info):
 
     # Username
     if info.get('usernames'):
-        doc.fields['usernames'] = Field(
-            name='username' + ('s' if len(info['usernames']) > 1 else ''),
-            is_list=(len(info['usernames']) > 1),
-            values=[FieldValue(
-                value=f"@{un[0]}",
-                details=f"[link](https://t.me/{un[0]}){' (`inactive`)' if not un[1] else ''}"
-            ) for un in info['usernames']],
-            raw_content=''
-        )
+        username = None
+        usernames = []
+        for un in info['usernames']:
+            if un[1] and username is None:
+                username = un[0]
+            else:
+                usernames.append(un)
+        if username:
+            doc.fields['username'] = Field(
+                name='username',
+                is_list=False,
+                values=[
+                    FieldValue(
+                        value=f"@{username}",
+                        details=f"[link](https://t.me/{username})"
+                    ),
+                ],
+                raw_content=''
+            )
+        if usernames:
+            doc.fields['usernames'] = Field(
+                name='usernames',
+                is_list=True,
+                values=[
+                    FieldValue(
+                        value=f'@{un[0]}',
+                        details=f"[link](https://t.me/{un[0]}){' (`inactive`)' if not un[1] else ''}",
+                    ) for un in usernames
+                ],
+                raw_content=''
+            )
 
     # Name
     if info.get('name'):
