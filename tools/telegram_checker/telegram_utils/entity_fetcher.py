@@ -11,8 +11,9 @@ from telethon.tl.types import (
     Channel, User, Chat, PeerChannel, PeerUser, PeerChat,
     ChannelParticipantsAdmins, ChannelParticipantCreator
 )
+from telegram_checker.utils.exceptions import DebugException
 from telegram_checker.utils.helpers import print_debug
-from telegram_checker.utils.logger import get_logger, DebugException
+from telegram_checker.utils.logger import get_logger
 
 LOG = get_logger()
 

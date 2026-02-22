@@ -8,7 +8,6 @@ from telethon.errors import (
     InviteHashInvalidError,
     FloodWaitError
 )
-from telegram_checker.utils.helpers import print_debug
 from telegram_checker.utils.logger import get_logger
 LOG = get_logger()
 

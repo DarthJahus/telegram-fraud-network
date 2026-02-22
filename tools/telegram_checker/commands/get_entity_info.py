@@ -1,4 +1,6 @@
 from inspect import currentframe
+
+from telegram_checker.commands.exceptions import CommandsGetInfoError
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.mdml_utils.mdml_formatter import format_entity_mdml
 from telegram_checker.telegram_utils.entity_fetcher import fetch_entity_info
@@ -22,4 +24,5 @@ def get_entity_info(client, identifier):
     except Exception as e:
         LOG.error(f"Error generating MDML: {e}", EMOJI['error'])
         print_debug(e, currentframe().f_code.co_name)
-    return None
+
+    raise CommandsGetInfoError('Failed to get entity info.')

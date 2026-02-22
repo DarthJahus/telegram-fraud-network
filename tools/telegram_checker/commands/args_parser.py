@@ -2,11 +2,13 @@ import argparse
 from pathlib import Path
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.config.constants import REGEX_INVITE_LINK_RAW, REGEX_USERNAME_RAW, REGEX_INVITE_HASH
+from telegram_checker.commands.exceptions import ValidationException, CanceledByUser
 from telegram_checker.utils.logger import get_logger
 from pyperclip import paste
 
 LOG = get_logger()
 FROM_CLIPBOARD = "__from_clipboard__"
+
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(
@@ -194,15 +196,11 @@ def validate_args(args):
     if args.include_users and not args.get_identifiers:
         print(f"{EMOJI['warning']} --include-users can only be used with --get-identifiers")
     if args.from_clipboard and not args.get_info:
-        print(f"{EMOJI['error']} --from-clipboard can only be used with --get-info")
-        if args.no_exit: input('Press any key to exit')
-        exit(1)
+        raise ValidationException('--from-clipboard can only be used with --get-info')
     elif args.from_clipboard and args.get_info != FROM_CLIPBOARD:
         print(f"{EMOJI['warning']} --from-clipboard can only be used with bare --get-info")
     if args.get_info == FROM_CLIPBOARD and not args.from_clipboard:
-        print(f"{EMOJI['error']} No identifier has been set for --get-info")
-        if args.no_exit: input('Press any key to exit')
-        exit(1)
+        raise ValidationException('No identifier has been set for --get-info')
 
     # Validate --get-info options
     if args.get_info:
@@ -210,9 +208,7 @@ def validate_args(args):
             get_info = paste().strip()
             args.no_exit = True
             if len(get_info) > 32:
-                print(f"{EMOJI['error']} Clipboard content is too large for this operation.")
-                input('Press any key to exit')
-                exit(2)
+                raise ValidationException('Clipboard content is too large for this operation.')
             args.get_info = get_info
         else:
             get_info = args.get_info.strip()
@@ -239,16 +235,19 @@ def validate_args(args):
             print("  - Invite hash: +hlQ3QhNi6q05ZDIx")
             print("  - ID: 3456721728")
             print("  - Username: @username or username")
-            if args.no_exit: input('Press any key to exit')
-            exit(1)
+            raise ValidationException(
+                "Make sure you use a correct identifier:"
+                "  - Invite link: https://t.me/+hlQ3QhNi6q05ZDIx"
+                "  - Invite hash: +hlQ3QhNi6q05ZDIx"
+                "  - ID: 3456721728"
+                "  - Username: @username or username"
+            )
 
     if args.copy and not args.get_info:
         print(f"{EMOJI['warning']} --copy requires --get-info")
 
     if not args.path and not args.get_info:
-        print(f"{EMOJI['error']} The following arguments are required: --path")
-        if args.no_exit: input('Press any key to exit')
-        exit(2)
+        raise ValidationException('The following arguments are required: --path')
 
     # Validate log file paths
     if args.log_full:
@@ -257,9 +256,7 @@ def validate_args(args):
             print(f"{EMOJI['warning']} Log file already exists: {args.log_full}")
             response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
-                print(f"{EMOJI['error']} Cancelled by user")
-                if args.no_exit: input('Press any key to exit')
-                exit(1)
+                raise CanceledByUser()
 
     if args.log_error:
         error_path = Path(args.log_error)
@@ -267,9 +264,7 @@ def validate_args(args):
             print(f"{EMOJI['warning']} Error log file already exists: {args.log_error}")
             response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
-                print(f"{EMOJI['error']} Cancelled by user")
-                if args.no_exit: input('Press any key to exit')
-                exit(1)
+                raise CanceledByUser()
 
     # Validate --out-file (keep existing validation)
     if args.out_file:
@@ -277,6 +272,4 @@ def validate_args(args):
             print(f"\n{EMOJI['warning']} Output file already exists: {args.out_file}")
             response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
-                print(f"{EMOJI['error']} Script cancelled by user.")
-                if args.no_exit: input('Press any key to exit')
-                exit(1)
+                raise CanceledByUser()

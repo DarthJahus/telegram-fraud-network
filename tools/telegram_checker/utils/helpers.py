@@ -1,6 +1,7 @@
 from inspect import currentframe
 from datetime import datetime
-from telegram_checker.utils.logger import get_logger, DebugException
+from telegram_checker.utils.exceptions import DebugException
+from telegram_checker.utils.logger import get_logger
 
 LOG = get_logger()
 

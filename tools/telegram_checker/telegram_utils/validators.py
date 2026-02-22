@@ -12,7 +12,8 @@ from telethon.errors import (
 )
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.utils.helpers import print_debug
-from telegram_checker.utils.logger import get_logger, DebugException
+from telegram_checker.utils.logger import get_logger
+from telegram_checker.utils.exceptions import DebugException
 
 LOG = get_logger()
 
