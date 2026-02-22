@@ -5,6 +5,9 @@ from collections import Counter, defaultdict
 from telegram_mdml.telegram_mdml import TelegramEntity
 
 
+LINE = 70 * "─"
+
+
 def load_entries(directory_path):
     """Load and parse markdown entries from a directory."""
     entries = []
@@ -80,7 +83,9 @@ def compute_stats(entries):
     deleted = sum(1 for e in entries if e["status"] == "deleted")
     unknown = sum(1 for e in entries if e["status"] == "unknown")
     active = sum(1 for e in entries if e["status"] == "active")
+    active_non_users = sum(1 for e in entries if e["status"] == "active" and e["type"] not in ("user", "bot"))
     active_pct = (active / total * 100) if total else 0
+    active_non_users_pct = (active_non_users / total * 100) if total else 0
     banned_pct = (banned / total * 100) if total else 0
     deleted_pct = (deleted / total * 100) if total else 0
 
@@ -90,18 +95,22 @@ def compute_stats(entries):
         "deleted": deleted,
         "unknown": unknown,
         "active": active,
+        "active_non_users": active_non_users,
         "active_pct": active_pct,
         "banned_pct": banned_pct,
-        "deleted_pct": deleted_pct
+        "deleted_pct": deleted_pct,
+        "active_non_users_pct": active_non_users_pct
     }
 
 
 def compute_type_stats(entries):
     """Compute statistics per entry type."""
-    types_data = defaultdict(lambda: {"total": 0, "banned": 0, "deleted": 0, "unknown": 0})
+    types_data = defaultdict(lambda: {"total": 0, "active": 0, "banned": 0, "deleted": 0, "unknown": 0})
     for entry in entries:
         typ = entry["type"]
         types_data[typ]["total"] += 1
+        if entry["status"] == "active":
+            types_data[typ]["active"] += 1
         if entry["status"] == "banned":
             types_data[typ]["banned"] += 1
         if entry["status"] == "deleted":
@@ -114,21 +123,27 @@ def compute_type_stats(entries):
 def format_type_line(typ, data):
     """Format a single type statistics line."""
     t = data["total"]
+    a = data["active"]
     b = data["banned"]
     d = data["deleted"]
     u = data["unknown"]
 
     parts = [f"{typ.capitalize():<10}: {t:>3}"]
 
+    if a > 0:
+        a_pct = (a / t * 100) if t else 0
+        parts.append(f"•  {a:>3} 🟢 {a_pct:5.1f}%")
+
     if u > 0:
         u_pct = (u / t * 100) if t else 0
         parts.append(f"•  {u:>3} ❓ {u_pct:5.1f}%")
+    else:
+        parts.append("                ")
 
     if d > 0:
         d_pct = (d / t * 100) if t else 0
         parts.append(f"•  {d:>3} 🗑️ {d_pct:5.1f}%")
-
-    if b > 0:
+    elif b > 0:
         b_pct = (b / t * 100) if t else 0
         parts.append(f"•  {b:>3} 🔨 {b_pct:5.1f}%")
 
@@ -137,23 +152,22 @@ def format_type_line(typ, data):
 
 def print_global_stats(stats):
     """Print global overview section."""
-    line = "─" * 50
-    print(line)
+    print(LINE)
     print("📊 GLOBAL OVERVIEW")
-    print(line)
+    print(LINE)
     print(f"📄 Total entries        : {stats['total']:4.0f}")
     print(f"🔨 Banned               : {stats['banned']:4.0f} {stats['banned_pct']:5.1f}%")
     print(f"🗑️ Deleted              : {stats['deleted']:4.0f} {stats['deleted_pct']:5.1f}%")
     print(f"❓ Unknown              : {stats['unknown']:4.0f}")
-    print(f"🟢 Active               : {stats['active']:4.0f} {stats['active_pct']:5.1f}%\n")
+    print(f"🟢 Active               : {stats['active']:4.0f} {stats['active_pct']:5.1f}%")
+    print(f"🟢 Active non users     : {stats['active_non_users']:4.0f} {stats['active_non_users_pct']:5.1f}%\n")
 
 
 def print_type_stats(types_data):
     """Print entry types section."""
-    line = "─" * 50
-    print(line)
+    print(LINE)
     print("🧩 ENTRY TYPES")
-    print(line)
+    print(LINE)
 
     type_order = ["channel", "group", "user", "bot", "unknown"]
     for typ in type_order:
@@ -164,14 +178,18 @@ def print_type_stats(types_data):
 
 def print_tag_stats(entries, total):
     """Print tag analysis section."""
-    line = "─" * 50
     all_tags = Counter()
+    active_tags = Counter()
     for entry in entries:
         all_tags.update(entry["tags"])
+        if entry["status"] == "active":
+            active_tags.update(entry["tags"])
 
-    print(line)
+    print(LINE)
     print("🏷️  TAG ANALYSIS")
-    print(line)
+    print(LINE)
+    print(f" {'TAG':<18}  {'TOTAL':>5}   {'%':>5}  {'ACTIVE':>6}   {'%':>5}")
+    print(f" {'─'*18}  {'─'*5}   {'─'*5}  {'─'*6}   {'─'*5}")
 
     categories = {
         "💳 FINANCIAL FRAUD": ["#bankaccounts", "#checking", "#carding"],
@@ -182,19 +200,23 @@ def print_tag_stats(entries, total):
     used_tags = set(t for group in categories.values() for t in group)
 
     for title, tag_list in categories.items():
-        print(title)
+        print(' ' + title)
         for tag in tag_list:
             count = all_tags.get(tag, 0)
             pct = (count / total * 100) if total else 0
-            print(f"  {tag:<18} {count:>4}  {pct:5.1f}%")
+            acount = active_tags.get(tag, 0)
+            apct = (acount / total * 100) if total else 0
+            print(f"  {tag:<17}  {count:>5}  {pct:5.1f}%  {acount:>6}  {apct:5.1f}%")
         print()
 
     other_tags = [(t, c) for t, c in all_tags.items() if t not in used_tags]
     if other_tags:
-        print("📦 OTHER TAGS")
+        print(" 📦 OTHER TAGS")
         for tag, count in sorted(other_tags, key=lambda x: x[1], reverse=True):
             pct = (count / total * 100) if total else 0
-            print(f"  {tag:<18} {count:>4}  {pct:5.1f}%")
+            acount = active_tags.get(tag, 0)
+            apct = (acount / total * 100) if total else 0
+            print(f"  {tag:<17}  {count:>5}  {pct:5.1f}%  {acount:>6}  {apct:5.1f}%")
 
 
 def main():
