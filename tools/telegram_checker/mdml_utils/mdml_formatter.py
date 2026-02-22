@@ -37,10 +37,13 @@ def format_entity_mdml(info):
         )
 
     # Status
+    status = 'active'
+    if hasattr(info['entity'], 'deleted') and info['entity'].deleted:
+        status = 'deleted'
     doc.fields['status'] = Field(
         name='status',
         is_list=True,
-        values=[FieldValue(value='active', date=now_date, time=now_time)],
+        values=[FieldValue(value=status, date=now_date, time=now_time)],
         raw_content=''
     )
 
@@ -81,6 +84,36 @@ def format_entity_mdml(info):
                 )],
                 raw_content=''
             )
+
+    # Telegram SCAM, VERIFIED
+    marks = []
+    if hasattr(info['entity'], 'scam') and info['entity'].scam:
+            marks.append('SCAM')
+    if hasattr(info['entity'], 'fake') and info['entity'].fake:
+            marks.append('FAKE')
+    if hasattr(info['entity'], 'verified') and info['entity'].verified:
+            marks.append('VERIFIED')
+    if hasattr(info['entity'], 'support') and info['entity'].support:
+            marks.append('SUPPORT')
+    if hasattr(info['entity'], 'restricted') and info['entity'].restricted:
+            marks.append('RESTRICTED')
+
+    if marks:
+        doc.fields['marks'] = Field(
+            name='marks',
+            is_list=False,
+            values=[FieldValue(value='', is_array=True, array_values=marks)],
+            raw_content=''
+        )
+
+    # Premium
+    if hasattr(info['entity'], 'premium') and info['entity'].premium:
+        doc.fields['premium'] = Field(
+            name='premium',
+            is_list=False,
+            values=[FieldValue(value='true')],
+            raw_content=''
+        )
 
     # Mobile
     if info.get('mobile'):

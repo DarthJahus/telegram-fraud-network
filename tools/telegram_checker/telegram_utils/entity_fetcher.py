@@ -199,7 +199,6 @@ def fetch_entity_info(client, identifier: str):
         elif isinstance(entity, (Channel, Chat)):
             info['name'] = entity.title
 
-
         if full:
             # Bio
             bio_text = None
