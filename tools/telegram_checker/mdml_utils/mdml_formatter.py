@@ -50,14 +50,14 @@ def format_entity_mdml(info):
     doc.fields['discovered'] = None
 
     # Username
-    if info.get('username'):
-        doc.fields['username'] = Field(
-            name='username',
-            is_list=False,
+    if info.get('usernames'):
+        doc.fields['usernames'] = Field(
+            name='username' + ('s' if len(info['usernames']) > 1 else ''),
+            is_list=(len(info['usernames']) > 1),
             values=[FieldValue(
-                value=f"@{info['username']}",
-                details=f"[link](https://t.me/{info['username']})"
-            )],
+                value=f"@{un[0]}",
+                details=f"[link](https://t.me/{un[0]}){' (`inactive`)' if not un[1] else ''}"
+            ) for un in info['usernames']],
             raw_content=''
         )
 
