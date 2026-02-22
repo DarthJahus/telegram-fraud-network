@@ -3,8 +3,10 @@ from pathlib import Path
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.config.constants import REGEX_INVITE_LINK_RAW, REGEX_USERNAME_RAW, REGEX_INVITE_HASH
 from telegram_checker.utils.logger import get_logger
-LOG = get_logger()
+from pyperclip import paste
 
+LOG = get_logger()
+FROM_CLIPBOARD = "__from_clipboard__"
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(
@@ -132,12 +134,20 @@ def build_arg_parser():
     )
     parser.add_argument(
         '--get-info',
+        nargs='?',
+        const=FROM_CLIPBOARD,
+        default=None,
         help='Get full information about a Telegram entity and output as MDML'
     )
     parser.add_argument(
         '--copy',
         action='store_true',
         help='Copy --get-info MDML result to clipboard.'
+    )
+    parser.add_argument(
+        "--from-clipboard",
+        action="store_true",
+        help="With --get-info, retrieve entity identifier from clipboard."
     )
     parser.add_argument(
         '--quiet',
@@ -161,6 +171,11 @@ def build_arg_parser():
         metavar='FILE',
         help='Log errors only to file'
     )
+    parser.add_argument(
+        '--no-exit',
+        action='store_true',
+        help="Don't exit the program at the end of operations"
+    )
 
     return parser
 
@@ -178,10 +193,30 @@ def validate_args(args):
         print(f"{EMOJI['warning']} --clean can only be used with --get-identifiers")
     if args.include_users and not args.get_identifiers:
         print(f"{EMOJI['warning']} --include-users can only be used with --get-identifiers")
+    if args.from_clipboard and not args.get_info:
+        print(f"{EMOJI['error']} --from-clipboard can only be used with --get-info")
+        if args.no_exit: input('Press any key to exit')
+        exit(1)
+    elif args.from_clipboard and args.get_info != FROM_CLIPBOARD:
+        print(f"{EMOJI['warning']} --from-clipboard can only be used with bare --get-info")
+    if args.get_info == FROM_CLIPBOARD and not args.from_clipboard:
+        print(f"{EMOJI['error']} No identifier has been set for --get-info")
+        if args.no_exit: input('Press any key to exit')
+        exit(1)
 
     # Validate --get-info options
     if args.get_info:
-        get_info = args.get_info.strip()
+        if args.get_info == FROM_CLIPBOARD and args.from_clipboard:
+            get_info = paste().strip()
+            args.no_exit = True
+            if len(get_info) > 32:
+                print(f"{EMOJI['error']} Clipboard content is too large for this operation.")
+                input('Press any key to exit')
+                exit(2)
+            args.get_info = get_info
+        else:
+            get_info = args.get_info.strip()
+
         # ToDo: better validate URL, usernames and ID
         if REGEX_INVITE_LINK_RAW.match(get_info):
             # invite link
@@ -204,6 +239,7 @@ def validate_args(args):
             print("  - Invite hash: +hlQ3QhNi6q05ZDIx")
             print("  - ID: 3456721728")
             print("  - Username: @username or username")
+            if args.no_exit: input('Press any key to exit')
             exit(1)
 
     if args.copy and not args.get_info:
@@ -211,6 +247,7 @@ def validate_args(args):
 
     if not args.path and not args.get_info:
         print(f"{EMOJI['error']} The following arguments are required: --path")
+        if args.no_exit: input('Press any key to exit')
         exit(2)
 
     # Validate log file paths
@@ -221,6 +258,7 @@ def validate_args(args):
             response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
                 print(f"{EMOJI['error']} Cancelled by user")
+                if args.no_exit: input('Press any key to exit')
                 exit(1)
 
     if args.log_error:
@@ -230,6 +268,7 @@ def validate_args(args):
             response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
                 print(f"{EMOJI['error']} Cancelled by user")
+                if args.no_exit: input('Press any key to exit')
                 exit(1)
 
     # Validate --out-file (keep existing validation)
@@ -239,4 +278,5 @@ def validate_args(args):
             response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
                 print(f"{EMOJI['error']} Script cancelled by user.")
+                if args.no_exit: input('Press any key to exit')
                 exit(1)

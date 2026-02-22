@@ -131,6 +131,10 @@ def main():
     full_check(client, args, ignore_statuses, md_files, skip_time_seconds)
 
     log.info(f"\n{EMOJI["info"]} Done!")
+    if args.no_exit:
+        input('Press any key to exit.')
+    exit(0)
+
 
 
 if __name__ == '__main__':

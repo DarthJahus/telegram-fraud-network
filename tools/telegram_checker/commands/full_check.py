@@ -243,6 +243,7 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                 print_debug(e,currentframe().f_code.co_name)
     except KeyboardInterrupt:
         client.disconnect()
+        if args.no_exit: input('Press any key to exit')
         exit(0)
     finally:
         # Always disconnect, even if there's an error
