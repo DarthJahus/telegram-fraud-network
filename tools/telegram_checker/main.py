@@ -122,7 +122,7 @@ def main():
         if not (args.get_identifiers == 'all'):
             client = connect_to_telegram(args.user)
 
-        # Handle --get-invites or --get-identifiers mode without connection if mode is 'all'
+        # Handle --get-identifiers mode without connection if mode is 'all'
         if args.get_identifiers:
             list_identifiers(
                 client,

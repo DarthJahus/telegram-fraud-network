@@ -105,7 +105,12 @@ def build_arg_parser():
     parser.add_argument(
         '--md-tasks',
         action='store_true',
-        help="With --get-invites: print results as markdown tasks"
+        help="Used with --get-identifiers: print results as markdown tasks"
+    )
+    parser.add_argument(
+        '--tg-list',
+        action='store_true',
+        help="Used with --get-identifiers: print results as a Telegram-friendly list"
     )
     parser.add_argument(
         '--valid-only',
@@ -178,7 +183,11 @@ def build_arg_parser():
         action='store_true',
         help="Don't exit the program at the end of operations"
     )
-
+    parser.add_argument(
+        '--sort-size',
+        action='store_true',
+        help="Sort entities according to their size."
+    )
     return parser
 
 
@@ -187,8 +196,16 @@ def validate_args(args):
         print(f"{EMOJI['warning']} --no-skip can only be used with --get-identifiers --invites-only")
     if args.continuous and not args.get_identifiers:
         print(f"{EMOJI['warning']} --continuous can only be used with --get-identifiers")
+    if args.continuous and args.sort_size:
+        print(f"{EMOJI['warning']} --continuous cannot be used with --sort-size. Ignoring --continuous")
+        args.continuous = False
     if args.md_tasks and not args.get_identifiers:
         print(f"{EMOJI['warning']} --md-tasks can only be used with --get-identifiers")
+    if args.tg_list and not args.get_identifiers:
+        print(f"{EMOJI['warning']} --tg-list can only be used with --get-identifiers")
+    if args.md_tasks and args.tg_list:
+        print(f"{EMOJI['warning']} --md-tasks cannot be used with --tg_list. Ignoring --md_tasks")
+        args.md_tasks = False
     if args.valid_only and not args.get_identifiers:
         print(f"{EMOJI['warning']} --valid-only can only be used with --get-identifiers")
     if args.clean and not args.get_identifiers:
