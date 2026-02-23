@@ -35,7 +35,7 @@ REGEX_INVITE_HASH = re.compile(r'^\+[a-zA-Z0-9_-]{10,32}$')
 # ============================================
 MAX_STATUS_ENTRIES = 10  # maximum number of status entries to keep
 
-UI_HORIZONTAL_LINE = f"\n{60 * "•"}\n"
+UI_HORIZONTAL_LINE = f"{60 * "—"}"
 
 EMOJI = {
     'active':      "🔥",
