@@ -96,7 +96,7 @@ class Logger:
             return text
         return text.replace('\\[[', '[[').replace('\\]]', ']]')
 
-    def log(self, message, level=LogLevel.INFO, emoji='', padding=0, end='\n', flush=False):
+    def log(self, message, level:LogLevel=LogLevel.INFO, emoji='', padding=0, end='\n', flush=False):
         """Generic log method"""
         padding = padding * ' '
         formatted = f"{padding}{emoji} {message}" if emoji else f"{padding}{message}"
