@@ -13,6 +13,8 @@ Each [[entity_tg|entity]] may contain:
 - owner / admin (if visible)
 - bio and external links (if present)
 - observed status (`active` | `banned` | `deleted`) with date
+- creation date (if possible)
+- join date
 
 ## Backups and Exposures
 Backups are created only when necessary.
@@ -52,4 +54,4 @@ This documentation method directly produces a graph.
 See:
 - [Graph Construction](graph.md)
 - [Visualization](visualization.md)
-- Tool: [[check_status_tg|Telegram Status Checker]]
+- Tool: [[/tools/telegram_checker/README|Telegram Status Checker]]
