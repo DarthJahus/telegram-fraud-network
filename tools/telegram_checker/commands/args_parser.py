@@ -51,7 +51,7 @@ def build_arg_parser():
     )
     parser.add_argument(
         '--type',
-        choices=['all', 'channel', 'group', 'user', 'bot'],
+        nargs='+',
         default='all',
         help='Filter by entity type (default: all)'
     )

@@ -112,7 +112,7 @@ def main():
             raise ValidationException(f'No .md files found in {path}')
 
         log.info(f"{len(md_files)} .md files found", EMOJI["folder"])
-        log.info(f"Filter: {args.type}", emoji='🔍')
+        log.info(f"Filter: {', '.join(args.type)}", emoji='🔍')
         if args.dry_run:
             log.info(f"Mode: DRY-RUN (no file modifications)", emoji='🔎')
         log.info()
