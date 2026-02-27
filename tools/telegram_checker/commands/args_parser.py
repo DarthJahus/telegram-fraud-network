@@ -113,9 +113,9 @@ def build_arg_parser():
         help="Used with --get-identifiers: print results as a Telegram-friendly list"
     )
     parser.add_argument(
-        '--valid-only',
+        '--active-only',
         action='store_true',
-        help="With --get-invites: only print valid invites"
+        help="With --get-invites: only print active invites"
     )
     parser.add_argument(
         '--get-identifiers',
@@ -206,16 +206,16 @@ def validate_args(args):
     if args.md_tasks and args.tg_list:
         print(f"{EMOJI['warning']} --md-tasks cannot be used with --tg_list. Ignoring --md_tasks")
         args.md_tasks = False
-    if args.valid_only and not args.get_identifiers:
-        print(f"{EMOJI['warning']} --valid-only can only be used with --get-identifiers")
+    if args.active_only and not args.get_identifiers:
+        print(f"{EMOJI['warning']} --active-only can only be used with --get-identifiers. Ignoring")
     if args.clean and not args.get_identifiers:
-        print(f"{EMOJI['warning']} --clean can only be used with --get-identifiers")
+        print(f"{EMOJI['warning']} --clean can only be used with --get-identifiers. Ignoring")
     if args.include_users and not args.get_identifiers:
-        print(f"{EMOJI['warning']} --include-users can only be used with --get-identifiers")
+        print(f"{EMOJI['warning']} --include-users can only be used with --get-identifiers. Ignoring")
     if args.from_clipboard and not args.get_info:
         raise ValidationException('--from-clipboard can only be used with --get-info')
     elif args.from_clipboard and args.get_info != FROM_CLIPBOARD:
-        print(f"{EMOJI['warning']} --from-clipboard can only be used with bare --get-info")
+        print(f"{EMOJI['warning']} --from-clipboard can only be used with bare --get-info. Ignoring")
     if args.get_info == FROM_CLIPBOARD and not args.from_clipboard:
         raise ValidationException('No identifier has been set for --get-info')
 

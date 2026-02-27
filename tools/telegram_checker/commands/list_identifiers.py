@@ -37,7 +37,7 @@ def get_size_bin_label(size):
     return None
 
 
-def print_identifiers(identifiers_list, md_tasks=False, valid_only=False, clean=False, tg_list=False, show_size=False, dest=LOG.output):
+def print_identifiers(identifiers_list, md_tasks=False, active_only=False, clean=False, tg_list=False, show_size=False, dest=LOG.output):
     if not identifiers_list:
         return
 
@@ -55,10 +55,10 @@ def print_identifiers(identifiers_list, md_tasks=False, valid_only=False, clean=
 
     for ident in identifiers_list:
         type_indicator = ' ' + (EMOJI['invite'] if "+" in ident['full_link'] else EMOJI['handle'])
-        size = '' if not show_size else f" {'| ' if tg_list else ''}{ident['member_count']:>{max_member_count_digits}} "
+        size = '' if not show_size else f" {'| ' if tg_list and active_only else ''}{ident['member_count']:>{max_member_count_digits}} "
         if ident['valid'] is True:
             n += 1
-            if tg_list and valid_only:
+            if tg_list and active_only:
                 # TG list is only relevant for valid identifiers
                 dest(f"` {n:>{bin_length_digits}} {size}|` {ident['full_link']}")
             else:
@@ -68,7 +68,7 @@ def print_identifiers(identifiers_list, md_tasks=False, valid_only=False, clean=
                     dest(f"  {EMOJI["id"]      } {ident['user_id']}")
                 dest(f"  {EMOJI["file"]    } {ident['file']}")
                 dest()
-        elif ident['valid'] is False and not valid_only:
+        elif ident['valid'] is False and not active_only:
             dest(f"{md_check_list}{size}{EMOJI["no_emoji"]}{type_indicator} {ident['full_link']}")
             if not clean:
                 dest(f"  {EMOJI["file"]    } {ident['file']}")
@@ -83,7 +83,7 @@ def print_identifiers(identifiers_list, md_tasks=False, valid_only=False, clean=
 
     #dest(f"\n{EMOJI['invite']} Printed {len(identifiers_list)} identifier" + ('s' if len(identifiers_list) > 1 else ''))
 
-def print_identifiers_binned(identifiers_list, md_tasks=False, valid_only=False, clean=False, tg_list=False):
+def print_identifiers_binned(identifiers_list, md_tasks=False, active_only=False, clean=False, tg_list=False):
     """Print identifiers grouped by member count bins, with users at the end."""
     if not identifiers_list:
         return
@@ -111,7 +111,7 @@ def print_identifiers_binned(identifiers_list, md_tasks=False, valid_only=False,
         LOG.output()
         LOG.output(f"{EMOJI['folder']} in {label} • {len(entries)} identifier{'s' if len(entries) > 1 else ''}")
         LOG.output(UI_HORIZONTAL_LINE)
-        print_identifiers(entries, md_tasks, valid_only, clean, tg_list, show_size=True)
+        print_identifiers(entries, md_tasks, active_only, clean, tg_list, show_size=True)
         LOG.output(UI_HORIZONTAL_LINE)
 
     # Unknown bin (no member count available)
@@ -119,7 +119,7 @@ def print_identifiers_binned(identifiers_list, md_tasks=False, valid_only=False,
         LOG.output()
         LOG.output(f"{EMOJI['unknown']} With unknown count • {len(unknown_bin)} identifier{'s' if len(unknown_bin) > 1 else ''}")
         LOG.output(UI_HORIZONTAL_LINE)
-        print_identifiers(unknown_bin, md_tasks, valid_only, clean=False, tg_list=tg_list)
+        print_identifiers(unknown_bin, md_tasks, active_only, clean=False, tg_list=tg_list)
         LOG.output(UI_HORIZONTAL_LINE)
 
     # Users at the end
@@ -127,7 +127,7 @@ def print_identifiers_binned(identifiers_list, md_tasks=False, valid_only=False,
         LOG.output()
         LOG.output(f"{EMOJI['handle']} Users • {len(users)} identifier{'s' if len(users) > 1 else ''}")
         LOG.output(UI_HORIZONTAL_LINE)
-        print_identifiers(users, md_tasks, valid_only, clean, tg_list)
+        print_identifiers(users, md_tasks, active_only, clean, tg_list)
         LOG.output(UI_HORIZONTAL_LINE)
 
 
@@ -191,10 +191,10 @@ def list_identifiers(client, md_files, args):
                     invite_entry['message'] = "Not validated"
 
                 if args.continuous:
-                    print_identifiers([invite_entry], args.md_tasks, args.valid_only, args.clean, args.tg_list)
+                    print_identifiers([invite_entry], args.md_tasks, args.active_only, args.clean, args.tg_list)
                 else:
                     identifiers_list.append(invite_entry)
-                    print_identifiers([invite_entry], args.md_tasks, args.valid_only, args.clean, args.tg_list, dest=LOG.info)
+                    print_identifiers([invite_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, dest=LOG.info)
 
             # Add usernames if not --invites-only
             if not args.invites_only:
@@ -223,10 +223,10 @@ def list_identifiers(client, md_files, args):
                         username_entry['message'] = "Not validated"
 
                     if args.continuous:
-                        print_identifiers([username_entry], args.md_tasks, args.valid_only, args.clean, args.tg_list)
+                        print_identifiers([username_entry], args.md_tasks, args.active_only, args.clean, args.tg_list)
                     else:
                         identifiers_list.append(username_entry)
-                        print_identifiers([username_entry], args.md_tasks, args.valid_only, args.clean, args.tg_list, dest=LOG.info)
+                        print_identifiers([username_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, dest=LOG.info)
 
         except Exception as e:
             print_debug(e, currentframe().f_code.co_name)
@@ -235,6 +235,6 @@ def list_identifiers(client, md_files, args):
     # Print results and cleanup
     if not args.continuous:
         if args.sort_size:
-            print_identifiers_binned(identifiers_list, args.md_tasks, args.valid_only, args.clean, args.tg_list)
+            print_identifiers_binned(identifiers_list, args.md_tasks, args.active_only, args.clean, args.tg_list)
         else:
-            print_identifiers(identifiers_list, args.md_tasks, args.valid_only, args.clean, args.tg_list)
+            print_identifiers(identifiers_list, args.md_tasks, args.active_only, args.clean, args.tg_list)
