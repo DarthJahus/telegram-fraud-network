@@ -1,6 +1,11 @@
+import sys
+import time
+from typing import Callable
 from inspect import currentframe
-from datetime import datetime
+from datetime import datetime, timedelta
 from telegram_checker.utils.exceptions import DebugException
+from telegram_checker.config.api import SLEEP_BETWEEN_CHECKS
+from telegram_checker.config.constants import EMOJI
 from telegram_checker.utils.logger import get_logger
 
 LOG = get_logger()
@@ -11,6 +16,40 @@ def seconds_to_time(seconds):
     h, m = divmod(m, 60)
     d, h = divmod(h, 24)
     return " ".join(f"{v} {u}" for v, u in zip((d, h, m, s), ("d", "h", "min", "s")) if v)
+
+
+def sleep_with_progress(seconds: int, dest: Callable[[str], None] = print, emoji='', padding=0) -> None:
+    now = datetime.now()
+    resume_at = now + timedelta(seconds=seconds)
+
+    dest(f"{padding * ' '}{emoji} FloodWait: waiting {seconds_to_time(seconds)}...")
+
+    fmt = "%d/%m %H:%M:%S" if resume_at.date() != now.date() else "%H:%M:%S"
+    dest(f"{padding * ' '}{EMOJI['time']} Will resume at ~ {resume_at.strftime(fmt)}")
+
+    bar_width = 60
+    # "  [" + bar + "] " + time_text + " remaining   "
+    max_time_str = seconds_to_time(seconds)
+    line_width = 2 + 1 + bar_width + 2 + len(max_time_str) + len(" remaining   ")
+    start = time.monotonic()
+
+    while True:
+        elapsed = time.monotonic() - start
+        remaining = max(0.0, seconds - elapsed)
+
+        filled = int(bar_width * elapsed / seconds)
+        bar = filled * "■" + (bar_width - filled) * "□"
+
+        sys.stdout.write(f"\r  [{bar}] {seconds_to_time(int(remaining))} remaining   ")
+        sys.stdout.flush()
+
+        if remaining <= 0:
+            break
+
+        time.sleep(min(SLEEP_BETWEEN_CHECKS, remaining))
+
+    sys.stdout.write(f"\r{line_width * ' '}\r")
+    sys.stdout.flush()
 
 
 def get_date_time(get_date=True, get_time=True):

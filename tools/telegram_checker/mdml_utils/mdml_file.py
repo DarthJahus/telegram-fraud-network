@@ -12,6 +12,7 @@ from telegram_checker.utils.helpers import (
     cut_text
 )
 from telegram_checker.utils.logger import get_logger
+
 LOG = get_logger()
 
 

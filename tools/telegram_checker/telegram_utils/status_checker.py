@@ -1,4 +1,5 @@
 from time import sleep
+from telegram_checker.config.api import SLEEP_BETWEEN_CHECKS
 from telegram_checker.config.constants import EMOJI
 from telethon.errors import (
     ChannelPrivateError,
@@ -8,7 +9,7 @@ from telethon.errors import (
     InviteHashInvalidError,
     FloodWaitError
 )
-from telegram_checker.utils.helpers import seconds_to_time
+from telegram_checker.utils.helpers import seconds_to_time, sleep_with_progress
 from telegram_checker.utils.logger import get_logger
 
 LOG = get_logger()
@@ -187,7 +188,7 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
 
     except FloodWaitError as e:
         LOG.error(f"\n\nFloodWait: waiting {seconds_to_time(e.seconds)}...", EMOJI["pause"])
-        sleep(e.seconds)
+        sleep_with_progress(e.seconds, dest=LOG.error, emoji=EMOJI["pause"])
         return check_entity_status(client, identifier, is_invite, expected_id)
 
     except Exception as e:
@@ -290,7 +291,7 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
 
                 # Sleep between invite checks
                 if idx < len(invite_list):
-                    sleep(5)
+                    sleep(SLEEP_BETWEEN_CHECKS)
 
     # PRIORITY 3: Fallback to username (last resort)
     if status is None or status == 'unknown':

@@ -2,9 +2,6 @@ from pathlib import Path
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.config.api import API_ID, API_HASH
 from telethon.sync import TelegramClient
-from telegram_checker.telegram_utils.exceptions import TelegramUtilsClientError
-from telegram_checker.utils.exceptions import DebugException
-from telegram_checker.utils.helpers import print_debug
 from telegram_checker.utils.logger import get_logger
 
 LOG = get_logger()
