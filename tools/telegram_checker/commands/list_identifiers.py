@@ -154,6 +154,10 @@ def list_identifiers(client, md_files, args):
                 if last_status in ['banned', 'unknown', 'deleted']:
                     continue
 
+            # Skip files if type is defined
+            if args.type and entity_type not in args.type:
+                continue
+
             # Get size for binning
             size = None
             if args.sort_size:
