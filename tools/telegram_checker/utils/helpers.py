@@ -5,6 +5,14 @@ from telegram_checker.utils.logger import get_logger
 
 LOG = get_logger()
 
+
+def seconds_to_time(seconds):
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    d, h = divmod(h, 24)
+    return " ".join(f"{v} {u}" for v, u in zip((d, h, m, s), ("d", "h", "min", "s")) if v)
+
+
 def get_date_time(get_date=True, get_time=True):
     dt_format = ('%Y-%m-%d' if get_date else '') + (' %H:%M' if get_time else '')
     return datetime.now().strftime(dt_format).strip()

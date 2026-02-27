@@ -11,7 +11,7 @@ from telethon.errors import (
     FloodWaitError
 )
 from telegram_checker.config.constants import EMOJI
-from telegram_checker.utils.helpers import print_debug
+from telegram_checker.utils.helpers import print_debug, seconds_to_time
 from telegram_checker.utils.logger import get_logger
 from telegram_checker.utils.exceptions import DebugException
 
@@ -73,7 +73,7 @@ def validate_invite(client, invite_hash):
 
     except FloodWaitError as e:
         # Handle flood wait with recursive retry
-        LOG.error(f"{EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
+        LOG.error(f"{EMOJI['pause']} FloodWait: waiting {seconds_to_time(e.seconds)}...")
         sleep(e.seconds)
         return validate_invite(client, invite_hash)
 
@@ -111,7 +111,7 @@ def validate_handle(client, username):
         return True, None, 'private', 'Channel/group is private'
     except FloodWaitError as e:
         # Handle flood wait with recursive retry
-        LOG.error(f"  {EMOJI['pause']} FloodWait: waiting {e.seconds}s...")
+        LOG.error(f"  {EMOJI['pause']} FloodWait: waiting {seconds_to_time(e.seconds)}...")
         sleep(e.seconds)
         return validate_handle(client, username)
     except Exception as e:
