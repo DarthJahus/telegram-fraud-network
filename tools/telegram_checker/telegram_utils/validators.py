@@ -47,6 +47,8 @@ def validate_invite(client, invite_hash):
                 print_debug(DebugException("SHOULD NEVER HAVE HAPPENED"))
         except ValueError as e:
             message = str(e)
+        except FloodWaitError as e:
+            raise
         except Exception as e:
             print_debug(e, currentframe().f_code.co_name)
             # Can't get entity, but invite is still valid
