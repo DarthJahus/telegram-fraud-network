@@ -156,6 +156,7 @@ def list_identifiers(client, md_files, args):
 
             # Skip files if type is defined
             if args.type and entity_type not in args.type:
+                LOG.info(f'Skipping entity with type {entity_type} not {', neither '.join(args.type)}', emoji=EMOJI['skip'])
                 continue
 
             # Get size for binning
