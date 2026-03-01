@@ -185,16 +185,8 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
 
                 # Update statistics
                 stats['total'] += 1
-                if status == 'active':
-                    stats['active'] += 1
-                elif status == 'banned':
-                    stats['banned'] += 1
-                elif status == 'deleted':
-                    stats['deleted'] += 1
-                elif status == 'id_mismatch':
-                    stats['id_mismatch'] += 1
-                elif status == 'unknown':
-                    stats['unknown'] += 1
+                if status in stats:
+                    stats[status] += 1
                 else:
                     stats['error'] += 1
 
