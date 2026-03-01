@@ -52,7 +52,7 @@ def build_arg_parser():
     parser.add_argument(
         '--type',
         nargs='+',
-        default='all',
+        default=['all'],
         help='Filter by entity type (default: all)'
     )
     parser.add_argument(
