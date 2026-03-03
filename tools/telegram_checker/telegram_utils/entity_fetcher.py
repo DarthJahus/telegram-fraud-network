@@ -9,7 +9,7 @@ from telethon.tl.functions.channels import GetFullChannelRequest, GetParticipant
 from telethon.tl.functions.users import GetFullUserRequest
 from telethon.tl.types import (
     Channel, User, Chat, PeerChannel, PeerUser, PeerChat,
-    ChannelParticipantsAdmins, ChannelParticipantCreator
+    ChannelParticipantsAdmins, ChannelParticipantCreator, ChannelParticipantAdmin
 )
 from telegram_checker.utils.exceptions import DebugException
 from telegram_checker.utils.helpers import print_debug
@@ -263,13 +263,33 @@ def fetch_entity_info(client, identifier: str):
                 if admins_result.participants:
                     owner = None
                     admins = []
-
+                    users_map = {user.id: user for user in admins_result.users}
                     for participant in admins_result.participants:
+                        user = users_map.get(participant.user_id)
+                        name = ' '.join(filter(None, [user.first_name, user.last_name])) if user else None
+                        username = None
+                        if user and user.username:
+                            username = user.username
+                        elif user and user.usernames:
+                            for un in user.usernames:
+                                if un.active:
+                                    username = un.username
+                                    break
                         if isinstance(participant, ChannelParticipantCreator):
-                            owner = participant.user_id
+                            owner = (
+                                participant.user_id,
+                                username,
+                                name
+                            )
+                        elif isinstance(participant, ChannelParticipantAdmin):
+                            admins.append((
+                                participant.user_id,
+                                username,
+                                name
+                            ))
                         else:
-                            if hasattr(participant, 'user_id'):
-                                admins.append(participant.user_id)
+                            # Shouldn't happen, since it's filtered
+                            print_debug(DebugException(f"Participant type unexpected: {type(participant)}"), 'fetch_entity_info():owner_and_admins:shouldnt_happen')
 
                     if owner:
                         info['owner'] = owner

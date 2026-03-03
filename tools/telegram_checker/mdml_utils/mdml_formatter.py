@@ -307,9 +307,10 @@ def format_entity_mdml(info):
             name='owner',
             is_list=False,
             values=[FieldValue(
-                value=f"tg_{info['owner']}",
+                value=f"tg_{info['owner'][0]}",
                 is_wiki_link=True,
-                wiki_link=f"tg_{info['owner']}"
+                wiki_link=f"tg_{info['owner'][0]}",
+                details=f"`@{info['owner'][1]}` ([link](https://t.me/{info['owner'][1]}))" if info['owner'][1] else (f"`{info['owner'][2]}`" if info['owner'][2] else None)
             )],
             raw_content=''
         )
@@ -317,11 +318,12 @@ def format_entity_mdml(info):
     # Admins - Liste MDML avec wikilinks
     if info.get('admins'):
         admin_values = []
-        for uid in info['admins']:
+        for u in info['admins']:
             admin_values.append(FieldValue(
-                value=f"tg_{uid}",
+                value=f"tg_{u[0]}",
                 is_wiki_link=True,
-                wiki_link=f"tg_{uid}"
+                wiki_link=f"tg_{u[0]}",
+                details=f"`@{u[1]}` ([link](https://t.me/{u[1]}))" if u[1] else (f"`{u[2]}`" if u[2] else None)
             ))
 
         doc.fields['admins'] = Field(
