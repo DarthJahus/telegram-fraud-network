@@ -188,6 +188,55 @@ def build_arg_parser():
         action='store_true',
         help="Sort entities according to their size."
     )
+    parser.add_argument(
+        '--report',
+        type=str,
+        metavar='IDENTIFIER',
+        default=None,
+        help=(
+            'Analyze and report messages from a Telegram entity. '
+            'Accepts a username (@handle), a numeric ID, or an invite link. '
+            'Example: --report @mychannel  or  --report 987968967'
+        )
+    )
+    parser.add_argument(
+        '--interactive',
+        action='store_true',
+        help=(
+            'With --report: prompt before sending reports in the 0.70–0.90 '
+            'confidence range. Without this flag those messages are either '
+            'auto-reported (0.80–0.90) or only logged (0.70–0.80).'
+        )
+    )
+    parser.add_argument(
+        '--all-interactive',
+        action='store_true',
+        help='With --report: prompt before sending reports'
+    )
+    parser.add_argument(
+        '--llm-url',
+        type=str,
+        default=None,
+        metavar='URL',
+        dest='llm_url',
+        help=(
+            'LM Studio / Ollama endpoint for --report. '
+            'If not set, you will be prompted at runtime. '
+            'Example: http://localhost:1234/v1/chat/completions'
+        )
+    )
+    parser.add_argument(
+        '--llm-model',
+        type=str,
+        default=None,
+        metavar='MODEL',
+        dest='llm_model',
+        help=(
+            'Model name to pass to the LLM endpoint for --report. '
+            'If not set, you will be prompted at runtime. '
+            'Example: mistral-nemo'
+        )
+    )
     return parser
 
 
@@ -218,6 +267,16 @@ def validate_args(args):
         print(f"{EMOJI['warning']} --from-clipboard can only be used with bare --get-info. Ignoring")
     if args.get_info == FROM_CLIPBOARD and not args.from_clipboard:
         raise ValidationException('No identifier has been set for --get-info')
+    if args.interactive and not args.report:
+        print(f"{EMOJI['warning']} --interactive can only be used with --report")
+    if args.all_interactive and not args.report:
+        print(f"{EMOJI['warning']} --all-interactive can only be used with --report")
+    if args.all_interactive and args.interactive:
+        print(f"{EMOJI['warning']} --all-interactive supersedes --interactive")
+    if args.llm_url and not args.report:
+        print(f"{EMOJI['warning']} --llm-url has no effect without --report")
+    if args.llm_model and not args.report:
+        print(f"{EMOJI['warning']} --llm-model has no effect without --report")
 
     # Validate --get-info options
     if args.get_info:
@@ -230,7 +289,6 @@ def validate_args(args):
         else:
             get_info = args.get_info.strip()
 
-        # ToDo: better validate URL, usernames and ID
         if REGEX_INVITE_LINK_RAW.match(get_info):
             # invite link
             pass
@@ -263,7 +321,7 @@ def validate_args(args):
     if args.copy and not args.get_info:
         print(f"{EMOJI['warning']} --copy requires --get-info")
 
-    if not args.path and not args.get_info:
+    if not args.path and not args.get_info and not args.report:
         raise ValidationException('The following arguments are required: --path')
 
     # Validate log file paths

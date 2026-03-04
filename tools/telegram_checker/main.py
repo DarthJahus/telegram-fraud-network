@@ -81,6 +81,16 @@ def main():
                 client.disconnect()
             raise GracefullyExit('Done with the entity!')
 
+        # Handle --report mode
+        if args.report:
+            from telegram_checker.commands.report import run_report
+            client = connect_to_telegram(args.user)
+            try:
+                run_report(client, args)
+            finally:
+                client.disconnect()
+            raise GracefullyExit('Done with reporting!')
+
         # Parse skip-time if provided
         skip_time_seconds = None
         if args.skip_time:
@@ -133,12 +143,18 @@ def main():
                 client.disconnect()
             raise GracefullyExit('Done with the identifiers!')
 
+
+
         full_check(client, args, ignore_statuses, md_files, skip_time_seconds)
         raise GracefullyExit('Done with the full check!')
 
     except GracefullyExit as e:
         if str(e):
             print(f"\n{EMOJI["info"]} {str(e)}")
+        exit(0)
+
+    except KeyboardInterrupt:
+        print(f"\n{EMOJI['no_emoji']} Interrupted by user.")
         exit(0)
 
     except Exception as e:

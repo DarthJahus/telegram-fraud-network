@@ -12,3 +12,13 @@ class CanceledByUser(DebugException):
 
 class CommandsGetInfoError(DebugException):
     pass
+
+
+class ReportError(DebugException):
+    """Raised when the report command fails unrecoverably (entity resolution, message fetch, etc.)"""
+    pass
+
+
+class ReportLLMError(ReportError):
+    """Raised when the LLM is unreachable or returns unrecoverable errors across all messages."""
+    pass

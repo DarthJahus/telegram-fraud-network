@@ -67,7 +67,11 @@ EMOJI = {
     'change':      "🔄",
     "pause":       "⏸️",
     "log":         "📰",
-    "list_bugs":   ["🦋", "🦟", "🐛", "🐜", "🐝", "🐞", "🦗"]
+    "list_bugs":   ["🦋", "🦟", "🐛", "🐜", "🐝", "🐞", "🦗"],
+    'llm':         "🤖",
+    'harmless':    "💚",
+    'report':      "📤",
+    'analyzed':    "🔍",
 }
 
 STATS_INIT = {
