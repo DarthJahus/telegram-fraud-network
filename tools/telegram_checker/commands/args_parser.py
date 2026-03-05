@@ -237,6 +237,11 @@ def build_arg_parser():
             'Example: mistral-nemo'
         )
     )
+    parser.add_argument(
+        '--update',
+        action='store_true',
+        help='Used with --report, updates the Telegram report tree from the first analyzed message before reporting',
+    )
     return parser
 
 
@@ -277,6 +282,8 @@ def validate_args(args):
         print(f"{EMOJI['warning']} --llm-url has no effect without --report")
     if args.llm_model and not args.report:
         print(f"{EMOJI['warning']} --llm-model has no effect without --report")
+    if args.update and not args.report:
+        print(f"{EMOJI['warning']} --update has no effect without --report")
 
     # Validate --get-info options
     if args.get_info:

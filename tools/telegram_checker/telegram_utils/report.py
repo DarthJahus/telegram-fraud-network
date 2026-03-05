@@ -1,3 +1,6 @@
+from telegram_checker.llm_utils.constants import SKIP_LV1, SKIP_LV2, REPORT_TREE_DEFAULT
+import json
+from pathlib import Path
 from inspect import currentframe
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.utils.helpers import print_debug
@@ -5,8 +8,31 @@ from telegram_checker.utils.logger import get_logger
 from telethon.errors import InviteHashExpiredError, InviteHashInvalidError
 from telethon.tl.types import PeerChannel, PeerUser, PeerChat
 from telegram_checker.telegram_utils.exceptions import TelegramReportError
+from telethon.tl.functions.messages import ReportRequest
+from telethon.tl.types import ReportResultChooseOption, ReportResultAddComment, ReportResultReported
+from telegram_checker.telegram_utils.constants import REPORT_TREE_PATH
 
 LOG = get_logger()
+
+
+def load_report_tree(default=REPORT_TREE_DEFAULT) -> dict[str, list]:
+    user_path = REPORT_TREE_PATH
+    if user_path.exists():
+        with open(user_path, encoding='utf-8') as f:
+            raw = json.load(f)
+    else:
+        raw = default
+    tree = {
+        lv1: [lv2 for lv2 in subs if lv2.lower() not in SKIP_LV2]
+        for lv1, subs in raw.items()
+        if lv1.lower() not in SKIP_LV1
+    }
+    tree["Harmless"] = ["No report"]
+    return tree
+
+
+def get_report_tree_str():
+    return json.dumps(load_report_tree(), ensure_ascii=False, indent=2)
 
 
 def resolve_entity(client, identifier: str):
@@ -22,7 +48,9 @@ def resolve_entity(client, identifier: str):
             try:
                 return client.get_entity(peer_type(numeric_id))
             except Exception as e:
-                print_debug(e, currentframe().f_code.co_name)
+                # ToDo: add exceptions like ValueError and invite not valide,
+                #       then use print_debug() with the right error message.
+                pass  # print_debug(e, currentframe().f_code.co_name)
         # Last resort
         return client.get_entity(numeric_id)
 
@@ -51,7 +79,7 @@ def resolve_entity(client, identifier: str):
         return client.get_entity(identifier)
 
 
-def send_report(client, entity, message_id: int, category: str, report_text: str) -> bool:
+def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text: str) -> bool:
     """
     Send a single-message report to Telegram.
 
@@ -63,9 +91,6 @@ def send_report(client, entity, message_id: int, category: str, report_text: str
 
     Returns True on success, raises TelegramReportError on unexpected Telegram responses.
     """
-    from telethon.tl.functions.messages import ReportRequest
-    from telethon.tl.types import ReportResultReported, ReportResultChooseOption
-
     try:
         result = client(ReportRequest(
             peer=entity,
@@ -90,13 +115,15 @@ def send_report(client, entity, message_id: int, category: str, report_text: str
             chosen = None
 
             # Navigate the option tree until Telegram is satisfied
+            depth = 0
             while isinstance(current_result, ReportResultChooseOption):
                 if not current_result.options:
                     LOG.error(f"Empty options list for message {message_id}", EMOJI['error'])
                     return False
 
-                LOG.debug("Options: {[f'{i}:{opt.text!r}' for i, opt in enumerate(current_result.options)]}")
-                chosen_index = choose_option(category, current_result.options)
+                LOG.debug(f"Options: {[f'{i}:{opt.text!r}' for i, opt in enumerate(current_result.options)]}")
+                label = lv2 if depth > 0 else lv1
+                chosen_index = choose_option(label, current_result.options)
                 chosen = current_result.options[chosen_index].option
                 LOG.info(f"Matched option {chosen_index}: {current_result.options[chosen_index].text!r}", EMOJI['info'])
 
@@ -106,6 +133,8 @@ def send_report(client, entity, message_id: int, category: str, report_text: str
                     option=chosen,
                     message='',
                 ))
+
+                depth += 1
 
             if isinstance(current_result, ReportResultReported):
                 LOG.output(f"Reported message {message_id} (no comment)", emoji=EMOJI['success'])
@@ -136,8 +165,59 @@ def send_report(client, entity, message_id: int, category: str, report_text: str
         raise
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         LOG.error(f"Failed to report message {message_id}: {e}", EMOJI['error'])
         print_debug(e, currentframe().f_code.co_name)
         return False
+
+
+def save_report_tree(tree: dict, path) -> None:
+    Path(path).write_text(json.dumps(tree, indent=2, ensure_ascii=False), encoding='utf-8')
+    LOG.info(f"Report tree saved to {path}", EMOJI['success'])
+
+
+def get_categories_from_telegram(client, peer, message_id: int) -> dict:
+    """
+    Explores Telegram's report option tree for a given message.
+    Sends a report with each LV1 option and captures the LV2 sub-options,
+    WITHOUT completing the report (stops before the comment step).
+
+    :param client: connected Telethon client instance
+    :param peer: channel or group the test message is in (any existing message would work)
+    :param message_id: message to use (any existing message would work)
+    :return: Telegram report tree as dict
+    """
+    tree = {}
+
+    # LV0 : get top-level options
+    result = client(ReportRequest(peer=peer, id=[message_id], option=b'', message=''))
+
+    if not isinstance(result, ReportResultChooseOption):
+        LOG.error(f"Unexpected initial result: {type(result).__name__}")
+        return tree
+
+    lv1_options = result.options
+    LOG.info(f"\nLV1 ({len(lv1_options)} options):", emoji=EMOJI['info'])
+    for i, opt in enumerate(lv1_options):
+        LOG.info(f"  {i}: {opt.text!r} → {opt.option}", emoji=EMOJI['info'])
+
+    # For each LV1 option, probe LV2
+    for opt in lv1_options:
+        result2 = client(ReportRequest(peer=peer, id=[message_id], option=opt.option, message=''))
+
+        if isinstance(result2, ReportResultChooseOption):
+            sub_options = [o.text for o in result2.options]
+            LOG.info(f"\n  LV2 for {opt.text!r}:", emoji=EMOJI['info'])
+            for i, sub in enumerate(result2.options):
+                LOG.info(f"    {i}: {sub.text!r} → {sub.option}", emoji=EMOJI['info'])
+            tree[opt.text] = sub_options
+
+        elif isinstance(result2, ReportResultAddComment):
+            LOG.info(f"\n  LV2 for {opt.text!r}: → AddComment (no sub-options, optional={result2.optional})", emoji=EMOJI['info'])
+            tree[opt.text] = []
+
+        elif isinstance(result2, ReportResultReported):
+            # Shouldn't happen mid-exploration but handle it
+            LOG.error(f"\n  LV2 for {opt.text!r}: → Reported immediately")
+            tree[opt.text] = []
+
+    return tree

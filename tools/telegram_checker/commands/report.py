@@ -11,7 +11,7 @@ via the Telethon API — one report per message.
 from inspect import currentframe
 import time
 from telegram_checker.config.constants import EMOJI
-from telegram_checker.llm_utils.interface import CATEGORIES, call_llm
+from telegram_checker.llm_utils.interface import call_llm
 from telegram_checker.llm_utils.exceptions import (
     LLMRequestError,
     LLMResponseParseError,
@@ -21,6 +21,9 @@ from telegram_checker.utils.helpers import print_debug
 from telegram_checker.utils.logger import get_logger
 from telegram_checker.telegram_utils.report import send_report
 from telegram_checker.commands.exceptions import ReportError, ReportLLMError
+from difflib import get_close_matches
+from telegram_checker.telegram_utils.constants import REPORT_TREE_PATH
+from telegram_checker.telegram_utils.report import load_report_tree
 
 LOG = get_logger()
 FETCH_LIMIT    = 100
@@ -29,7 +32,7 @@ LINE_THIN     = "─" * 64
 LINE_THICK    = "═" * 64
 
 
-def decide_action(category: str, confidence: float, interactive: bool, all_interactive: bool) -> tuple[bool, bool]:
+def decide_action(lv1: str, confidence: float, interactive: bool, all_interactive: bool) -> tuple[bool, bool]:
     """
     Return (auto_report, ask_user) based on category, confidence and mode.
 
@@ -40,11 +43,11 @@ def decide_action(category: str, confidence: float, interactive: bool, all_inter
       0.60 – 0.70   → log only (never report)
       < 0.60        → silent skip
 
-    HARMLESS special case:
+    "Harmless" special case:
       confidence < 0.70 AND --interactive → ask (might be misclassified)
       otherwise                           → skip
     """
-    if category == "HARMLESS":
+    if lv1 == "Harmless":
         if confidence < 0.70 and (interactive or all_interactive):
             return False, True
         return False, False
@@ -72,7 +75,7 @@ def confidence_bar(confidence: float, width: int = 10) -> str:
 def display_result(result: dict, message_text: str, action_label: str) -> None:
     """Pretty-print a single classification result via LOG.output."""
     confidence  = float(result.get("confidence", 0.0))
-    category    = result.get("category", "?")
+    category    = f"{result.get('lv1', '?')} / {result.get('lv2', '?')}"
     tag         = result.get("tag", "None")
     report_text = result.get("report_text", "")
     msg_id      = result.get("message_id", "?")
@@ -197,6 +200,32 @@ def run_report(client, args):
         'errors':          0,
     }
 
+    report_tree = load_report_tree()
+    if getattr(args, 'update', False) and filtered:
+        from telegram_checker.telegram_utils.report import get_categories_from_telegram
+        from telegram_checker.telegram_utils.report import save_report_tree
+
+        LOG.info("Exploring Telegram report tree…", EMOJI['info'])
+        tree = get_categories_from_telegram(client, entity, filtered[0].id)
+
+        if interactive or all_interactive:
+            LOG.output("Report tree discovered:", emoji=EMOJI['info'])
+            for lv1_k, subs in tree.items():
+                LOG.output(f"  {lv1_k}: {subs}", emoji=EMOJI['info'])
+            try:
+                answer = input(f"\n  {EMOJI['report']} Save updated report tree? [y/N] ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                answer = 'n'
+            if answer in ('y', 'yes'):
+                save_report_tree(tree, REPORT_TREE_PATH)
+            else:
+                LOG.info("Tree update cancelled.", EMOJI['info'])
+        else:
+            save_report_tree(tree, REPORT_TREE_PATH)
+
+        # Reload
+        report_tree = load_report_tree()
+
     # 4 & 5. Analyze and act
     for msg in filtered:
         text       = msg.text.strip()
@@ -216,23 +245,31 @@ def run_report(client, args):
         stats['analyzed'] += 1
 
         # Validate category
-        category   = result.get('category', 'HARMLESS')
+        lv1 = result.get('lv1', 'Harmless')
+        lv2 = result.get('lv2', 'No report')
         confidence = float(result.get('confidence', 0.0))
 
-        if category not in CATEGORIES:
-            LOG.error(
-                f"Unknown category '{category}' for message {message_id} — skipping.",
-                EMOJI['error']
-            )
-            stats['errors'] += 1
-            continue
+        # difflib correction on lv1/lv2 against known tree
 
-        # Decide action
-        auto_report, ask_user = decide_action(category, confidence, interactive, all_interactive)
+
+        lv1_candidates = list(report_tree.keys())
+        lv1_match = get_close_matches(lv1, lv1_candidates, n=1, cutoff=0.82)
+        if lv1_match and lv1_match[0] != lv1:
+            LOG.info(f"lv1 corrected: {lv1!r} → {lv1_match[0]!r}", EMOJI['info'])
+            lv1 = lv1_match[0]
+
+        if lv1 in report_tree:
+            lv2_candidates = report_tree[lv1]
+            lv2_match = get_close_matches(lv2, lv2_candidates, n=1, cutoff=0.82)
+            if lv2_match and lv2_match[0] != lv2:
+                LOG.info(f"lv2 corrected: {lv2!r} → {lv2_match[0]!r}", EMOJI['info'])
+                lv2 = lv2_match[0]
+
+        auto_report, ask_user = decide_action(lv1, confidence, interactive, all_interactive)
 
         # Build the action label for display — also updates stats for
         # the no-report cases right here so we don't fall through again below
-        if category == "HARMLESS" and not ask_user:
+        if lv1 == "Harmless" and not ask_user:
             action_label = "Harmless — skipped"
             stats['harmless'] += 1
         elif confidence < 0.60:
@@ -275,7 +312,7 @@ def run_report(client, args):
             confirmed = True
 
         if confirmed:
-            success = send_report(client, entity, message_id, category, report_text)
+            success = send_report(client, entity, message_id, lv1, lv2, report_text)
             if success:
                 if ask_user:
                     stats['reported_manual'] += 1

@@ -42,3 +42,120 @@ FRAUD_LEXICON: dict[str, str] = {
     "vouch":            "Proof of legitimate delivery; testimonial from a buyer",
     "walkers":          "Elderly people recruited to cash fake checks",
 }
+TAGS: list[str] = [
+    "None",
+    "bank_accounts",
+    "credit_cards",
+    "debit_cards",
+    "bank_checks",
+    "drugs",
+    "guns",
+    "fake_money",
+]
+SKIP_LV1 = {
+    "i don't like it",
+    "other",
+    "it's not illegal, but must be taken down",
+}
+SKIP_LV2 = {
+    "other goods and services",
+    "other personal information",
+    "other illegal sexual content",
+    "something else",
+    "i don't like it",
+}
+TAGS_STR = ", ".join(TAGS)
+LEXICON_STR = "\n".join(f"- {term}: {definition}" for term, definition in FRAUD_LEXICON.items())
+REPORT_TREE_DEFAULT = {
+    "I don't like it": [],
+    "It's not illegal, but must be taken down": [],
+    "Other": [
+        "I don't like it",
+        "False information or defamation",
+        "Illegal adult content",
+        "Illegal goods and services",
+        "Something else"
+    ],
+    "Child abuse": [
+        "Child sexual abuse",
+        "Child physical abuse"
+    ],
+    "Violence": [
+        "Insults or false information",
+        "Graphic or disturbing content",
+        "Extreme violence, dismemberment",
+        "Hate speech or symbols",
+        "Calling for violence",
+        "Organized crime",
+        "Terrorism",
+        "Animal abuse"
+    ],
+    "Illegal goods and services": [
+        "Weapons",
+        "Drugs",
+        "Fake documents",
+        "Counterfeit money",
+        "Hacking tools and malware",
+        "Counterfeit merchandise",
+        "Other goods and services"
+    ],
+    "Illegal adult content": [
+        "Child abuse",
+        "Illegal sexual services",
+        "Animal abuse",
+        "Non-consensual sexual imagery",
+        "Pornography",
+        "Other illegal sexual content"
+    ],
+    "Personal data": [
+        "Private images",
+        "Phone number",
+        "Address",
+        "Stolen data or credentials",
+        "Other personal information"
+    ],
+    "Scam or fraud": [
+        "Impersonation",
+        "Deceptive or unrealistic financial claims",
+        "Malware, phishing",
+        "Fraudulent seller, product or service"
+    ],
+    "Copyright": [],
+    "Spam": [
+        "Insults or false information",
+        "Promoting illegal content",
+        "Promoting other content"
+    ]
+}
+
+SYSTEM_PROMPT = """\
+    You are a content moderation assistant. Your sole task is to analyze Telegram \
+    messages and classify them for potential policy violations.
+    
+    You MUST respond ONLY with a valid JSON object. \
+    No explanation, no markdown, no code fences, no surrounding text — \
+    just the raw JSON object.
+    
+    The JSON object must contain exactly these five fields:
+    
+      "lv1"          : string  — MUST be a top-level key from the classification tree below
+      "lv2"          : string  — MUST be a value from the corresponding lv1 list; use "No report" for harmless
+      "confidence"   : float   — your certainty score, strictly between 0.0 and 1.0
+      "report_text"  : string  — a concise, professional report for Telegram moderators \
+    (maximum 3 sentences, usually 2); empty string if harmless
+      "tag"          : string  — MUST be one of: %(tags)s(use "None" if nothing fits)
+    
+    Classification tree (lv1 → lv2 options):
+    %(categories)s
+    
+    Classification rules:
+    - Use Harmless/No report when the message does not violate any policy.
+    - confidence must honestly reflect how certain you are about the chosen category.
+    - report_text must be factual and neutral; avoid subjective or personal language.
+    - Messages may be in any language (Hindi, Urdu, Bengali, Arabic, English slang, etc.). \
+    Classify based on meaning and context, not language.
+    - Never output anything outside the JSON object.
+    
+    Fraud slang glossary:
+    %(lexicon)s
+    """.replace(f"\n{4 * ' '}", '\n').lstrip()
