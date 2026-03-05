@@ -143,10 +143,10 @@ def run_report(client, args):
         from telegram_checker.telegram_utils.report import resolve_entity
         entity = resolve_entity(client, identifier)
     except ValueError as e:
-        LOG.error(str(e), EMOJI['error'])
+        LOG.error(str(e))
         raise ReportError(str(e)) from e
     except Exception as e:
-        LOG.error(f"Could not resolve '{identifier}': {e}", EMOJI['error'])
+        LOG.error(f"Could not resolve '{identifier}': {e}")
         print_debug(e, currentframe().f_code.co_name)
         raise ReportError(f"Could not resolve entity '{identifier}': {e}") from e
 
@@ -277,6 +277,7 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
 
     # Call LLM
     result = call_llm(text, message_id, llm_url, llm_model)
+    result['message_id'] = message_id
     stats['analyzed'] += 1
 
     # Validate category
@@ -317,7 +318,7 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
 
     # Short-circuit: nothing to report
     if not auto_report and not ask_user:
-        raise TelegramReportNoReport
+        raise TelegramReportNoReport("Not auto-reporting or nothing to report; and not asking for user's input")
 
     # From here, a report will potentially be sent
     report_text = result.get('report_text', '')
@@ -329,11 +330,11 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
                 f"\n  {EMOJI['report']} Send report for message {message_id}? [y/N] "
             ).strip().lower()
         except EOFError:
-            raise TelegramReportSkippedByUser
+            raise TelegramReportSkippedByUser("User asked. No valid answer. Considering 'skip'")
 
         confirmed = answer in ('y', 'yes')
         if not confirmed:
-            raise TelegramReportSkippedByUser
+            raise TelegramReportSkippedByUser("User skipped the message.")
 
     elif auto_report:
         confirmed = True
