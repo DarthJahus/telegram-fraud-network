@@ -72,6 +72,7 @@ EMOJI = {
     'harmless':    "💚",
     'report':      "📤",
     'analyzed':    "🔍",
+    'tag':         "🎫"
 }
 
 STATS_INIT = {

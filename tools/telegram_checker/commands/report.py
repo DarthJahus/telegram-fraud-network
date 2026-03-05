@@ -7,7 +7,7 @@ Fetches the last 100 messages from a Telegram channel/group, passes each one
 to a local LLM for classification, then reports flagged messages to Telegram
 via the Telethon API — one report per message.
 """
-
+from collections import Counter
 from inspect import currentframe
 import time
 from telegram_checker.config.api import SLEEP_BETWEEN_REPORTS
@@ -88,7 +88,7 @@ def display_result(result: dict, message_text: str, action_label: str) -> None:
     LOG.output(f"Message ID  : {msg_id}",                                       emoji=EMOJI['id'])
     LOG.output(f"Content     : {preview}",                                      emoji=EMOJI['text'])
     LOG.output(f"Category    : {category}",                                     emoji=EMOJI['analyzed'])
-    LOG.output(f"Tag         : {tag}",                                          emoji=EMOJI['info'])
+    LOG.output(f"Tag         : {tag}",                                          emoji=EMOJI['tag'])
     LOG.output(f"Confidence  : {confidence:.0%}  {confidence_bar(confidence)}", emoji=EMOJI['stats'])
     LOG.output(f"Report text : {report_text}",                                  emoji=EMOJI['reason'])
     LOG.output(f"Action      : {action_label}",                                 emoji=EMOJI['report'])
@@ -151,7 +151,7 @@ def run_report(client, args):
         raise ReportError(f"Could not resolve entity '{identifier}': {e}") from e
 
     entity_title = (
-        getattr(entity, 'title',    None)
+        getattr(entity, 'title', None)
         or getattr(entity, 'username', None)
         or str(identifier)
     )
@@ -200,6 +200,7 @@ def run_report(client, args):
         'harmless':        0,
         'low_confidence':  0,
         'errors':          0,
+        'tags':            Counter()
     }
 
     report_tree = load_report_tree()
@@ -256,6 +257,13 @@ def run_report(client, args):
     LOG.output(LINE_THIN)
     LOG.output(f"Fetched          : {len(messages)}",            emoji=EMOJI['info'])
     LOG.output(f"Analyzed         : {stats['analyzed']}",        emoji=EMOJI['analyzed'])
+    if stats['tags']:
+        LOG.output(
+            f"Used tags        :\n  " + "\n  ".join(
+                f"{'' if tag.startswith('#') else '#'}{tag}: {count:<3}" for tag, count in stats['tags'].most_common()
+            ),
+            emoji=EMOJI['tag']
+        )
     LOG.output(f"Reported (auto)  : {stats['reported_auto']}",   emoji=EMOJI['report'])
     LOG.output(f"Reported (manual): {stats['reported_manual']}", emoji=EMOJI['success'])
     LOG.output(f"Skipped (manual) : {stats['skipped_manual']}",  emoji=EMOJI['skip'])
@@ -277,7 +285,15 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
 
     # Call LLM
     result = call_llm(text, message_id, llm_url, llm_model)
+
+    # Get tag
+    tag = result.get('tag')
+    if tag and tag.lower() != 'none':
+        stats['tags'][tag.lower()] += 1
+
+    # Insert message_id
     result['message_id'] = message_id
+
     stats['analyzed'] += 1
 
     # Validate category
