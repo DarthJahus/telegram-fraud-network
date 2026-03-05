@@ -103,7 +103,7 @@ def resolve_llm_params(args) -> tuple[str, str]:
     if not llm_url.strip():
         default = "http://localhost:1234/v1/chat/completions"
         llm_url = input(
-            f"  LLM endpoint URL (e.g. {default}): "
+            f"  LLM endpoint ({default}): "
         ).strip()
         if not llm_url:
             llm_url = default
@@ -111,8 +111,9 @@ def resolve_llm_params(args) -> tuple[str, str]:
     if not llm_model.strip():
         default = "openai/gpt-oss-20b"
         llm_model = input(
-            f"  LLM model name (e.g. {default}): "
+            f"  LLM model ({default}): "
         ).strip()
+        LOG.output()
         if not llm_model:
             llm_model = default
 
@@ -186,8 +187,8 @@ def run_report(client, args):
     # Header
     LOG.output(LINE_THICK)
     LOG.output(f"Analyzing {len(filtered)} messages from: {entity_title}", emoji=EMOJI['analyzed'])
-    LOG.output(f"LLM    : {llm_url}  ({llm_model})",                       emoji=EMOJI['llm'])
-    LOG.output(f"Mode   : {'full interactive' if all_interactive else ('interactive' if interactive else 'automatic')}", emoji=EMOJI['info'])
+    LOG.output(f"LLM  : {llm_model} @ {llm_url}", emoji=EMOJI['llm'])
+    LOG.output(f"Mode : {'full interactive' if all_interactive else ('interactive' if interactive else 'automatic')}", emoji=EMOJI['info'])
     LOG.output(LINE_THICK)
 
     # Stats
@@ -230,8 +231,12 @@ def run_report(client, args):
         report_tree = load_report_tree()
 
     # 4 & 5. Analyze and act
+    n = 0
     for msg in filtered:
+        n += 1
         try:
+            LOG.output(LINE_THIN)
+            LOG.output(f'Handling message {n:3} of {len(filtered):3}', emoji=EMOJI['file'])
             report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats)
         except (LLMRequestError, LLMResponseParseError, LLMUnexpectedStructureError) as e:
             LOG.error(str(e), EMOJI['error'])
@@ -255,25 +260,25 @@ def run_report(client, args):
     LOG.output(LINE_THICK)
     LOG.output(f"Summary for {entity_title!r} — {entity.id}",        emoji=EMOJI['stats'])
     LOG.output(LINE_THIN)
-    LOG.output(f"Entity           : {entity.id}",                emoji=EMOJI['id'])
-    LOG.output(f"Fetched          : {len(messages)}",            emoji=EMOJI['info'])
-    LOG.output(f"Analyzed         : {stats['analyzed']}",        emoji=EMOJI['analyzed'])
+    LOG.output(f"Entity           : {entity.id:16}",                emoji=EMOJI['id'])
+    LOG.output(f"Fetched          : {len(messages):.>5}",            emoji=EMOJI['info'])
+    LOG.output(f"Analyzed         : {stats['analyzed']:.>5}",        emoji=EMOJI['analyzed'])
     if stats['tags']:
         LOG.output(
-            f"Used tags        :\n  " + "\n  ".join(
-                f"{'' if tag.startswith('#') else '#'}{tag}: {count:<3}" for tag, count in stats['tags'].most_common()
+            f"Used tags\n   " + "\n   ".join(
+                f"{'' if tag.startswith('#') else '#'}{tag:16}: {count:.>5}" for tag, count in stats['tags'].most_common()
             ),
             emoji=EMOJI['tag']
         )
-    LOG.output(f"Reported (auto)  : {stats['reported_auto']}",   emoji=EMOJI['report'])
-    LOG.output(f"Reported (manual): {stats['reported_manual']}", emoji=EMOJI['success'])
-    LOG.output(f"Skipped (manual) : {stats['skipped_manual']}",  emoji=EMOJI['skip'])
-    LOG.output(f"Logged only      : {stats['log_only']}",        emoji=EMOJI['log'])
-    LOG.output(f"Harmless         : {stats['harmless']}",        emoji=EMOJI['harmless'])
-    LOG.output(f"Low confidence   : {stats['low_confidence']}",  emoji=EMOJI['unknown'])
-    LOG.output(f"Errors           : {stats['errors']}",          emoji=EMOJI['error'])
+    LOG.output(f"Reported (auto)  : {stats['reported_auto']:.>5}",   emoji=EMOJI['report'])
+    LOG.output(f"Reported (manual): {stats['reported_manual']:.>5}", emoji=EMOJI['success'])
+    LOG.output(f"Skipped (manual) : {stats['skipped_manual']:.>5}",  emoji=EMOJI['skip'])
+    LOG.output(f"Logged only      : {stats['log_only']:.>5}",        emoji=EMOJI['log'])
+    LOG.output(f"Harmless         : {stats['harmless']:.>5}",        emoji=EMOJI['harmless'])
+    LOG.output(f"Low confidence   : {stats['low_confidence']:.>5}",  emoji=EMOJI['unknown'])
+    LOG.output(f"Errors           : {stats['errors']:.>5}",          emoji=EMOJI['error'])
     LOG.output(LINE_THIN)
-    LOG.output(f"Total reported   : {total_reported}",           emoji=EMOJI['success'])
+    LOG.output(f"Total reported   : {total_reported:.>5}",           emoji=EMOJI['success'])
     LOG.output(LINE_THICK)
 
 
