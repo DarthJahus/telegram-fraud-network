@@ -125,7 +125,6 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
                 label = lv2 if depth > 0 else lv1
                 chosen_index = choose_option(label, current_result.options)
                 chosen = current_result.options[chosen_index].option
-                LOG.info(f"Matched option {chosen_index}: {current_result.options[chosen_index].text!r}", EMOJI['info'])
 
                 current_result = client(ReportRequest(
                     peer=entity,
