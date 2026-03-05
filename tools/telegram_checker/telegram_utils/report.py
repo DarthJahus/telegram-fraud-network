@@ -3,9 +3,9 @@ import json
 from pathlib import Path
 from inspect import currentframe
 from telegram_checker.config.constants import EMOJI
-from telegram_checker.utils.helpers import print_debug
+from telegram_checker.utils.helpers import print_debug, sleep_with_progress
 from telegram_checker.utils.logger import get_logger
-from telethon.errors import InviteHashExpiredError, InviteHashInvalidError
+from telethon.errors import InviteHashExpiredError, InviteHashInvalidError, FloodWaitError
 from telethon.tl.types import PeerChannel, PeerUser, PeerChat
 from telegram_checker.telegram_utils.exceptions import TelegramReportError
 from telethon.tl.functions.messages import ReportRequest
@@ -163,6 +163,10 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
 
     except TelegramReportError:
         raise
+
+    except FloodWaitError as e:
+        sleep_with_progress(e.seconds, dest=LOG.error, emoji=EMOJI['pause'])
+        return send_report(client, entity, message_id, lv1, lv2, report_text)
 
     except Exception as e:
         LOG.error(f"Failed to report message {message_id}: {e}", EMOJI['error'])

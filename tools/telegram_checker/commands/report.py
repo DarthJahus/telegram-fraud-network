@@ -10,6 +10,7 @@ via the Telethon API — one report per message.
 
 from inspect import currentframe
 import time
+from telegram_checker.config.api import SLEEP_BETWEEN_REPORTS
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.llm_utils.interface import call_llm
 from telegram_checker.llm_utils.exceptions import (
@@ -17,6 +18,7 @@ from telegram_checker.llm_utils.exceptions import (
     LLMResponseParseError,
     LLMUnexpectedStructureError,
 )
+from telegram_checker.telegram_utils.exceptions import TelegramReportNoReport, TelegramReportSkippedByUser
 from telegram_checker.utils.helpers import print_debug
 from telegram_checker.utils.logger import get_logger
 from telegram_checker.telegram_utils.report import send_report
@@ -228,101 +230,20 @@ def run_report(client, args):
 
     # 4 & 5. Analyze and act
     for msg in filtered:
-        text       = msg.text.strip()
-        message_id = msg.id
-
-        LOG.info(LINE_THIN)
-        LOG.info(f"Analyzing message {message_id}…", EMOJI['llm'])
-
-        # Call LLM
         try:
-            result = call_llm(text, message_id, llm_url, llm_model)
+            report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats)
         except (LLMRequestError, LLMResponseParseError, LLMUnexpectedStructureError) as e:
             LOG.error(str(e), EMOJI['error'])
             stats['errors'] += 1
             continue
-
-        stats['analyzed'] += 1
-
-        # Validate category
-        lv1 = result.get('lv1', 'Harmless')
-        lv2 = result.get('lv2', 'No report')
-        confidence = float(result.get('confidence', 0.0))
-
-        # difflib correction on lv1/lv2 against known tree
-
-
-        lv1_candidates = list(report_tree.keys())
-        lv1_match = get_close_matches(lv1, lv1_candidates, n=1, cutoff=0.82)
-        if lv1_match and lv1_match[0] != lv1:
-            LOG.info(f"lv1 corrected: {lv1!r} → {lv1_match[0]!r}", EMOJI['info'])
-            lv1 = lv1_match[0]
-
-        if lv1 in report_tree:
-            lv2_candidates = report_tree[lv1]
-            lv2_match = get_close_matches(lv2, lv2_candidates, n=1, cutoff=0.82)
-            if lv2_match and lv2_match[0] != lv2:
-                LOG.info(f"lv2 corrected: {lv2!r} → {lv2_match[0]!r}", EMOJI['info'])
-                lv2 = lv2_match[0]
-
-        auto_report, ask_user = decide_action(lv1, confidence, interactive, all_interactive)
-
-        # Build the action label for display — also updates stats for
-        # the no-report cases right here so we don't fall through again below
-        if lv1 == "Harmless" and not ask_user:
-            action_label = "Harmless — skipped"
-            stats['harmless'] += 1
-        elif confidence < 0.60:
-            action_label = f"Confidence too low ({confidence:.0%}) — skipped"
-            stats['low_confidence'] += 1
-        elif not auto_report and not ask_user:
-            action_label = f"Logged only ({confidence:.0%})"
-            stats['log_only'] += 1
-        elif auto_report:
-            action_label = f"Auto-reporting ({confidence:.0%})"
-        else:
-            action_label = f"Awaiting your decision ({confidence:.0%})"
-
-        display_result(result, text, action_label)
-
-        # Short-circuit: nothing to report
-        if not auto_report and not ask_user:
+        except TelegramReportSkippedByUser:
+            LOG.output(f"Skipped by user — message {msg.id}", emoji=EMOJI['skip'])
+            stats['skipped_manual'] += 1
+        except TelegramReportNoReport:
             continue
-
-        # From here, a report will potentially be sent
-        report_text = result.get('report_text', '')
-        confirmed   = False
-
-        if ask_user:
-            try:
-                answer = input(
-                    f"\n  {EMOJI['report']} Send report for message {message_id}? [y/N] "
-                ).strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                LOG.info("Interrupted by user.", EMOJI['info'])
-                break
-
-            confirmed = answer in ('y', 'yes')
-            if not confirmed:
-                LOG.output(f"Skipped by user — message {message_id}", emoji=EMOJI['skip'])
-                stats['skipped_manual'] += 1
-                continue
-
-        elif auto_report:
-            confirmed = True
-
-        if confirmed:
-            success = send_report(client, entity, message_id, lv1, lv2, report_text)
-            if success:
-                if ask_user:
-                    stats['reported_manual'] += 1
-                else:
-                    stats['reported_auto'] += 1
-            else:
-                stats['errors'] += 1
-
-        # Small pause between reports to respect Telegram rate limits
-        time.sleep(0.5)
+        except Exception as e:
+            print_debug(e, currentframe().f_code.co_name)
+            stats['errors'] += 1
 
     if stats['errors'] > 0 and stats['analyzed'] == 0:
         raise ReportLLMError("LLM failed on all messages — no analysis was completed.")
@@ -331,17 +252,101 @@ def run_report(client, args):
     total_reported = stats['reported_auto'] + stats['reported_manual']
 
     LOG.output(LINE_THICK)
-    LOG.output(f"Summary — {entity_title}",                              emoji=EMOJI['stats'])
+    LOG.output(f"Summary — {entity_title}",                      emoji=EMOJI['stats'])
     LOG.output(LINE_THIN)
-    LOG.output(f"Fetched          : {len(messages)}",                    emoji=EMOJI['info'])
-    LOG.output(f"Analyzed         : {stats['analyzed']}",                emoji=EMOJI['analyzed'])
-    LOG.output(f"Reported (auto)  : {stats['reported_auto']}",           emoji=EMOJI['report'])
-    LOG.output(f"Reported (manual): {stats['reported_manual']}",         emoji=EMOJI['success'])
-    LOG.output(f"Skipped (manual) : {stats['skipped_manual']}",          emoji=EMOJI['skip'])
-    LOG.output(f"Logged only      : {stats['log_only']}",                emoji=EMOJI['log'])
-    LOG.output(f"Harmless         : {stats['harmless']}",                emoji=EMOJI['harmless'])
-    LOG.output(f"Low confidence   : {stats['low_confidence']}",          emoji=EMOJI['unknown'])
-    LOG.output(f"Errors           : {stats['errors']}",                  emoji=EMOJI['error'])
+    LOG.output(f"Fetched          : {len(messages)}",            emoji=EMOJI['info'])
+    LOG.output(f"Analyzed         : {stats['analyzed']}",        emoji=EMOJI['analyzed'])
+    LOG.output(f"Reported (auto)  : {stats['reported_auto']}",   emoji=EMOJI['report'])
+    LOG.output(f"Reported (manual): {stats['reported_manual']}", emoji=EMOJI['success'])
+    LOG.output(f"Skipped (manual) : {stats['skipped_manual']}",  emoji=EMOJI['skip'])
+    LOG.output(f"Logged only      : {stats['log_only']}",        emoji=EMOJI['log'])
+    LOG.output(f"Harmless         : {stats['harmless']}",        emoji=EMOJI['harmless'])
+    LOG.output(f"Low confidence   : {stats['low_confidence']}",  emoji=EMOJI['unknown'])
+    LOG.output(f"Errors           : {stats['errors']}",          emoji=EMOJI['error'])
     LOG.output(LINE_THIN)
-    LOG.output(f"Total reported   : {total_reported}",                   emoji=EMOJI['success'])
+    LOG.output(f"Total reported   : {total_reported}",           emoji=EMOJI['success'])
     LOG.output(LINE_THICK)
+
+
+def report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats):
+    text = msg.text.strip()
+    message_id = msg.id
+
+    LOG.info(LINE_THIN)
+    LOG.info(f"Analyzing message {message_id}…", EMOJI['llm'])
+
+    # Call LLM
+    result = call_llm(text, message_id, llm_url, llm_model)
+    stats['analyzed'] += 1
+
+    # Validate category
+    lv1 = result.get('lv1', 'Harmless')
+    lv2 = result.get('lv2', 'No report')
+    confidence = float(result.get('confidence', 0.0))
+
+    # difflib correction on lv1/lv2 against known tree
+    lv1_candidates = list(report_tree.keys())
+    lv1_match = get_close_matches(lv1, lv1_candidates, n=1, cutoff=0.82)
+    if lv1_match and lv1_match[0] != lv1:
+        LOG.info(f"lv1 corrected: {lv1!r} → {lv1_match[0]!r}", EMOJI['info'])
+        lv1 = lv1_match[0]
+    if lv1 in report_tree:
+        lv2_candidates = report_tree[lv1]
+        lv2_match = get_close_matches(lv2, lv2_candidates, n=1, cutoff=0.82)
+        if lv2_match and lv2_match[0] != lv2:
+            LOG.info(f"lv2 corrected: {lv2!r} → {lv2_match[0]!r}", EMOJI['info'])
+            lv2 = lv2_match[0]
+    auto_report, ask_user = decide_action(lv1, confidence, interactive, all_interactive)
+
+    # Build the action label for display — also updates stats for
+    # the no-report cases right here so we don't fall through again below
+    if lv1 == "Harmless" and not ask_user:
+        action_label = "Harmless — skipped"
+        stats['harmless'] += 1
+    elif confidence < 0.60:
+        action_label = f"Confidence too low ({confidence:.0%}) — skipped"
+        stats['low_confidence'] += 1
+    elif not auto_report and not ask_user:
+        action_label = f"Logged only ({confidence:.0%})"
+        stats['log_only'] += 1
+    elif auto_report:
+        action_label = f"Auto-reporting ({confidence:.0%})"
+    else:
+        action_label = f"Awaiting your decision ({confidence:.0%})"
+    display_result(result, text, action_label)
+
+    # Short-circuit: nothing to report
+    if not auto_report and not ask_user:
+        raise TelegramReportNoReport
+
+    # From here, a report will potentially be sent
+    report_text = result.get('report_text', '')
+    confirmed = False
+
+    if ask_user:
+        try:
+            answer = input(
+                f"\n  {EMOJI['report']} Send report for message {message_id}? [y/N] "
+            ).strip().lower()
+        except EOFError:
+            raise TelegramReportSkippedByUser
+
+        confirmed = answer in ('y', 'yes')
+        if not confirmed:
+            raise TelegramReportSkippedByUser
+
+    elif auto_report:
+        confirmed = True
+
+    if confirmed:
+        success = send_report(client, entity, message_id, lv1, lv2, report_text)
+        if success:
+            if ask_user:
+                stats['reported_manual'] += 1
+            else:
+                stats['reported_auto'] += 1
+        else:
+            stats['errors'] += 1
+
+    # Small pause between reports to respect Telegram rate limits
+    time.sleep(SLEEP_BETWEEN_REPORTS)
