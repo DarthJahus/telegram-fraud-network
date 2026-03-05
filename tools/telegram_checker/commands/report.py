@@ -253,8 +253,9 @@ def run_report(client, args):
     total_reported = stats['reported_auto'] + stats['reported_manual']
 
     LOG.output(LINE_THICK)
-    LOG.output(f"Summary — {entity_title}",                      emoji=EMOJI['stats'])
+    LOG.output(f"Summary for {entity_title!r} — {entity.id}",        emoji=EMOJI['stats'])
     LOG.output(LINE_THIN)
+    LOG.output(f"Entity           : {entity.id}",                emoji=EMOJI['id'])
     LOG.output(f"Fetched          : {len(messages)}",            emoji=EMOJI['info'])
     LOG.output(f"Analyzed         : {stats['analyzed']}",        emoji=EMOJI['analyzed'])
     if stats['tags']:
