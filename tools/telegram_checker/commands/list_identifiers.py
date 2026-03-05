@@ -184,7 +184,7 @@ def list_identifiers(client, md_files, args):
                         invite_entry['reason'],
                         invite_entry['message']
                     ) = validate_invite(client, invite.hash)
-                    sleep(SLEEP_BETWEEN_CHECKS)  # Rate limiting
+                    sleep(2*SLEEP_BETWEEN_CHECKS)  # Rate limiting
                 else:
                     # 'all' mode - no validation
                     invite_entry['valid'] = None

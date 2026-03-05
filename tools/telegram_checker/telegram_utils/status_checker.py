@@ -291,7 +291,7 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
 
                 # Sleep between invite checks
                 if idx < len(invite_list):
-                    sleep(SLEEP_BETWEEN_CHECKS)
+                    sleep(2*SLEEP_BETWEEN_CHECKS)
 
     # PRIORITY 3: Fallback to username (last resort)
     if status is None or status == 'unknown':
