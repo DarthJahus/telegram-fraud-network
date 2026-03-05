@@ -242,7 +242,15 @@ def fetch_entity_info(client, identifier: str):
         if isinstance(entity, Channel) and full:
             if hasattr(full, 'full_chat') and hasattr(full.full_chat, 'linked_chat_id'):
                 if full.full_chat.linked_chat_id:
-                    info['linked_chat_id'] = full.full_chat.linked_chat_id
+                    username = None
+                    if hasattr(full.full_chat, 'username') and full.full_chat.username:
+                        username = full.full_chat.username
+                    elif hasattr(full.full_chat, 'usernames') and full.full_chat.usernames:
+                        for un in full.full_chat.usernames:
+                            if un.active:
+                                username = un.username
+                                break
+                    info['linked_chat'] = (full.full_chat.linked_chat_id, username)
 
         # Members/Subscribers count
         if full:

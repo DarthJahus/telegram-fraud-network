@@ -228,9 +228,10 @@ def format_entity_mdml(info):
                 name='linked channel',
                 is_list=False,
                 values=[FieldValue(
-                    value=f"tg_{info['linked_chat_id']}",
+                    value=f"tg_{info['linked_chat'][0]}",
                     is_wiki_link=True,
-                    wiki_link=f"tg_{info['linked_chat_id']}"
+                    wiki_link=f"tg_{info['linked_chat'][0]}",
+                    details=f"`@{info['linked_chat'][1]}` ([link](https://t.me/{info['linked_chat'][1]}))" if info['linked_chat'] else None
                 )],
                 raw_content=''
             )
@@ -240,8 +241,16 @@ def format_entity_mdml(info):
         chat_list = []
         for chat in info['linked_chats']:
             details = []
+            username = None
             if chat.username:
-                details.append(f'`@{chat.username}`')
+                username = chat.username
+            elif chat.usernames:
+                for un in chat.usernames:
+                    if un.active:
+                        username = un.username
+                        break
+            if username:
+                details.append(f'`@{username}` ([link](https://t.me/{username}))')
             if chat.id == info.get('personal_chat_id'):
                 details.append('personal')
             details = ', '.join(details) if details else None
@@ -294,9 +303,10 @@ def format_entity_mdml(info):
                 name='discussion',
                 is_list=False,
                 values=[FieldValue(
-                    value=f"tg_{info['linked_chat_id']}",
+                    value=f"tg_{info['linked_chat'][0]}",
                     is_wiki_link=True,
-                    wiki_link=f"tg_{info['linked_chat_id']}"
+                    wiki_link=f"tg_{info['linked_chat'][0]}",
+                    details=f"`@{info['linked_chat'][1]}` ([link](https://t.me/{info['linked_chat'][1]}))" if info['linked_chat'] else None
                 )],
                 raw_content=''
             )
