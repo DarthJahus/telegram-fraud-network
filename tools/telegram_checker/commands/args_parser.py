@@ -120,7 +120,7 @@ def build_arg_parser():
     parser.add_argument(
         '--get-identifiers',
         nargs='?',
-        const='all',
+        default=['all'],
         choices=['all', 'valid'],
         help='List all identifiers (invites + valid handles) (all = non-strikethrough, valid = tested with UserID)'
     )
