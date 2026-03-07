@@ -260,7 +260,7 @@ def run_report(client, args):
     LOG.output(LINE_THICK)
     LOG.output(f"Summary for {entity_title!r} — {entity.id}",        emoji=EMOJI['stats'])
     LOG.output(LINE_THIN)
-    LOG.output(f"Entity           : {entity.id:16}",                emoji=EMOJI['id'])
+    LOG.output(f"Entity           : {entity.id:<16}",                emoji=EMOJI['id'])
     LOG.output(f"Fetched          : {len(messages):.>5}",            emoji=EMOJI['info'])
     LOG.output(f"Analyzed         : {stats['analyzed']:.>5}",        emoji=EMOJI['analyzed'])
     if stats['tags']:
