@@ -37,51 +37,69 @@ def get_size_bin_label(size):
     return None
 
 
-def print_identifiers(identifiers_list, md_tasks=False, active_only=False, clean=False, tg_list=False, show_size=False, dest=LOG.output):
+def print_identifiers(identifiers_list, md_tasks=False, active_only=False, clean=False, tg_list=False, show_size=False, numbered=True, dest=LOG.output):
     if not identifiers_list:
         return
 
     n = 0
-    md_check_list = ''
+
     bin_length_digits = 0
-    if md_tasks:
-        md_check_list = '- [ ] '
-    if tg_list:
+    if numbered:
         valid_count = sum(1 for i in identifiers_list if i['valid'] is True)
         bin_length_digits = len(str(valid_count))
+
     max_member_count_digits = 0
     if show_size:
-        max_member_count_digits = len(str(max(i['member_count'] for i in identifiers_list)))
+        sizes = [i['member_count'] for i in identifiers_list if i['member_count'] is not None]
+        max_member_count_digits = len(str(max(sizes))) if sizes else 0
+
+    def build_prefix(n_val):
+        parts = []
+        if show_size:
+            size_val = ident['member_count']
+            parts.append(f"{size_val:>{max_member_count_digits}}" if size_val is not None else ' ' * max_member_count_digits)
+        if numbered:
+            parts.append(f"{n_val:>{bin_length_digits}}")
+
+        block = " | ".join(parts) + " |" if parts else ""
+
+        if md_tasks:
+            return f"- [ ] {block} " if block else "- [ ] "
+        elif tg_list:
+            return f"`{block}` " if block else ""
+        else:
+            return f"{block} " if block else ""
 
     for ident in identifiers_list:
-        type_indicator = ' ' + (EMOJI['invite'] if "+" in ident['full_link'] else EMOJI['handle'])
-        size = '' if not show_size else f" {'| ' if tg_list and active_only else ''}{ident['member_count']:>{max_member_count_digits}} "
+        type_indicator = EMOJI['invite'] if "+" in ident['full_link'] else EMOJI['handle']
+
         if ident['valid'] is True:
             n += 1
-            if tg_list and active_only:
-                # TG list is only relevant for valid identifiers
-                dest(f"` {n:>{bin_length_digits}} {size}|` {ident['full_link']}")
-            else:
-                dest(f"{md_check_list}{size}{EMOJI["active"]}{type_indicator} {ident['full_link']}")
+            prefix = build_prefix(n)
+            state = f"{EMOJI['active']} " if not active_only else ""
+            dest(f"{prefix}{state}{type_indicator} {ident['full_link']}")
             if not clean:
                 if ident['user_id']:
-                    dest(f"  {EMOJI["id"]      } {ident['user_id']}")
-                dest(f"  {EMOJI["file"]    } {ident['file']}")
-                dest()
-        elif ident['valid'] is False and not active_only:
-            dest(f"{md_check_list}{size}{EMOJI["no_emoji"]}{type_indicator} {ident['full_link']}")
-            if not clean:
-                dest(f"  {EMOJI["file"]    } {ident['file']}")
-                dest(f"  {EMOJI["text"]    } {ident['reason']}")
-                dest(f"  {EMOJI["text"]    } {ident['message']}")
-                dest()
-        elif ident['valid'] is None:  # valid is None, because we haven't checked for validity
-            dest(f"{md_check_list}{size}{type_indicator} {ident['full_link']}")
-            if not clean:
-                dest(f"  {EMOJI["file"]    } {ident['file']}")
+                    dest(f"  {EMOJI['id']      } {ident['user_id']}")
+                dest(f"  {EMOJI['file']    } {ident['file']}")
                 dest()
 
-    #dest(f"\n{EMOJI['invite']} Printed {len(identifiers_list)} identifier" + ('s' if len(identifiers_list) > 1 else ''))
+        elif ident['valid'] is False and not active_only:
+            prefix = build_prefix(0)
+            dest(f"{prefix}{EMOJI['no_emoji']} {type_indicator} {ident['full_link']}")
+            if not clean:
+                dest(f"  {EMOJI['file']    } {ident['file']}")
+                dest(f"  {EMOJI['text']    } {ident['reason']}")
+                dest(f"  {EMOJI['text']    } {ident['message']}")
+                dest()
+
+        elif ident['valid'] is None and not active_only:
+            prefix = build_prefix(0)
+            dest(f"{prefix}{type_indicator} {ident['full_link']}")
+            if not clean:
+                dest(f"  {EMOJI['file']    } {ident['file']}")
+                dest()
+
 
 def print_identifiers_binned(identifiers_list, md_tasks=False, active_only=False, clean=False, tg_list=False):
     """Print identifiers grouped by member count bins, with users at the end."""
@@ -155,7 +173,7 @@ def list_identifiers(client, md_files, args):
                     continue
 
             # Skip files if type is defined
-            if args.type and entity_type not in args.type:
+            if args.type and ('all' not in args.type) and (entity_type not in args.type):
                 LOG.info(f'Skipping entity with type {entity_type} not {', neither '.join(args.type)}', emoji=EMOJI['skip'])
                 continue
 
@@ -192,10 +210,10 @@ def list_identifiers(client, md_files, args):
                     invite_entry['message'] = "Not validated"
 
                 if args.continuous:
-                    print_identifiers([invite_entry], args.md_tasks, args.active_only, args.clean, args.tg_list)
+                    print_identifiers([invite_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, numbered=False)
                 else:
                     identifiers_list.append(invite_entry)
-                    print_identifiers([invite_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, dest=LOG.info)
+                    print_identifiers([invite_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, dest=LOG.info, numbered=False)
 
             # Add usernames if not --invites-only
             if not args.invites_only:
@@ -224,10 +242,10 @@ def list_identifiers(client, md_files, args):
                         username_entry['message'] = "Not validated"
 
                     if args.continuous:
-                        print_identifiers([username_entry], args.md_tasks, args.active_only, args.clean, args.tg_list)
+                        print_identifiers([username_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, numbered=False)
                     else:
                         identifiers_list.append(username_entry)
-                        print_identifiers([username_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, dest=LOG.info)
+                        print_identifiers([username_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, dest=LOG.info, numbered=False)
 
         except Exception as e:
             print_debug(e, currentframe().f_code.co_name)
@@ -235,6 +253,7 @@ def list_identifiers(client, md_files, args):
 
     # Print results and cleanup
     if not args.continuous:
+        LOG.output(UI_HORIZONTAL_LINE)
         if args.sort_size:
             print_identifiers_binned(identifiers_list, args.md_tasks, args.active_only, args.clean, args.tg_list)
         else:
