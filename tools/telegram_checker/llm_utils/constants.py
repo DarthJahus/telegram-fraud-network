@@ -42,16 +42,16 @@ FRAUD_LEXICON: dict[str, str] = {
     "vouch":            "Proof of legitimate delivery; testimonial from a buyer",
     "walkers":          "Elderly people recruited to cash fake checks",
 }
-TAGS: list[str] = [
-    "None",
-    "bank_accounts",
-    "credit_cards",
-    "debit_cards",
-    "bank_checks",
-    "drugs",
-    "guns",
-    "fake_money",
-]
+TAGS: dict[str, str] = {
+    "None": "when nothing fits",
+    "bank_accounts": "related to bank accounts (access to a stolen bank account, credentials, log-in)",
+    "credit_cards": "related to credit card theft or cloning",
+    "bank_checks": "related to bank checks, bank check theft from mail, counterfeit bank checks",
+    "drugs": "any illegal drug",
+    "guns": "weapons and firearms",
+    "fake_money": "counterfeit money",
+    "forgery": "counterfeit and forged documents"
+}
 SKIP_LV1 = {
     "i don't like it",
     "other",
@@ -143,7 +143,7 @@ SYSTEM_PROMPT = """\
       "confidence"   : float   — your certainty score, strictly between 0.0 and 1.0
       "report_text"  : string  — a concise, professional report for Telegram moderators \
     (maximum 3 sentences, usually 2); empty string if harmless
-      "tag"          : string  — MUST be one of: %(tags)s(use "None" if nothing fits)
+      "tag"          : string  — MUST be one of: %(tags)s (use "None" if nothing fits)
     
     Classification tree (lv1 → lv2 options):
     %(categories)s
