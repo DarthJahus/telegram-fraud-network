@@ -181,7 +181,10 @@ def list_identifiers(client, md_files, args):
             # Get size for binning
             size = None
             if args.sort_size:
-                size = entity.get_size()
+                try:
+                    size = entity.get_size()
+                except ValueError as e:
+                    print_debug(DebugException(e))
 
             # Get invites
             invites = entity.get_invites().active()
