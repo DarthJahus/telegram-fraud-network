@@ -14,30 +14,7 @@ def build_arg_parser():
     parser = argparse.ArgumentParser(
         description='Check Telegram entities status and update markdown files',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-    Examples:
-      # Check all entities
-      %(prog)s --path .
-
-      # Skip entities checked in the last 24 hours
-      %(prog)s --path . --skip-time 86400
-      %(prog)s --path . --skip-time "24*60*60"
-
-      # Skip entities with 'unknown' or 'banned' status
-      %(prog)s --path . --skip unknown banned
-
-      # Combine both: skip if checked recently OR if unknown/banned
-      %(prog)s --path . --skip-time "24*60*60" --skip unknown banned
-
-      # Check only channels, skip those checked in the last 12 hours
-      %(prog)s --path . --type channel --skip-time "12*60*60"
-
-      # Check all but don't update files for 'unknown' status
-      %(prog)s --path . --ignore unknown
-
-      # Check all but ignore both 'unknown' and 'banned'
-      %(prog)s --path . --ignore unknown banned
-            """
+        epilog="Project and methodology:\nhttps://github.com/darthjahus/telegram-fraud-network\n_"
     )
     parser.add_argument(
         '--user',
@@ -139,6 +116,7 @@ def build_arg_parser():
     )
     parser.add_argument(
         '--get-info',
+        metavar='IDENTIFIER',
         nargs='?',
         const=FROM_CLIPBOARD,
         default=None,

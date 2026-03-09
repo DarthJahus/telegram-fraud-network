@@ -23,7 +23,7 @@ from pathlib import Path
 
 ## Telegram-Checker
 from telegram_checker.config.constants import EMOJI
-from telegram_checker.utils.exceptions import GracefullyExit
+from telegram_checker.utils.exceptions import GracefullyExit, DebugException
 from telegram_checker.utils.helpers import copy_to_clipboard, parse_time_expression, print_debug
 from telegram_checker.telegram_utils.client import connect_to_telegram
 from telegram_checker.commands.full_check import full_check
@@ -158,7 +158,7 @@ def main():
         exit(0)
 
     except Exception as e:
-        print_debug(e, 'main()')
+        print_debug(DebugException(e))
         input('Press any key to exit.')
         exit(3)
 

@@ -1,5 +1,6 @@
 from inspect import currentframe
 from time import sleep
+from telegram_checker.utils.exceptions import DebugException
 from telegram_checker.utils.logger import get_logger
 from telegram_checker.config.constants import EMOJI, UI_HORIZONTAL_LINE
 from telegram_checker.config.api import SLEEP_BETWEEN_CHECKS
@@ -81,23 +82,23 @@ def print_identifiers(identifiers_list, md_tasks=False, active_only=False, clean
             if not clean:
                 if ident['user_id']:
                     dest(f"  {EMOJI['id']      } {ident['user_id']}")
-                dest(f"  {EMOJI['file']    } {ident['file']}")
+                dest(f"  {EMOJI['file']    } \\[[{ident['file']}\\]]")
                 dest()
 
         elif ident['valid'] is False and not active_only:
             prefix = build_prefix(0)
             dest(f"{prefix}{EMOJI['no_emoji']} {type_indicator} {ident['full_link']}")
             if not clean:
-                dest(f"  {EMOJI['file']    } {ident['file']}")
-                dest(f"  {EMOJI['text']    } {ident['reason']}")
-                dest(f"  {EMOJI['text']    } {ident['message']}")
+                dest(f"  {EMOJI['file']    } \\[[{ident['file']}\\]]")
+                dest(f"  {EMOJI['text']    } \\[[{ident['reason']}\\]]")
+                dest(f"  {EMOJI['text']    } \\[[{ident['message']}\\]]")
                 dest()
 
         elif ident['valid'] is None and not active_only:
             prefix = build_prefix(0)
             dest(f"{prefix}{type_indicator} {ident['full_link']}")
             if not clean:
-                dest(f"  {EMOJI['file']    } {ident['file']}")
+                dest(f"  {EMOJI['file']    } \\[[{ident['file']}\\]]")
                 dest()
 
 

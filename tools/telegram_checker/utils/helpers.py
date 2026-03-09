@@ -27,7 +27,7 @@ def sleep_with_progress(seconds: int, dest: Callable[[str], None] = print, emoji
     fmt = "%d/%m %H:%M:%S" if resume_at.date() != now.date() else "%H:%M:%S"
     dest(f"{padding * ' '}{EMOJI['time']} Will resume at ~ {resume_at.strftime(fmt)}")
 
-    bar_width = 60
+    bar_width = 30
     # "  [" + bar + "] " + time_text + " remaining   "
     max_time_str = seconds_to_time(seconds)
     line_width = 2 + 1 + bar_width + 2 + len(max_time_str) + len(" remaining   ")
