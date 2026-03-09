@@ -42,11 +42,11 @@ def main():
         validate_args(args)
     except ValidationException as e:
         print(f'{EMOJI['error']} {str(e)}')
-        input('Press any key to exit')
+        input('Press Enter key to exit')
         exit(1)
     except CanceledByUser as e:
         print(f'{EMOJI['info']} {str(e)}')
-        input('Press any key to exit')
+        input('Press Enter key to exit')
         exit(2)
 
     try:
@@ -54,7 +54,7 @@ def main():
         log = init_logger(debug=args.verbose, quiet=args.quiet)
     except Exception as e:
         print(f'{EMOJI['info']} {str(e)}')
-        input('Press any key to exit')
+        input('Press Enter key to exit')
         exit(3)
 
     try:
@@ -161,9 +161,8 @@ def main():
         exit(0)
 
     except Exception as e:
-        print_debug(DebugException(e))
-        input('Press any key to exit.')
         print_debug(DebugException(e, e))
+        input('Press Enter key to exit.')
         exit(3)
 
 
