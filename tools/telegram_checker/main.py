@@ -103,9 +103,8 @@ def main():
             log.info(f"Skip statuses: {', '.join(args.skip)}", EMOJI["skip"])
 
         # Parse ignore statuses
-        ignore_statuses = args.ignore if args.ignore else None
-        if ignore_statuses:
-            log.info(f"Ignore statuses: {', '.join(ignore_statuses)}", EMOJI["ignored"])
+        if args.ignore:
+            log.info(f"Ignore statuses: {', '.join(args.ignore)}", EMOJI["ignored"])
 
         # Parse no-skip-unknown
         if args.no_skip_unknown:
@@ -143,9 +142,7 @@ def main():
                 client.disconnect()
             raise GracefullyExit('Done with the identifiers!')
 
-
-
-        full_check(client, args, ignore_statuses, md_files, skip_time_seconds)
+        full_check(client, args, args.ignore, md_files, skip_time_seconds)
         raise GracefullyExit('Done with the full check!')
 
     except GracefullyExit as e:
