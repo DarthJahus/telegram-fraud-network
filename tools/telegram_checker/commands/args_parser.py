@@ -52,7 +52,6 @@ def build_arg_parser():
     parser.add_argument(
         '--type',
         nargs='+',
-        default=['all'],
         help='Filter by entity type (default: all)'
     )
     parser.add_argument(
@@ -120,7 +119,6 @@ def build_arg_parser():
     parser.add_argument(
         '--get-identifiers',
         nargs='?',
-        default=['all'],
         choices=['all', 'valid'],
         help='List all identifiers (invites + valid handles) (all = non-strikethrough, valid = tested with UserID)'
     )

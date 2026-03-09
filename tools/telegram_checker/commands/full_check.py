@@ -92,7 +92,7 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                     LOG.error(f"{EMOJI['error']} Error: {e}")
                     entity_type = None
 
-                if args.type and 'all' not in args.type and entity_type not in args.type:
+                if args.type and entity_type not in args.type:
                     stats['skipped'] += 1
                     stats['skipped_type'] += 1
                     LOG.info(f"Skipping entity with type {entity_type} not {', neither '.join(args.type)}", emoji=EMOJI['skip'])

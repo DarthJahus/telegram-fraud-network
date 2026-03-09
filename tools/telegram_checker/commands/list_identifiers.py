@@ -173,7 +173,7 @@ def list_identifiers(client, md_files, args):
                     continue
 
             # Skip files if type is defined
-            if args.type and ('all' not in args.type) and (entity_type not in args.type):
+            if args.type and entity_type not in args.type:
                 LOG.info(f'Skipping entity with type {entity_type} not {', neither '.join(args.type)}', emoji=EMOJI['skip'])
                 continue
 
