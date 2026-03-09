@@ -23,6 +23,7 @@ from pathlib import Path
 
 ## Telegram-Checker
 from telegram_checker.config.constants import EMOJI
+from telegram_checker.telegram_utils.exceptions import TelegramUtilsClientError
 from telegram_checker.utils.exceptions import GracefullyExit, DebugException
 from telegram_checker.utils.helpers import copy_to_clipboard, parse_time_expression, print_debug
 from telegram_checker.telegram_utils.client import connect_to_telegram
@@ -152,6 +153,11 @@ def main():
 
     except KeyboardInterrupt:
         print(f"\n{EMOJI['no_emoji']} Interrupted by user.")
+        exit(0)
+
+    except TelegramUtilsClientError as e:
+        print_debug(e, e)
+        input('Press Enter key to exit.')
         exit(0)
 
     except Exception as e:

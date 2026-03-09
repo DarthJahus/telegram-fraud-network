@@ -2,6 +2,7 @@ from pathlib import Path
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.config.api import API_ID, API_HASH
 from telethon.sync import TelegramClient
+from telegram_checker.telegram_utils.exceptions import TelegramUtilsClientError
 from telegram_checker.utils.logger import get_logger
 
 LOG = get_logger()
@@ -28,11 +29,13 @@ def connect_to_telegram(user):
     client = TelegramClient(str(session_file), API_ID, API_HASH)
     try:
         client.start(phone=phone)
-    except Exception:
+    except Exception as e:
         try:
             client.disconnect()
         except:
             pass
+        if type(e).__name__ == "OperationalError":
+            raise TelegramUtilsClientError("User is busy with another script", e)
         raise
 
     LOG.info("Connected!\n", EMOJI["success"])
