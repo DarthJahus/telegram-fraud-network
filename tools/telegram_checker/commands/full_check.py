@@ -13,7 +13,7 @@ from telegram_mdml.telegram_mdml import (
     InvalidFieldError,
     InvalidTypeError
 )
-from telegram_checker.utils.helpers import get_date_time, print_debug
+from telegram_checker.utils.helpers import get_date_time, print_debug, seconds_to_time
 from telegram_checker.mdml_utils.mdml_file import write_id_to_md
 from telegram_checker.mdml_utils.mdml_file import process_and_update_file
 from telegram_checker.mdml_utils.mdml_parser import get_last_status, extract_telegram_identifiers
@@ -31,7 +31,7 @@ from telegram_checker.utils.logger import get_logger
 LOG = get_logger()
 
 
-def should_skip_entity(entity, skip_time_seconds, skip_statuses, skip_unknown=True):
+def should_skip_entity(entity, skip_time_seconds, skip_statuses, no_skip_unknown=False):
     """
     Determines if an entity should be skipped based on its last status.
 
@@ -39,7 +39,7 @@ def should_skip_entity(entity, skip_time_seconds, skip_statuses, skip_unknown=Tr
         entity (TelegramEntity): Telegram MDML entity
         skip_time_seconds (int or None): Skip if checked within this many seconds
         skip_statuses (list or None): Skip if last status is in this list
-        skip_unknown (default: True): Skip when last_stats is Unknown
+        no_skip_unknown (default: False): Don't skip when last_stats is Unknown
 
     Returns:
         tuple: (should_skip, reason) where reason explains why it was skipped
@@ -52,16 +52,18 @@ def should_skip_entity(entity, skip_time_seconds, skip_statuses, skip_unknown=Tr
 
     # Check if we should skip based on status
     if skip_statuses and last_status in skip_statuses:
-        return True, f"last status is '{last_status}' (exception)"
+        return True, f"last status ('{last_status}') in skip list"
 
-    # Check if we should skip based on time
-    # IMPORTANT: Never skip 'unknown' status based on time (always re-check)
-    if skip_time_seconds is not None and not skip_unknown or last_status != 'unknown':
+    # Exceptions with unknown
+    if last_status == "unknown" and no_skip_unknown:
+        # explicitly don't skip unknown (by user)
+        return False, f"last status is 'unknown', but --no-skip-unknown is used"
+
+    # last check is time
+    if skip_time_seconds:
         time_since_check = datetime.now() - last_datetime
         if time_since_check.total_seconds() < skip_time_seconds:
-            hours = int(time_since_check.total_seconds() / 3600)
-            mins = int((time_since_check.total_seconds() % 3600) / 60)
-            return True, f"checked {hours}h {mins}m ago (status: {last_status})"
+            return True, f"checked {seconds_to_time(time_since_check.total_seconds())} ago (status: {last_status})"
 
     return False, None
 
@@ -120,15 +122,18 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                 last_status, last_datetime, has_status_block = get_last_status(entity)
 
                 # Check if we should skip based on last status
-                should_skip, skip_reason = should_skip_entity(entity, skip_time_seconds, args.skip, not args.no_skip_unknown)
+                should_skip, skip_reason = should_skip_entity(entity, skip_time_seconds, args.skip, args.no_skip_unknown)
                 if should_skip:
-                    LOG.info(f"  {EMOJI["skip"]} Skipped: ({skip_reason})")
+                    LOG.info(f"Skipped: ({skip_reason})", padding=2, emoji=EMOJI['skip'])
                     stats['skipped'] += 1
                     if 'checked' in skip_reason and 'ago' in skip_reason:
                         stats['skipped_time'] += 1
                     elif 'last status' in skip_reason:
                         stats['skipped_status'] += 1
                     continue
+                elif skip_reason:
+                    # Not skipping, but reason provided
+                    LOG.info(f"Not skipping: {skip_reason}", padding=2, emoji=EMOJI['info'])
 
                 # Check entity status with priority fallback
                 status, restriction_details, actual_id, actual_username, method_used, display_id = check_entity_with_fallback(
