@@ -157,6 +157,7 @@ def main():
     except Exception as e:
         print_debug(DebugException(e))
         input('Press any key to exit.')
+        print_debug(DebugException(e, e))
         exit(3)
 
 

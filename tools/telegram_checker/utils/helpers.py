@@ -92,6 +92,7 @@ def print_debug(e: Exception, source=None):
     LOG.debug()
     LOG.debug(type(e).__name__)
     if isinstance(e, DebugException):
+        LOG.debug(f'original exception: {e.original_type_name}')
         LOG.debug(f'from {e.func_name}:{e.line_no_in_func} at {e.file_name}:{e.line_no}')
     elif source:
         LOG.debug(f'from {source}:')
