@@ -156,7 +156,7 @@ def main():
         exit(0)
 
     except TelegramUtilsClientError as e:
-        print_debug(e, e)
+        print(f"\n{EMOJI['error']} Could not connect to Telegram: {str(e)}")
         input('Press Enter key to exit.')
         exit(0)
 
