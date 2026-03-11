@@ -79,7 +79,7 @@ def build_arg_parser():
         help="With --get-invites: print results continuously (default: print at the end of the process)"
     )
     parser.add_argument(
-        '--md-tasks',
+        '--md',
         action='store_true',
         help="Used with --get-identifiers: print results as markdown tasks"
     )
@@ -229,13 +229,13 @@ def validate_args(args):
     if args.continuous and args.sort_size:
         print(f"{EMOJI['warning']} --continuous cannot be used with --sort-size. Ignoring --continuous")
         args.continuous = False
-    if args.md_tasks and not args.get_identifiers:
-        print(f"{EMOJI['warning']} --md-tasks can only be used with --get-identifiers")
-    if args.tg_list and not args.get_identifiers:
+    if args.md and not args.get_identifiers and not args.report:
+        print(f"{EMOJI['warning']} --md can only be used with --get-identifiers")
+    if args.tg_list and not args.get_identifiers and not args.report:
         print(f"{EMOJI['warning']} --tg-list can only be used with --get-identifiers")
-    if args.md_tasks and args.tg_list:
-        print(f"{EMOJI['warning']} --md-tasks cannot be used with --tg_list. Ignoring --md_tasks")
-        args.md_tasks = False
+    if args.md and args.tg_list:
+        print(f"{EMOJI['warning']} --md-tasks cannot be used with --tg_list. Ignoring --md")
+        args.md = False
     if args.active_only and not args.get_identifiers:
         print(f"{EMOJI['warning']} --active-only can only be used with --get-identifiers. Ignoring")
     if args.clean and not args.get_identifiers:

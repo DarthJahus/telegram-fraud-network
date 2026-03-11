@@ -214,10 +214,10 @@ def list_identifiers(client, md_files, args):
                     invite_entry['message'] = "Not validated"
 
                 if args.continuous:
-                    print_identifiers([invite_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, numbered=False)
+                    print_identifiers([invite_entry], args.md, args.active_only, args.clean, args.tg_list, numbered=False)
                 else:
                     identifiers_list.append(invite_entry)
-                    print_identifiers([invite_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, dest=LOG.info, numbered=False)
+                    print_identifiers([invite_entry], args.md, args.active_only, args.clean, args.tg_list, dest=LOG.info, numbered=False)
 
             # Add usernames if not --invites-only
             if not args.invites_only:
@@ -246,10 +246,10 @@ def list_identifiers(client, md_files, args):
                         username_entry['message'] = "Not validated"
 
                     if args.continuous:
-                        print_identifiers([username_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, numbered=False)
+                        print_identifiers([username_entry], args.md, args.active_only, args.clean, args.tg_list, numbered=False)
                     else:
                         identifiers_list.append(username_entry)
-                        print_identifiers([username_entry], args.md_tasks, args.active_only, args.clean, args.tg_list, dest=LOG.info, numbered=False)
+                        print_identifiers([username_entry], args.md, args.active_only, args.clean, args.tg_list, dest=LOG.info, numbered=False)
 
         except Exception as e:
             print_debug(e, currentframe().f_code.co_name)
@@ -259,6 +259,6 @@ def list_identifiers(client, md_files, args):
     if not args.continuous:
         LOG.output(UI_HORIZONTAL_LINE)
         if args.sort_size:
-            print_identifiers_binned(identifiers_list, args.md_tasks, args.active_only, args.clean, args.tg_list)
+            print_identifiers_binned(identifiers_list, args.md, args.active_only, args.clean, args.tg_list)
         else:
-            print_identifiers(identifiers_list, args.md_tasks, args.active_only, args.clean, args.tg_list)
+            print_identifiers(identifiers_list, args.md, args.active_only, args.clean, args.tg_list)
