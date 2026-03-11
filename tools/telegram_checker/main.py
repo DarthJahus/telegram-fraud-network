@@ -42,11 +42,9 @@ def main():
         validate_args(args)
     except ValidationException as e:
         print(f'{EMOJI['error']} {str(e)}')
-        input('Press Enter key to exit')
         exit(1)
     except CanceledByUser as e:
         print(f'{EMOJI['info']} {str(e)}')
-        input('Press Enter key to exit')
         exit(2)
 
     try:
