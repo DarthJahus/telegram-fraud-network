@@ -9,6 +9,7 @@ via the Telethon API — one report per message.
 """
 from collections import Counter
 from inspect import currentframe
+from datetime import datetime
 import time
 from telegram_checker.config.api import SLEEP_BETWEEN_REPORTS
 from telegram_checker.config.constants import EMOJI
@@ -84,15 +85,16 @@ def display_result(result: dict, message_text: str, action_label: str) -> None:
 
     preview = repr(message_text[:120] + ("…" if len(message_text) > 120 else ""))
 
-    LOG.output(LINE_THIN)
-    LOG.output(f"Message ID  : {msg_id}",                                       emoji=EMOJI['id'])
-    LOG.output(f"Content     : {preview}",                                      emoji=EMOJI['text'])
-    LOG.output(f"Category    : {category}",                                     emoji=EMOJI['analyzed'])
-    LOG.output(f"Tag         : {tag}",                                          emoji=EMOJI['tag'])
-    LOG.output(f"Confidence  : {confidence:.0%}  {confidence_bar(confidence)}", emoji=EMOJI['stats'])
-    LOG.output(f"Report text : {report_text}",                                  emoji=EMOJI['reason'])
-    LOG.output(f"Action      : {action_label}",                                 emoji=EMOJI['report'])
-    LOG.output(LINE_THIN)
+    LOG.info(LINE_THIN)
+    LOG.info(f"Message ID  : {msg_id}",                                       emoji=EMOJI['id'])
+    LOG.info(f"Content     : {preview}",                                      emoji=EMOJI['text'])
+    LOG.info(f"Category    : {category}",                                     emoji=EMOJI['analyzed'])
+    LOG.info(f"Tag         : {tag}",                                          emoji=EMOJI['tag'])
+    LOG.info(f"Confidence  : {confidence:.0%}  {confidence_bar(confidence)}", emoji=EMOJI['stats'])
+    LOG.info(f"Report text : {report_text}",                                  emoji=EMOJI['reason'])
+    LOG.info(f"Action      : {action_label}",                                 emoji=EMOJI['report'])
+    LOG.info(LINE_THIN)
+
 
 
 def resolve_llm_params(args) -> tuple[str, str]:
@@ -113,7 +115,7 @@ def resolve_llm_params(args) -> tuple[str, str]:
         llm_model = input(
             f"  LLM model ({default}): "
         ).strip()
-        LOG.output()
+        print()
         if not llm_model:
             llm_model = default
 
@@ -156,7 +158,7 @@ def run_report(client, args):
         or getattr(entity, 'username', None)
         or str(identifier)
     )
-    LOG.output(f"Entity resolved: {entity_title}", emoji=EMOJI['success'])
+    LOG.info(f"Entity resolved: {entity_title}", emoji=EMOJI['success'])
 
     # 2. Fetch messages
     LOG.info(f"Fetching last {FETCH_LIMIT} messages…", EMOJI['info'])
@@ -175,7 +177,7 @@ def run_report(client, args):
         and len((msg.text or "").split()) >= MIN_WORD_COUNT
     ]
     removed = len(messages) - len(filtered)
-    LOG.output(
+    LOG.info(
         f"{len(filtered)} messages retained after filtering "
         f"({removed} removed — fewer than {MIN_WORD_COUNT} words).",
         emoji=EMOJI['analyzed']
@@ -185,11 +187,11 @@ def run_report(client, args):
         raise ReportError("No messages remaining after filtering.")
 
     # Header
-    LOG.output(LINE_THICK)
-    LOG.output(f"Analyzing {len(filtered)} messages from: {entity_title}", emoji=EMOJI['analyzed'])
-    LOG.output(f"LLM  : {llm_model} @ {llm_url}", emoji=EMOJI['llm'])
-    LOG.output(f"Mode : {'full interactive' if all_interactive else ('interactive' if interactive else 'automatic')}", emoji=EMOJI['info'])
-    LOG.output(LINE_THICK)
+    LOG.info(LINE_THICK)
+    LOG.info(f"Analyzing {len(filtered)} messages from: {entity_title}", emoji=EMOJI['analyzed'])
+    LOG.info(f"LLM  : {llm_model} @ {llm_url}", emoji=EMOJI['llm'])
+    LOG.info(f"Mode : {'full interactive' if all_interactive else ('interactive' if interactive else 'automatic')}", emoji=EMOJI['info'])
+    LOG.info(LINE_THICK)
 
     # Stats
     stats = {
@@ -213,9 +215,9 @@ def run_report(client, args):
         tree = get_categories_from_telegram(client, entity, filtered[0].id)
 
         if interactive or all_interactive:
-            LOG.output("Report tree discovered:", emoji=EMOJI['info'])
+            LOG.info("Report tree discovered:", emoji=EMOJI['info'])
             for lv1_k, subs in tree.items():
-                LOG.output(f"  {lv1_k}: {subs}", emoji=EMOJI['info'])
+                LOG.info(f"  {lv1_k}: {subs}", emoji=EMOJI['info'])
             try:
                 answer = input(f"\n  {EMOJI['report']} Save updated report tree? [y/N] ").strip().lower()
             except (EOFError, KeyboardInterrupt):
@@ -235,15 +237,15 @@ def run_report(client, args):
     for msg in filtered:
         n += 1
         try:
-            LOG.output(LINE_THIN)
-            LOG.output(f'Handling message {n:3} of {len(filtered):3}', emoji=EMOJI['file'])
+            LOG.info(LINE_THIN)
+            LOG.info(f'Handling message {n:3} of {len(filtered):3}', emoji=EMOJI['file'])
             report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats)
         except (LLMRequestError, LLMResponseParseError, LLMUnexpectedStructureError) as e:
             LOG.error(str(e), EMOJI['error'])
             stats['errors'] += 1
             continue
         except TelegramReportSkippedByUser:
-            LOG.output(f"Skipped by user — message {msg.id}", emoji=EMOJI['skip'])
+            LOG.info(f"Skipped by user — message {msg.id}", emoji=EMOJI['skip'])
             stats['skipped_manual'] += 1
         except TelegramReportNoReport:
             continue
@@ -257,29 +259,43 @@ def run_report(client, args):
     # Summary
     total_reported = stats['reported_auto'] + stats['reported_manual']
 
-    LOG.output(LINE_THICK)
-    LOG.output(f"Summary for {entity_title!r} — {entity.id}",        emoji=EMOJI['stats'])
-    LOG.output(LINE_THIN)
-    LOG.output(f"Entity           : {entity.id:<16}",                emoji=EMOJI['id'])
-    LOG.output(f"Fetched          : {len(messages):.>5}",            emoji=EMOJI['info'])
-    LOG.output(f"Analyzed         : {stats['analyzed']:.>5}",        emoji=EMOJI['analyzed'])
+    dest = LOG.output
+
+    if args.md:
+        LOG.info('Generating Markdown report...')
+        LOG.info('```')
+        LOG.output("reports.ai:")
+        LOG.output(f"- `{datetime.now().strftime('%Y-%m-%d %H:%M')}`")
+        LOG.output(f"\t- account: `{args.user[0].upper()}`")
+        LOG.output(f"\t- analyzed: `{stats['analyzed']}`")
+        LOG.output(f"\t- reported: `{stats['reported_auto'] + stats['reported_manual']}`")
+        LOG.output("\t- tags: { " + " ; ".join(f"`{tag}`" for tag in stats['tags']) + " }")
+        LOG.info('```')
+        dest = LOG.info
+
+    dest(LINE_THICK)
+    dest(f"Summary for {entity_title!r} — {entity.id}",        emoji=EMOJI['stats'])
+    dest(LINE_THIN)
+    dest(f"Entity           : {entity.id:<16}",                emoji=EMOJI['id'])
+    dest(f"Fetched          : {len(messages):.>5}",            emoji=EMOJI['info'])
+    dest(f"Analyzed         : {stats['analyzed']:.>5}",        emoji=EMOJI['analyzed'])
     if stats['tags']:
-        LOG.output(
+        dest(
             f"Used tags\n   " + "\n   ".join(
                 f"{'' if tag.startswith('#') else '#'}{tag:16}: {count:.>5}" for tag, count in stats['tags'].most_common()
             ),
             emoji=EMOJI['tag']
         )
-    LOG.output(f"Reported (auto)  : {stats['reported_auto']:.>5}",   emoji=EMOJI['report'])
-    LOG.output(f"Reported (manual): {stats['reported_manual']:.>5}", emoji=EMOJI['success'])
-    LOG.output(f"Skipped (manual) : {stats['skipped_manual']:.>5}",  emoji=EMOJI['skip'])
-    LOG.output(f"Logged only      : {stats['log_only']:.>5}",        emoji=EMOJI['log'])
-    LOG.output(f"Harmless         : {stats['harmless']:.>5}",        emoji=EMOJI['harmless'])
-    LOG.output(f"Low confidence   : {stats['low_confidence']:.>5}",  emoji=EMOJI['unknown'])
-    LOG.output(f"Errors           : {stats['errors']:.>5}",          emoji=EMOJI['error'])
-    LOG.output(LINE_THIN)
-    LOG.output(f"Total reported   : {total_reported:.>5}",           emoji=EMOJI['success'])
-    LOG.output(LINE_THICK)
+    dest(f"Reported (auto)  : {stats['reported_auto']:.>5}",   emoji=EMOJI['report'])
+    dest(f"Reported (manual): {stats['reported_manual']:.>5}", emoji=EMOJI['success'])
+    dest(f"Skipped (manual) : {stats['skipped_manual']:.>5}",  emoji=EMOJI['skip'])
+    dest(f"Logged only      : {stats['log_only']:.>5}",        emoji=EMOJI['log'])
+    dest(f"Harmless         : {stats['harmless']:.>5}",        emoji=EMOJI['harmless'])
+    dest(f"Low confidence   : {stats['low_confidence']:.>5}",  emoji=EMOJI['unknown'])
+    dest(f"Errors           : {stats['errors']:.>5}",          emoji=EMOJI['error'])
+    dest(LINE_THIN)
+    dest(f"Total reported   : {total_reported:.>5}",           emoji=EMOJI['success'])
+    dest(LINE_THICK)
 
 
 def report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats):
@@ -336,6 +352,7 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
         action_label = f"Auto-reporting ({confidence:.0%})"
     else:
         action_label = f"Awaiting your decision ({confidence:.0%})"
+
     display_result(result, text, action_label)
 
     # Short-circuit: nothing to report
