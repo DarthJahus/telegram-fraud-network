@@ -218,6 +218,16 @@ def build_arg_parser():
         action='store_true',
         help='Used with --report, updates the Telegram report tree from the first analyzed message before reporting',
     )
+    parser.add_argument(
+        '--yes',
+        action='store_true',
+        help='Bypass and accept any prompt with a YES (e.g. overwrite files)'
+    )
+    parser.add_argument(
+        '--no',
+        action='store_true',
+        help='Bypass and rejoect any prompt with a NO (e.g. overwrite files)'
+    )
     return parser
 
 
@@ -260,6 +270,9 @@ def validate_args(args):
         print(f"{EMOJI['warning']} --llm-model has no effect without --report")
     if args.update and not args.report:
         print(f"{EMOJI['warning']} --update has no effect without --report")
+    if args.no and args.yes:
+        print(f"{EMOJI['warning']} --yes and --no used at the same time. Assuming --no only.")
+        args.yes = False
 
     # Validate --get-info options
     if args.get_info:
@@ -312,7 +325,14 @@ def validate_args(args):
         log_path = Path(args.log_full)
         if log_path.exists():
             print(f"{EMOJI['warning']} Log file already exists: {args.log_full}")
-            response = input("Overwrite? (y/N): ").strip().lower()
+            if args.yes:
+                print(f"{EMOJI['warning']} --yes: overwriting file…")
+                response = 'y'
+            elif args.no:
+                print(f"{EMOJI['info']} --no: Will not overwrite the file.")
+                response = 'n'
+            else:
+                response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
                 raise CanceledByUser()
 
@@ -320,7 +340,14 @@ def validate_args(args):
         error_path = Path(args.log_error)
         if error_path.exists():
             print(f"{EMOJI['warning']} Error log file already exists: {args.log_error}")
-            response = input("Overwrite? (y/N): ").strip().lower()
+            if args.yes:
+                print(f"{EMOJI['warning']} --yes: overwriting file…")
+                response = 'y'
+            elif args.no:
+                print(f"{EMOJI['info']} --no: Will not overwrite the file.")
+                response = 'n'
+            else:
+                response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
                 raise CanceledByUser()
 
@@ -328,6 +355,13 @@ def validate_args(args):
     if args.out_file:
         if Path(args.out_file).exists():
             print(f"\n{EMOJI['warning']} Output file already exists: {args.out_file}")
-            response = input("Overwrite? (y/N): ").strip().lower()
+            if args.yes:
+                print(f"{EMOJI['warning']} --yes: overwriting file…")
+                response = 'y'
+            elif args.no:
+                print(f"{EMOJI['info']} --no: Will not overwrite the file.")
+                response = 'n'
+            else:
+                response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
                 raise CanceledByUser()

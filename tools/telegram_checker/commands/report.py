@@ -220,7 +220,7 @@ def run_report(client, args):
                 answer = input(f"\n  {EMOJI['report']} Save updated report tree? [y/N] ").strip().lower()
             except (EOFError, KeyboardInterrupt):
                 answer = 'n'
-            if answer in ('y', 'yes'):
+            if answer in ('y', 'yes') or args.yes:
                 save_report_tree(tree, REPORT_TREE_PATH)
             else:
                 LOG.info("Tree update cancelled.", EMOJI['info'])
