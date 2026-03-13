@@ -261,14 +261,14 @@ def run_report(client, args):
 
     dest = LOG.output
 
-    if args.md:
+    if args.md and total_reported:
         LOG.info('Generating Markdown report...')
         LOG.info('```')
         LOG.output("reports.ai:")
         LOG.output(f"- `{datetime.now().strftime('%Y-%m-%d %H:%M')}`")
         LOG.output(f"\t- account: `{args.user[0].upper()}`")
         LOG.output(f"\t- analyzed: `{stats['analyzed']}`")
-        LOG.output(f"\t- reported: `{stats['reported_auto'] + stats['reported_manual']}`")
+        LOG.output(f"\t- reported: `{total_reported}`")
         LOG.output("\t- tags: { " + " ; ".join(f"`{tag}`" for tag in stats['tags']) + " }")
         LOG.info('```')
         dest = LOG.info

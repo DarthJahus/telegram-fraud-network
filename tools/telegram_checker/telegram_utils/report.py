@@ -100,7 +100,7 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
         ))
 
         if isinstance(result, ReportResultReported):
-            LOG.output(f"Reported message {message_id}", emoji=EMOJI['success'])
+            LOG.info(f"Reported message {message_id}", emoji=EMOJI['success'])
             return True
 
         if isinstance(result, ReportResultChooseOption):
@@ -136,7 +136,7 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
                 depth += 1
 
             if isinstance(current_result, ReportResultReported):
-                LOG.output(f"Reported message {message_id} (no comment)", emoji=EMOJI['success'])
+                LOG.info(f"Reported message {message_id} (no comment)", emoji=EMOJI['success'])
                 return True
 
             if isinstance(current_result, ReportResultAddComment):
@@ -147,7 +147,7 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
                     message=report_text,
                 ))
                 if isinstance(final_result, (ReportResultReported, ReportResultAddComment)):
-                    LOG.output(f"Reported message {message_id}", emoji=EMOJI['success'])
+                    LOG.info(f"Reported message {message_id}", emoji=EMOJI['success'])
                     return True
                 raise TelegramReportError(
                     f"Unexpected result after comment submission for message {message_id}: {type(final_result).__name__}"
