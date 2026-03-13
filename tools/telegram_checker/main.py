@@ -47,6 +47,7 @@ def main():
         print(f'{EMOJI['info']} {str(e)}')
         exit(2)
 
+    client = None
     try:
         # logging
         log = init_logger(debug=args.verbose, quiet=args.quiet)
@@ -126,7 +127,6 @@ def main():
         log.info()
 
         # Connect to Telegram
-        client = None
         if not (args.get_identifiers == 'all'):
             client = connect_to_telegram(args.user)
 
@@ -150,6 +150,8 @@ def main():
         exit(0)
 
     except KeyboardInterrupt:
+        if client:
+            client.disconnect()
         print(f"\n{EMOJI['no_emoji']} Interrupted by user.")
         exit(0)
 

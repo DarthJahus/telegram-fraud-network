@@ -191,6 +191,20 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
         sleep_with_progress(e.seconds, dest=LOG.error, emoji=EMOJI["pause"])
         return check_entity_status(client, identifier, is_invite, expected_id)
 
+    except ConnectionError as e:
+        LOG.error(f"\n\nConnectionError. Will wait before retrying. Use CTRL+C to quit.", EMOJI['connection'])
+        sleep_with_progress(5*SLEEP_BETWEEN_CHECKS, dest=LOG.error, emoji=EMOJI["connection"])
+        LOG.error("Retrying to connect...")
+        try:
+            client.disconnect()
+        except:
+            pass
+        try:
+            client.connect()
+        except:
+            pass
+        return check_entity_status(client, identifier, is_invite, expected_id)
+
     except Exception as e:
         LOG.error(f"Unexpected error: {type(e).__name__}: {str(e)}", EMOJI["warning"], padding=2)
         return f'error_{type(e).__name__}', None, None, None, 'error'
