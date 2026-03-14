@@ -219,6 +219,10 @@ def build_arg_parser():
         help='Used with --report, updates the Telegram report tree from the first analyzed message before reporting',
     )
     parser.add_argument(
+        '--update-file',
+        help='Update entity file with --report stats'
+    )
+    parser.add_argument(
         '--yes',
         action='store_true',
         help='Bypass and accept any prompt with a YES (e.g. overwrite files)'
@@ -270,6 +274,8 @@ def validate_args(args):
         print(f"{EMOJI['warning']} --llm-model has no effect without --report")
     if args.update and not args.report:
         print(f"{EMOJI['warning']} --update has no effect without --report")
+    if args.update_file and not args.report:
+        print(f"{EMOJI['warning']} --update-file has no effect without --report")
     if args.no and args.yes:
         print(f"{EMOJI['warning']} --yes and --no used at the same time. Assuming --no only.")
         args.yes = False
@@ -365,3 +371,11 @@ def validate_args(args):
                 response = input("Overwrite? (y/N): ").strip().lower()
             if response not in ['y', 'yes']:
                 raise CanceledByUser()
+
+    if args.update_file:
+        if not Path(args.update_file).exists():
+            print(f"\n{EMOJI['warning']} File to update does not exist: {args.update_file}")
+            args.update_file = None
+            if not args.md:
+                print(f"{EMOJI['info']} Markdown output enabled; copy the block manually into your file.")
+                args.md = True

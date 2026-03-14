@@ -19,6 +19,7 @@ from telegram_checker.llm_utils.exceptions import (
     LLMResponseParseError,
     LLMUnexpectedStructureError,
 )
+from telegram_checker.mdml_utils.mdml_file import append_report_to_md
 from telegram_checker.telegram_utils.exceptions import TelegramReportNoReport, TelegramReportSkippedByUser
 from telegram_checker.utils.helpers import print_debug
 from telegram_checker.utils.logger import get_logger
@@ -272,6 +273,15 @@ def run_report(client, args):
         LOG.output("\t- tags: { " + " ; ".join(f"`{tag}`" for tag in stats['tags']) + " }")
         LOG.info('```')
         dest = LOG.info
+
+    if args.update_file and total_reported:
+        append_report_to_md(
+            args.update_file,
+            account=args.user[0].upper(),
+            analyzed=stats['analyzed'],
+            reported=total_reported,
+            tags=stats['tags']
+        )
 
     dest(LINE_THICK)
     dest(f"Summary for {entity_title!r} — {entity.id}",        emoji=EMOJI['stats'])

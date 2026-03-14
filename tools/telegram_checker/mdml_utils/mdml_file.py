@@ -211,3 +211,79 @@ def process_and_update_file(md_file, status, restriction_details, actual_id, exp
                     LOG.info(f"- text: `{restriction_details['text'][:50]}...`", padding=4)
 
     return should_track_change, was_updated
+
+
+def append_report_to_md(file_path, account, analyzed, reported, tags):
+    """
+    Appends a new report entry to the 'reports.ai:' block in a markdown file.
+    Creates the block at end of file if it doesn't exist.
+
+    Args:
+        file_path: Path to markdown file
+        account: Account name (str)
+        analyzed: Number of analyzed messages (int)
+        reported: Number of reported messages (int)
+        tags: List of tag strings
+    """
+    from datetime import datetime
+    from pathlib import Path
+
+    now = datetime.now().strftime('%Y-%m-%d %H:%M')
+    tags_str = " ; ".join(f"`{'' if tag.startswith('#') else '#'}{tag}`" for tag in tags)
+
+    new_entry = [
+        f"- `{now}`\n",
+        f"\t- account: `{account.upper()}`\n",
+        f"\t- analyzed: `{analyzed}`\n",
+        f"\t- reported: `{reported}`\n",
+        f"\t- tags: {{ {tags_str} }}\n",
+    ]
+
+    path = Path(file_path)
+
+    if not path.exists():
+        with path.open('w', encoding='utf-8') as f:
+            f.write("reports.ai:\n")
+            f.writelines(new_entry)
+        return True
+
+    with path.open('r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    # Find 'reports.ai:' block
+    block_line_idx = None
+    for i, line in enumerate(lines):
+        if line.strip() == 'reports.ai:':
+            block_line_idx = i
+            break
+
+    if block_line_idx is None:
+        # Block doesn't exist: append at end
+        with path.open('a', encoding='utf-8') as f:
+            if lines and not lines[-1].endswith('\n'):
+                f.write('\n')
+            f.write('\nreports.ai:\n')
+            f.writelines(new_entry)
+        return True
+
+    # Find end of block (next field or EOF)
+    next_field_idx = len(lines)
+    for i in range(block_line_idx + 1, len(lines)):
+        if REGEX_NEXT_FIELD.match(lines[i]):
+            next_field_idx = i
+            break
+
+    # Reconstruct: before block + block header + existing entries + new entry + after
+    new_lines = []
+    new_lines.extend(lines[:next_field_idx])   # Everything up to (excl.) next field
+    while new_lines and new_lines[-1].strip() == '':  # strip trailing blank lines
+        new_lines.pop()
+    new_lines.append('\n')                     # exactly one blank line separator
+    new_lines.extend(new_entry)                # New entry goes AFTER existing ones
+    new_lines.append('\n')
+    new_lines.extend(lines[next_field_idx:])   # Rest of file
+
+    with path.open('w', encoding='utf-8') as f:
+        f.writelines(new_lines)
+
+    return True
