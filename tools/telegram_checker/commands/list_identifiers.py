@@ -54,10 +54,9 @@ def print_identifiers(identifiers_list, md_tasks=False, active_only=False, clean
         sizes = [i['member_count'] for i in identifiers_list if i['member_count'] is not None]
         max_member_count_digits = len(str(max(sizes))) if sizes else 0
 
-    def build_prefix(n_val):
+    def build_prefix(n_val, size_val):
         parts = []
         if show_size:
-            size_val = ident['member_count']
             parts.append(f"{size_val:>{max_member_count_digits}}" if size_val is not None else ' ' * max_member_count_digits)
         if numbered:
             parts.append(f"{n_val:>{bin_length_digits}}")
@@ -76,30 +75,27 @@ def print_identifiers(identifiers_list, md_tasks=False, active_only=False, clean
 
         if ident['valid'] is True:
             n += 1
-            prefix = build_prefix(n)
+            prefix = build_prefix(n_val=n, size_val=ident['member_count'])
             state = f"{EMOJI['active']} " if not active_only else ""
             dest(f"{prefix}{state}{type_indicator} {ident['full_link']}")
             if not clean:
                 if ident['user_id']:
                     dest(f"  {EMOJI['id']      } {ident['user_id']}")
                 dest(f"  {EMOJI['file']    } \\[[{ident['file']}\\]]")
-                dest()
 
         elif ident['valid'] is False and not active_only:
-            prefix = build_prefix(0)
+            prefix = build_prefix(n_val=0, size_val=ident['number_count'])
             dest(f"{prefix}{EMOJI['no_emoji']} {type_indicator} {ident['full_link']}")
             if not clean:
                 dest(f"  {EMOJI['file']    } \\[[{ident['file']}\\]]")
                 dest(f"  {EMOJI['text']    } \\[[{ident['reason']}\\]]")
                 dest(f"  {EMOJI['text']    } \\[[{ident['message']}\\]]")
-                dest()
 
         elif ident['valid'] is None and not active_only:
-            prefix = build_prefix(0)
+            prefix = build_prefix(n_val=0, size_val=ident['number_count'])
             dest(f"{prefix}{type_indicator} {ident['full_link']}")
             if not clean:
                 dest(f"  {EMOJI['file']    } \\[[{ident['file']}\\]]")
-                dest()
 
 
 def print_identifiers_binned(identifiers_list, md_tasks=False, active_only=False, clean=False, tg_list=False):
