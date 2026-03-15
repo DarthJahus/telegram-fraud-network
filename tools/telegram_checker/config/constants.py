@@ -73,7 +73,7 @@ EMOJI = {
     'report':      "📤",
     'analyzed':    "🔍",
     'tag':         "🎫",
-    'connection':        "📶"
+    'connection':  "📶"
 }
 
 STATS_INIT = {
