@@ -20,7 +20,7 @@ from telegram_checker.llm_utils.exceptions import (
     LLMUnexpectedStructureError,
 )
 from telegram_checker.mdml_utils.mdml_file import append_report_to_md
-from telegram_checker.telegram_utils.exceptions import TelegramReportNoReport, TelegramReportSkippedByUser
+from telegram_checker.telegram_utils.exceptions import TelegramUtilsReportNoReport, TelegramUtilsReportSkippedByUser
 from telegram_checker.utils.helpers import print_debug
 from telegram_checker.utils.logger import get_logger
 from telegram_checker.telegram_utils.report import send_report
@@ -245,10 +245,10 @@ def run_report(client, args):
             LOG.error(str(e), EMOJI['error'])
             stats['errors'] += 1
             continue
-        except TelegramReportSkippedByUser:
+        except TelegramUtilsReportSkippedByUser:
             LOG.info(f"Skipped by user — message {msg.id}", emoji=EMOJI['skip'])
             stats['skipped_manual'] += 1
-        except TelegramReportNoReport:
+        except TelegramUtilsReportNoReport:
             continue
         except Exception as e:
             print_debug(e, currentframe().f_code.co_name)
@@ -367,7 +367,7 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
 
     # Short-circuit: nothing to report
     if not auto_report and not ask_user:
-        raise TelegramReportNoReport("Not auto-reporting or nothing to report; and not asking for user's input")
+        raise TelegramUtilsReportNoReport("Not auto-reporting or nothing to report; and not asking for user's input")
 
     # From here, a report will potentially be sent
     report_text = result.get('report_text', '')
@@ -379,11 +379,11 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
                 f"\n  {EMOJI['report']} Send report for message {message_id}? [y/N] "
             ).strip().lower()
         except EOFError:
-            raise TelegramReportSkippedByUser("User asked. No valid answer. Considering 'skip'")
+            raise TelegramUtilsReportSkippedByUser("User asked. No valid answer. Considering 'skip'")
 
         confirmed = answer in ('y', 'yes')
         if not confirmed:
-            raise TelegramReportSkippedByUser("User skipped the message.")
+            raise TelegramUtilsReportSkippedByUser("User skipped the message.")
 
     elif auto_report:
         confirmed = True

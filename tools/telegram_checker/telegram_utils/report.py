@@ -7,7 +7,7 @@ from telegram_checker.utils.helpers import print_debug, sleep_with_progress
 from telegram_checker.utils.logger import get_logger
 from telethon.errors import InviteHashExpiredError, InviteHashInvalidError, FloodWaitError
 from telethon.tl.types import PeerChannel, PeerUser, PeerChat
-from telegram_checker.telegram_utils.exceptions import TelegramReportError
+from telegram_checker.telegram_utils.exceptions import TelegramUtilsReportError
 from telethon.tl.functions.messages import ReportRequest
 from telethon.tl.types import ReportResultChooseOption, ReportResultAddComment, ReportResultReported
 from telegram_checker.telegram_utils.constants import REPORT_TREE_PATH
@@ -89,7 +89,7 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
       3. Loop until ReportResultAddComment or ReportResultReported
       4. If AddComment: send final request with report_text as message
 
-    Returns True on success, raises TelegramReportError on unexpected Telegram responses.
+    Returns True on success, raises TelegramUtilsReportError on unexpected Telegram responses.
     """
     try:
         result = client(ReportRequest(
@@ -149,18 +149,18 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
                 if isinstance(final_result, (ReportResultReported, ReportResultAddComment)):
                     LOG.info(f"Reported message {message_id}", emoji=EMOJI['success'])
                     return True
-                raise TelegramReportError(
+                raise TelegramUtilsReportError(
                     f"Unexpected result after comment submission for message {message_id}: {type(final_result).__name__}"
                 )
 
-            raise TelegramReportError(
+            raise TelegramUtilsReportError(
                 f"Unexpected result after option navigation for message {message_id}: {type(current_result).__name__}"
             )
 
         LOG.error(f"Unexpected report result type for message {message_id}: {type(result)}", EMOJI['error'])
         return False
 
-    except TelegramReportError:
+    except TelegramUtilsReportError:
         raise
 
     except FloodWaitError as e:
