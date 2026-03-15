@@ -1,5 +1,7 @@
 from inspect import currentframe
 from time import sleep
+from telegram_checker.telegram_utils.entity_actions import join_entity, add_contact
+from telegram_checker.telegram_utils.exceptions import TelegramUtilsActionAddContactError, TelegramUtilsActionJoinEntityError
 from telegram_checker.utils.exceptions import DebugException
 from telegram_checker.utils.logger import get_logger
 from telegram_checker.config.constants import EMOJI, UI_HORIZONTAL_LINE
@@ -149,6 +151,8 @@ def print_identifiers_binned(identifiers_list, md_tasks=False, active_only=False
 def list_identifiers(client, md_files, args):
     identifiers_list = []
     for md_file in md_files:
+        invite_entry = None
+        username_entry = None
         try:
             entity = TelegramEntity.from_file(md_file)
 
@@ -246,6 +250,33 @@ def list_identifiers(client, md_files, args):
                     else:
                         identifiers_list.append(username_entry)
                         print_identifiers([username_entry], args.md, args.active_only, args.clean, args.tg_list, dest=LOG.info, numbered=False)
+
+            # Try to join if --join
+            if args.join and ((username_entry and username_entry['valid']) or (invite_entry and invite_entry['valid'])):
+                LOG.info("Trying to join entity...", emoji=EMOJI['change'], padding=2)
+                sleep(SLEEP_BETWEEN_CHECKS)
+                try:
+                    result = None
+                    # Try username first (less timeout)
+                    if username_entry and username_entry['valid']:
+                        if username_entry['entity_type'] in ["group", "channel"]:
+                            result = join_entity(client, username_entry['short'])
+                        elif username_entry['entity_type'] in ["user"]:
+                            result = add_contact(client, username_entry['short'])
+                        elif username_entry['entity_type'] in ["bot"]:
+                            LOG.info("Not adding a bot as a contact! Try interacting with /start", emoji=EMOJI['bot'], padding=4)
+                        else:
+                            print_debug(DebugException(f"Entity type {username_entry['entity_type']} not valid."), currentframe().f_code.co_name)
+                    elif invite_entry and invite_entry['valid']:
+                        result = join_entity(client, invite_entry['full_link'])
+
+                    if result:
+                        LOG.info(result.value[0], emoji=result.value[1], padding=4)
+
+                except (TelegramUtilsActionJoinEntityError, TelegramUtilsActionAddContactError):
+                    LOG.info("Action failed, skipping", emoji=EMOJI['error'], padding=4)
+
+            LOG.info()
 
         except Exception as e:
             print_debug(e, currentframe().f_code.co_name)

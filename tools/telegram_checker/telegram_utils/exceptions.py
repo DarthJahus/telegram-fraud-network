@@ -18,3 +18,11 @@ class TelegramUtilsReportNoReport(DebugException):
 class TelegramUtilsReportSkippedByUser(DebugException):
     """Raised if user decides to skip a report"""
     pass
+
+
+class TelegramUtilsActionJoinEntityError(DebugException):
+    pass
+
+
+class TelegramUtilsActionAddContactError(DebugException):
+    pass

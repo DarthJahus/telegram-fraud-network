@@ -115,6 +115,11 @@ def build_arg_parser():
         help="When used with --get-identifiers, include entities whose type is 'user'"
     )
     parser.add_argument(
+        '--join',
+        action='store_true',
+        help="When used with --get-identifiers, join groups and channels that are active, and add users to contacts"
+    )
+    parser.add_argument(
         '--get-info',
         metavar='IDENTIFIER',
         nargs='?',
@@ -256,6 +261,14 @@ def validate_args(args):
         print(f"{EMOJI['warning']} --clean can only be used with --get-identifiers. Ignoring")
     if args.include_users and not args.get_identifiers:
         print(f"{EMOJI['warning']} --include-users can only be used with --get-identifiers. Ignoring")
+    if args.join:
+        if not args.get_identifiers:
+            print(f"{EMOJI['warning']} --join can only be used with --get-identifiers. Ignoring")
+        elif args.get_identifiers == 'all':
+            print(f"{EMOJI['warning']} With --get-identifiers all, no validation is done. --join will be ignored")
+            args.join = None
+        elif not args.user:
+            raise ValidationException('--get-identifiers --join needs --user')
     if args.from_clipboard and not args.get_info:
         raise ValidationException('--from-clipboard can only be used with --get-info')
     elif args.from_clipboard and args.get_info != FROM_CLIPBOARD:
