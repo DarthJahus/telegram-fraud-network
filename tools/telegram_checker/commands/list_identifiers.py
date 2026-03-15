@@ -206,6 +206,7 @@ def list_identifiers(client, md_files, args):
                         invite_entry['reason'],
                         invite_entry['message']
                     ) = validate_invite(client, invite.hash)
+                    LOG.debug(f"Sleeping {2*SLEEP_BETWEEN_CHECKS} seconds...", padding=2)
                     sleep(2*SLEEP_BETWEEN_CHECKS)  # Rate limiting
                 else:
                     # 'all' mode - no validation
@@ -239,6 +240,7 @@ def list_identifiers(client, md_files, args):
                             username_entry['reason'],
                             username_entry['message']
                         ) = validate_handle(client, username.value)
+                        LOG.debug(f"Sleeping {SLEEP_BETWEEN_CHECKS} seconds...", padding=2)
                         sleep(SLEEP_BETWEEN_CHECKS)
                     else:
                         username_entry['valid'] = None
@@ -254,6 +256,7 @@ def list_identifiers(client, md_files, args):
             # Try to join if --join
             if args.join and ((username_entry and username_entry['valid']) or (invite_entry and invite_entry['valid'])):
                 LOG.info("Trying to join entity...", emoji=EMOJI['change'], padding=2)
+                LOG.debug(f"Sleeping {SLEEP_BETWEEN_CHECKS} seconds...", padding=2)
                 sleep(SLEEP_BETWEEN_CHECKS)
                 try:
                     result = None
