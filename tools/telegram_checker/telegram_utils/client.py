@@ -18,7 +18,7 @@ def connect_to_telegram(user):
         LOG.error(f"Mobile file not found: {mobile_file}", EMOJI["error"])
         LOG.info("Create it with:", padding=2)
         LOG.info(f"echo '+1234567890' > {mobile_file}", padding=4)
-        return
+        raise TelegramUtilsClientError("User not found.")
 
     phone = mobile_file.read_text(encoding='utf-8').strip()
 
