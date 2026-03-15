@@ -28,7 +28,7 @@ def format_entity_mdml(info):
         doc.frontmatter['type'] = info['type']
 
     # ID
-    if info['id']:  # ToDo: Still check why ID is duplicated by the main check routine
+    if info['id']:
         doc.fields['id'] = Field(
             name='id',
             is_list=False,
