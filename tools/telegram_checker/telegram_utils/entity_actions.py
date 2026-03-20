@@ -1,11 +1,10 @@
 from telegram_checker.telegram_utils.constants import JoinResults
 from telegram_checker.telegram_utils.exceptions import (
-    TelegramUtilsClientError,
     TelegramUtilsActionAddContactError,
     TelegramUtilsActionJoinEntityError
 )
 from telethon.tl.functions.channels import JoinChannelRequest
-from telethon.tl.functions.messages import ImportChatInviteRequest, CheckChatInviteRequest
+from telethon.tl.functions.messages import ImportChatInviteRequest
 from telethon.tl.functions.contacts import AddContactRequest
 from telethon.errors import (
     FloodWaitError,
