@@ -61,6 +61,8 @@ def add_contact(client=None, entity=None):
         phone = ""
         try:
             resolved = client.get_entity(entity)
+            if getattr(resolved, 'contact', False):
+                return JoinResults.ALREADY_CONTACT
             parts = []
             if getattr(resolved, 'first_name', None): parts.append(resolved.first_name)
             if getattr(resolved, 'last_name', None): parts.append(resolved.last_name)

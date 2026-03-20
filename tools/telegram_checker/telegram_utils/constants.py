@@ -11,3 +11,4 @@ class JoinResults(Enum):
     ALREADY_MEMBER = ("Already a member", EMOJI["info"])
     ADDED = ("Contact added", EMOJI["handle"])
     REQUESTED = ("Requested to join", EMOJI["fallback"])
+    ALREADY_CONTACT = ("Already a contact", EMOJI["handle"])
