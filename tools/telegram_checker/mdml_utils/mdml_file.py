@@ -232,11 +232,11 @@ def append_report_to_md(file_path, account, analyzed, reported, tags):
     tags_str = " ; ".join(f"`{'' if tag.startswith('#') else '#'}{tag}`" for tag in tags)
 
     new_entry = [
-        f"- `{now}`\n",
-        f"\t- account: `{account.upper()}`\n",
-        f"\t- analyzed: `{analyzed}`\n",
-        f"\t- reported: `{reported}`\n",
-        f"\t- tags: {{ {tags_str} }}\n",
+        f"- `{now}`",
+        f"\n\t- account: `{account.upper()}`",
+        f"\n\t- analyzed: `{analyzed}`",
+        f"\n\t- reported: `{reported}`",
+        f"\n\t- tags: {{ {tags_str} }}",
     ]
 
     path = Path(file_path)

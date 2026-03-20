@@ -283,6 +283,10 @@ def run_report(client, args):
             tags=stats['tags']
         )
 
+
+    if total_reported == 0:
+        dest = LOG.info
+
     dest(LINE_THICK)
     dest(f"Summary for {entity_title!r} — {entity.id}",        emoji=EMOJI['stats'])
     dest(LINE_THIN)
