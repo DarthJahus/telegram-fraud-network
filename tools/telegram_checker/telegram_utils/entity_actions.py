@@ -30,7 +30,10 @@ def join_entity(client=None, entity=None):
     """
     try:
         if isinstance(entity, str) and entity.startswith('@'):
-            client(JoinChannelRequest(entity))
+            try:
+                client(JoinChannelRequest(entity))
+            except UserAlreadyParticipantError:
+                return JoinResults.ALREADY_MEMBER
         else:
             hash_part = str(entity).split('t.me/+')[-1].lstrip('+')
             client(ImportChatInviteRequest(hash_part))
