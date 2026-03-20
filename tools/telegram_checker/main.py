@@ -145,13 +145,21 @@ def main():
         raise GracefullyExit('Done with the full check!')
 
     except GracefullyExit as e:
+        if client:
+            try:
+                client.disconnect()
+            except:
+                pass
         if str(e):
             print(f"\n{EMOJI["info"]} {str(e)}")
         exit(0)
 
     except KeyboardInterrupt:
         if client:
-            client.disconnect()
+            try:
+                client.disconnect()
+            except:
+                pass
         print(f"\n{EMOJI['no_emoji']} Interrupted by user.")
         exit(0)
 
