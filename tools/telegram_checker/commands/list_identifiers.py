@@ -153,6 +153,7 @@ def list_identifiers(client, md_files, args):
     for md_file in md_files:
         invite_entry = None
         username_entry = None
+        LOG.debug(f'Handling file {md_file.name}...')
         try:
             entity = TelegramEntity.from_file(md_file)
 
@@ -206,7 +207,7 @@ def list_identifiers(client, md_files, args):
                         invite_entry['reason'],
                         invite_entry['message']
                     ) = validate_invite(client, invite.hash)
-                    LOG.debug(f"Sleeping {2*SLEEP_BETWEEN_CHECKS} seconds...", padding=2)
+                    LOG.debug(f"Sleeping 2×{SLEEP_BETWEEN_CHECKS} seconds...", padding=2)
                     sleep(2*SLEEP_BETWEEN_CHECKS)  # Rate limiting
                 else:
                     # 'all' mode - no validation
