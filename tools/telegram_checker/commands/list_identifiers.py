@@ -86,7 +86,7 @@ def print_identifiers(identifiers_list, md_tasks=False, active_only=False, clean
                 dest(f"  {EMOJI['file']    } \\[[{ident['file']}\\]]")
 
         elif ident['valid'] is False and not active_only:
-            prefix = build_prefix(n_val=0, size_val=ident['number_count'])
+            prefix = build_prefix(n_val=0, size_val=ident['member_count'])
             dest(f"{prefix}{EMOJI['no_emoji']} {type_indicator} {ident['full_link']}")
             if not clean:
                 dest(f"  {EMOJI['file']    } \\[[{ident['file']}\\]]")
@@ -94,7 +94,7 @@ def print_identifiers(identifiers_list, md_tasks=False, active_only=False, clean
                 dest(f"  {EMOJI['text']    } \\[[{ident['message']}\\]]")
 
         elif ident['valid'] is None and not active_only:
-            prefix = build_prefix(n_val=0, size_val=ident['number_count'])
+            prefix = build_prefix(n_val=0, size_val=ident['member_count'])
             dest(f"{prefix}{type_indicator} {ident['full_link']}")
             if not clean:
                 dest(f"  {EMOJI['file']    } \\[[{ident['file']}\\]]")
