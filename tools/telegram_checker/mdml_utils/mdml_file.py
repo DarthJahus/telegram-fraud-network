@@ -232,11 +232,11 @@ def append_report_to_md(file_path, account, analyzed, reported, tags):
     tags_str = " ; ".join(f"`{'' if tag.startswith('#') else '#'}{tag}`" for tag in tags)
 
     new_entry = [
-        f"- `{now}`",
-        f"\n\t- account: `{account.upper()}`",
-        f"\n\t- analyzed: `{analyzed}`",
-        f"\n\t- reported: `{reported}`",
-        f"\n\t- tags: {{ {tags_str} }}",
+        f"- `{now}`\n",
+        f"\t- account: `{account.upper()}`\n",
+        f"\t- analyzed: `{analyzed}`\n",
+        f"\t- reported: `{reported}`\n",
+        f"\t- tags: {{ {tags_str} }}\n",
     ]
 
     path = Path(file_path)
@@ -278,7 +278,7 @@ def append_report_to_md(file_path, account, analyzed, reported, tags):
     new_lines.extend(lines[:next_field_idx])   # Everything up to (excl.) next field
     while new_lines and new_lines[-1].strip() == '':  # strip trailing blank lines
         new_lines.pop()
-    new_lines.append('\n')                     # exactly one blank line separator
+    #new_lines.append('\n')                     # exactly one blank line separator
     new_lines.extend(new_entry)                # New entry goes AFTER existing ones
     new_lines.append('\n')
     new_lines.extend(lines[next_field_idx:])   # Rest of file
