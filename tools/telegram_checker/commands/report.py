@@ -72,7 +72,11 @@ def decide_action(lv1: str, confidence: float, interactive: bool, all_interactiv
 
 
 def confidence_bar(confidence: float, width: int = 10) -> str:
-    filled = round(confidence * width)
+    if not isinstance(confidence, (float, int)) or not 0 <= confidence <= 1:
+        raise ValueError("confidence has to be in [0, 1]")
+    if not isinstance(width, int) or width <= 0:
+        raise ValueError("width has to be strictly positive")
+    filled = int(max(0., confidence - 0.5) * 2 * width)
     return "[" + "█" * filled + "░" * (width - filled) + "]"
 
 
