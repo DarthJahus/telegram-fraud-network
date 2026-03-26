@@ -9,6 +9,7 @@ from telethon.errors import (
     InviteHashInvalidError,
     FloodWaitError
 )
+from telegram_checker.telegram_utils.exceptions import TelegramUtilsClientError
 from telegram_checker.utils.helpers import seconds_to_time, sleep_with_progress
 from telegram_checker.utils.logger import get_logger
 
@@ -206,8 +207,12 @@ def check_entity_status(client, identifier=None, is_invite=False, expected_id=No
         return check_entity_status(client, identifier, is_invite, expected_id)
 
     except Exception as e:
-        LOG.error(f"Unexpected error: {type(e).__name__}: {str(e)}", EMOJI["warning"], padding=2)
-        return f'error_{type(e).__name__}', None, None, None, 'error'
+        if type(e).__name__ == "OperationalError":
+            # ToDo: Is it good to raise an exception in this function?
+            raise TelegramUtilsClientError("User is busy with another script", e)
+        else:
+            LOG.error(f"Unexpected error: {type(e).__name__}: {str(e)}", EMOJI["warning"], padding=2)
+            return f'error_{type(e).__name__}', None, None, None, 'error'
 
 
 def check_and_display(client, identifier, is_invite, expected_id, stats, label, emoji='', padding=0):
