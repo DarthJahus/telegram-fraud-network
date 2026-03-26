@@ -101,7 +101,6 @@ def display_result(result: dict, message_text: str, action_label: str) -> None:
     LOG.info(LINE_THIN)
 
 
-
 def resolve_llm_params(args) -> tuple[str, str]:
     """Return (llm_url, llm_model), prompting the user if either is not set."""
     llm_url   = getattr(args, 'llm_url',   None) or ""
@@ -286,7 +285,6 @@ def run_report(client, args):
             reported=total_reported,
             tags=stats['tags']
         )
-
 
     if total_reported == 0:
         dest = LOG.info
