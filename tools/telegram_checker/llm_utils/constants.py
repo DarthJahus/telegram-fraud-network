@@ -50,7 +50,8 @@ TAGS: dict[str, str] = {
     "drugs": "any illegal drug",
     "guns": "weapons and firearms",
     "fake_money": "counterfeit money",
-    "forgery": "counterfeit and forged documents"
+    "forgery": "counterfeit and forged documents",
+    "csam": "child abuse material"
 }
 SKIP_LV1 = {
     "i don't like it",
