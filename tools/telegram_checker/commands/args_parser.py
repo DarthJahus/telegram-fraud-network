@@ -203,7 +203,7 @@ def build_arg_parser():
         help=(
             'LM Studio / Ollama endpoint for --report. '
             'If not set, you will be prompted at runtime. '
-            'Example: http://localhost:1234/v1/chat/completions'
+            'Example: http://localhost:1234/api/v1/chat'
         )
     )
     parser.add_argument(
@@ -235,7 +235,7 @@ def build_arg_parser():
     parser.add_argument(
         '--no',
         action='store_true',
-        help='Bypass and rejoect any prompt with a NO (e.g. overwrite files)'
+        help='Bypass and reject any prompt with a NO (e.g. overwrite files)'
     )
     return parser
 

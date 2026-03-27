@@ -9,7 +9,15 @@ import json
 import time
 from difflib import get_close_matches
 import requests
-from telegram_checker.llm_utils.constants import SKIP_LV1, SKIP_LV2, TAGS_STR, LEXICON_STR, SYSTEM_PROMPT
+from telegram_checker.llm_utils.constants import (
+    SKIP_LV1,
+    SKIP_LV2,
+    TAGS_STR,
+    LEXICON_STR,
+    SYSTEM_PROMPT,
+    LLM_REQUEST_TIMEOUT,
+    LLM_PARAMS
+)
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.llm_utils.exceptions import (
     LLMRequestError,
@@ -32,6 +40,7 @@ def call_llm(message_text: str, message_id: int, llm_url: str, llm_model: str) -
     Send a single Telegram message to the LLM for classification.
 
     Each call is fully stateless: a fresh system prompt is sent every time.
+    Uses LM Studio native /api/v1/chat endpoint.
     Returns the parsed JSON dict on success.
     Raises LLMRequestError, LLMResponseParseError, or LLMUnexpectedStructureError
     on failure so the caller can decide how to handle it.
@@ -41,35 +50,35 @@ def call_llm(message_text: str, message_id: int, llm_url: str, llm_model: str) -
     user_content = f"MESSAGE_ID: {message_id}\n\nMESSAGE CONTENT:\n{message_text}"
 
     payload = {
-        "model":       llm_model,
-        "messages": [
-            {"role": "system", "content": get_system_prompt()},
-            {"role": "user",   "content": user_content},
-        ],
-        "temperature": 0.1,    # Low temperature for consistent structured output
-        "max_tokens":  1024,
+        "model":            llm_model,
+        "system_prompt":    get_system_prompt(),
+        "input":            user_content,
     }
+
+    for p in LLM_PARAMS:
+        payload[p] = LLM_PARAMS[p]
 
     raw = ""
     try:
         t0 = time.time()
-        response = requests.post(llm_url, json=payload, timeout=60)
+        response = requests.post(llm_url, json=payload, timeout=LLM_REQUEST_TIMEOUT)
         response.raise_for_status()
-        elapsed = time.time() - t0
 
+        elapsed = time.time() - t0
         LOG.info(f"LLM responded in {elapsed:.2f}s", EMOJI['llm'])
 
-        raw = response.json()["choices"][0]["message"]["content"].strip()
+        output = response.json().get("output", [])
+        message_items = [item for item in output if item.get("type") == "message"]
+        if not message_items:
+            raise LLMUnexpectedStructureError(f"No message item in LLM output for message {message_id}.\nOutput: {output}")
+        raw = message_items[0]["content"].strip()
 
+    except requests.ReadTimeout:
+        raise LLMRequestError(f"HTTP request to LLM timed out. Actual timeout: {LLM_REQUEST_TIMEOUT}")
     except requests.RequestException as e:
-        print_debug(e, currentframe().f_code.co_name)
-        raise LLMRequestError(f"HTTP request to LLM failed for message {message_id}: {e}") from e
-
+        raise LLMRequestError(f"HTTP request to LLM failed for message {message_id}: {e.response.text if e.response else str(e)}") from e
     except (KeyError, IndexError) as e:
-        print_debug(e, currentframe().f_code.co_name)
-        raise LLMUnexpectedStructureError(
-            f"Unexpected LLM response structure for message {message_id}: {e}"
-        ) from e
+        raise LLMUnexpectedStructureError(f"Unexpected LLM response structure for message {message_id}: {e}") from e
 
     # Strip any prefix before the first { (model-specific tokens, markdown fences, etc.)
     brace_index = raw.find('{')
@@ -78,6 +87,7 @@ def call_llm(message_text: str, message_id: int, llm_url: str, llm_model: str) -
             f"LLM response contains no JSON object for message {message_id}\nRaw: {raw[:300]}"
         )
     raw = raw[brace_index:]
+    raw = raw.replace("`", "")
 
     try:
         parsed = json.loads(raw)

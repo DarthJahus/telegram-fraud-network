@@ -107,7 +107,7 @@ def resolve_llm_params(args) -> tuple[str, str]:
     llm_model = getattr(args, 'llm_model', None) or ""
 
     if not llm_url.strip():
-        default = "http://localhost:1234/v1/chat/completions"
+        default = "http://localhost:1234/api/v1/chat"
         llm_url = input(
             f"  LLM endpoint ({default}): "
         ).strip()

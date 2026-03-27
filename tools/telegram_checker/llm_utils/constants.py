@@ -6,6 +6,16 @@ Sourced from observed Telegram fraud channels and cross-referenced with
 known cybercrime terminology.
 """
 
+LLM_REQUEST_TIMEOUT = 60
+LLM_PARAMS = {
+    "temperature": 0.1,
+    "top_p": 1,
+    "min_p": 0.01,
+    "top_k": 50,
+    "repeat_penalty": 1,
+    "max_output_tokens": 4192,
+    # "reasoning": "off"
+}
 FRAUD_LEXICON: dict[str, str] = {
     "aged account":     "Stolen bank account with transaction history, used to appear legitimate",
     "bin / BIN":        "Bank Identification Number — first digits of a credit card, used to identify issuer",
