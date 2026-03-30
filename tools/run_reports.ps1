@@ -25,25 +25,14 @@ Add-Type -Namespace Win32 -Name Kernel32 -MemberDefinition @'
     [DllImport("kernel32.dll")] public static extern bool GenerateConsoleCtrlEvent(uint dwCtrlEvent, uint dwProcessGroupId);
 '@
 
-function Send-CtrlC {
-    param([System.Diagnostics.Process]$Process)
-    [Win32.Kernel32]::FreeConsole()                                | Out-Null
-    [Win32.Kernel32]::AttachConsole([uint32]$Process.Id)           | Out-Null
-    [Win32.Kernel32]::SetConsoleCtrlHandler([IntPtr]::Zero, $true) | Out-Null
-    [Win32.Kernel32]::GenerateConsoleCtrlEvent(0, 0)               | Out-Null
-    Start-Sleep -Milliseconds 800
-    [Win32.Kernel32]::FreeConsole()                                | Out-Null
-    [Win32.Kernel32]::AttachConsole(0xFFFFFFFF)                    | Out-Null
-    [Win32.Kernel32]::SetConsoleCtrlHandler([IntPtr]::Zero, $false)| Out-Null
-}
-
 $entities = Get-Content $ListFile | Where-Object { $_.Trim() -ne "" }
 $total    = $entities.Count
 $i        = 0
 $start    = Get-Date
 
 $interrupted = $false
-
+$procToWait = $null
+$procToWait = $null
 try {
     foreach ($raw in $entities) {
 
@@ -76,7 +65,7 @@ try {
             $psi.UseShellExecute        = $false
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError  = $true
-            $psi.CreateNoWindow         = $true
+            #$psi.CreateNoWindow         = $true
             $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
             $psi.StandardErrorEncoding  = [System.Text.Encoding]::UTF8
             $psi.Environment["PYTHONIOENCODING"] = "utf-8"
@@ -94,6 +83,7 @@ try {
             Register-ObjectEvent -InputObject $proc -EventName ErrorDataReceived  -Action $handler -MessageData $queue | Out-Null
 
             $proc.Start()            | Out-Null
+			$procToWait = $proc
             $proc.BeginOutputReadLine()
             $proc.BeginErrorReadLine()
 
@@ -139,7 +129,6 @@ try {
                 Write-Host "ERREUR PS sur $id : $_" -ForegroundColor Red
             }
             if ($null -ne $currentProc -and -not $currentProc.HasExited) {
-                Send-CtrlC -Process $currentProc
                 if (-not $currentProc.WaitForExit(10000)) {
                     Write-Host "Python ne répond pas après 10s — kill forcé." -ForegroundColor Red
                     $currentProc.Kill()
@@ -162,6 +151,15 @@ try {
 }
 finally {
     Write-Progress -Activity "Telegram entity analysis" -Completed
+    if ($null -ne $procToWait -and -not $procToWait.HasExited) {
+        Write-Host "Attente de Python..." -ForegroundColor Yellow
+        if (-not $procToWait.WaitForExit(10000)) {
+            Write-Host "Python ne répond pas — kill forcé." -ForegroundColor Red
+            $procToWait.Kill()
+        } else {
+            Write-Host "Python terminé proprement (exit $($procToWait.ExitCode))." -ForegroundColor Cyan
+        }
+    }
     if ($interrupted) {
         Write-Host "Boucle arrêtée par l'utilisateur." -ForegroundColor Yellow
     }
