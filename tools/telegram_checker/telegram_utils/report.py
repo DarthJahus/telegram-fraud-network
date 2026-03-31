@@ -66,8 +66,8 @@ def resolve_entity(client, identifier: str):
             if "Cannot get entity from a channel" in str(e):
                 # Not a member — we cannot fetch messages, report is impossible
                 raise ValueError(
-                    f"You are not a member of this entity. "
-                    f"Join the channel/group before running --report."
+                    f"You are not a member of this entity."
+                    f"Join the channel/group before running the script."
                 ) from e
             raise
         except InviteHashExpiredError:
