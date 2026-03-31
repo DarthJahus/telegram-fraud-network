@@ -192,15 +192,17 @@ def init_logger(debug=False, quiet=False):
 def create_progress_bar(log, items, task):
     from rich.progress import (
         Progress, SpinnerColumn, BarColumn,
-        TextColumn, TimeElapsedColumn, MofNCompleteColumn, TaskProgressColumn
+        TextColumn, TimeElapsedColumn, MofNCompleteColumn, TaskProgressColumn, TimeRemainingColumn
     )
     progress_bar = Progress(
         SpinnerColumn(),
+        TaskProgressColumn(),
         TextColumn("[bold cyan]{task.description}[/bold cyan] › [yellow]{task.fields[entity]}[/yellow]"),
         BarColumn(bar_width=30, complete_style="green", pulse_style="yellow"),
         MofNCompleteColumn(),
-        TaskProgressColumn(),
         TimeElapsedColumn(),
+        TextColumn("ETR:"),
+        TimeRemainingColumn(elapsed_when_finished=True)
     )
     task_id = progress_bar.add_task(task, total=len(items), entity="")
     log.set_progress(progress_bar)
