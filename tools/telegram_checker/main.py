@@ -83,10 +83,10 @@ def main():
 
         # Handle --report mode
         if args.report:
-            from telegram_checker.commands.report import run_report
+            from telegram_checker.commands.report import run_report, resolve_llm_params
             client = connect_to_telegram(args.user)
             try:
-                run_report(client, args)
+                run_report(client, args, llm=resolve_llm_params(args))
             finally:
                 client.disconnect()
             raise GracefullyExit('Done with reporting!')
@@ -141,7 +141,25 @@ def main():
                 client.disconnect()
             raise GracefullyExit('Done with the identifiers!')
 
-        full_check(client, args, args.ignore, md_files, skip_time_seconds)
+        # Handle --mass-report mode
+        if args.mass_report:
+            from telegram_checker.commands.report import mass_report
+            try:
+                mass_report(client, args, md_files, skip_time_seconds)
+            except:
+                raise
+            finally:
+                client.disconnect()
+            raise GracefullyExit('Done with mass reporting!')
+
+        # Handle default mode (full check)
+        try:
+            full_check(client, args, args.ignore, md_files, skip_time_seconds)
+        except KeyboardInterrupt:
+            if args.no_exit: input('Press Enter key to exit')
+            exit(0)
+        finally:
+            client.disconnect()
         raise GracefullyExit('Done with the full check!')
 
     except GracefullyExit as e:

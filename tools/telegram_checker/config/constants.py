@@ -1,4 +1,5 @@
 import re
+from collections import Counter
 
 # ============================================
 # REGEX
@@ -75,8 +76,40 @@ EMOJI = {
     'tag':         "🎫",
     'connection':  "📶"
 }
-
-STATS_INIT = {
+STATS_INIT_REPORT = {
+    'analyzed':        0,
+    'reported_auto':   0,
+    'reported_manual': 0,
+    'skipped_manual':  0,
+    'skipped_error':   0,
+    'log_only':        0,
+    'harmless':        0,
+    'low_confidence':  0,
+    'errors':          0,
+    'tags':            Counter()
+}
+STATS_INIT_MASS_REPORT = {
+        'processed': 0,
+        'skipped': 0,
+        'skipped_type': 0,
+        'skipped_time': 0,
+        'skipped_status': 0,
+        'skipped_error': 0,
+        'skipped_field': 0,
+        'skipped_no_identifier': 0,
+        'analyzed': 0,
+        'reported_auto': 0,
+        'reported_manual': 0,
+        'skipped_manual': 0,
+        'log_only': 0,
+        'harmless': 0,
+        'low_confidence': 0,
+        'errors': 0,
+        'llm_error': 0,
+        'report_error': 0,
+        'tags': Counter()
+    }
+STATS_INIT_CHECKER = {
     'total': 0,
     'active': 0,
     'banned': 0,
@@ -88,6 +121,7 @@ STATS_INIT = {
     'skipped_status': 0,
     'skipped_no_identifier': 0,
     'skipped_type': 0,
+    'skipped_error': 0,
     'error': 0,
     'ignored': 0,
     'method': {

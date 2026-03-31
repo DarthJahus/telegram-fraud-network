@@ -1,3 +1,6 @@
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
 from inspect import currentframe
 from telegram_checker.config.constants import EMOJI
 from telethon.errors import (
@@ -11,11 +14,38 @@ from telethon.tl.types import (
     Channel, User, Chat, PeerChannel, PeerUser, PeerChat,
     ChannelParticipantsAdmins, ChannelParticipantCreator, ChannelParticipantAdmin
 )
+from telegram_checker.mdml_utils.mdml_parser import get_last_status, extract_telegram_identifiers
 from telegram_checker.utils.exceptions import DebugException
-from telegram_checker.utils.helpers import print_debug
+from telegram_checker.utils.helpers import print_debug, seconds_to_time
 from telegram_checker.utils.logger import get_logger
+from telegram_mdml.telegram_mdml import (
+    TelegramMDMLError,
+    TelegramEntity,
+    InvalidTypeError,
+    MissingFieldError,
+    InvalidFieldError
+)
 
 LOG = get_logger()
+
+
+class SkipReasonType(Enum):
+    STATUS      = 'status'
+    STATUS_TIME = 'check time'
+    FIELD_TIME  = 'field time'
+    NO_SKIP     = 'no_skip_unknown'
+
+
+@dataclass
+class SkipReason:
+    type: SkipReasonType
+    message: str
+
+    def __bool__(self):
+        return True
+
+    def __str__(self):
+        return self.message
 
 
 def fetch_entity_info(client, identifier: str):
@@ -319,3 +349,146 @@ def fetch_entity_info(client, identifier: str):
         LOG.output(f"Error retrieving entity: {e}", EMOJI['error'])
         print_debug(e, currentframe().f_code.co_name)
         return None
+
+
+def should_skip_entity(entity, skip_time_seconds, skip_statuses, no_skip_unknown=False, skip_field=None) -> (bool, SkipReason or None):
+    """
+    Determines if an entity should be skipped based on its last status.
+
+    :param entity: (TelegramEntity): Telegram MDML entity
+    :param skip_time_seconds: (int or None): Skip if checked within this many seconds
+    :param skip_statuses: (list or None): Skip if last status is in this list
+    :param no_skip_unknown: (default: False): Don't skip when last_stats is Unknown
+    :param skip_field: additional field to check for skip reasons
+
+    Returns:
+        tuple: (should_skip, reason: SkipReason or None) where reason explains why it was skipped
+
+    """
+
+    last_state, last_datetime, has_state_block = get_last_status(entity)
+
+    if last_state is None:
+        # No previous status, don't skip
+        return False, None
+
+    # Check if we should skip based on status
+    if skip_statuses and last_state in skip_statuses:
+        return True, SkipReason(SkipReasonType.STATUS, f"last status ('{last_state}') in skip list")
+
+    # Exceptions with unknown
+    if last_state == "unknown" and no_skip_unknown:
+        # explicitly don't skip unknown (by user)
+        return False, SkipReason(SkipReasonType.NO_SKIP, f"last status is 'unknown', but --no-skip-unknown is used")
+
+    # last check is time
+    if skip_time_seconds:
+        time_since_check = datetime.now() - last_datetime
+        if time_since_check.total_seconds() < skip_time_seconds:
+            return True, SkipReason(SkipReasonType.STATUS_TIME, f"checked {seconds_to_time(time_since_check.total_seconds())} ago (status: {last_state})")
+
+    if skip_field and skip_time_seconds:
+        fv = entity.get_field_last(skip_field)
+        if fv and fv.date:
+            age = (datetime.now() - fv.date).total_seconds()
+            if age < skip_time_seconds:
+                return True, SkipReason(SkipReasonType.FIELD_TIME, f"{skip_field} {seconds_to_time(age)} ago")
+
+    return False, None
+
+
+def iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=None):
+    """
+    Parse, filter, and skip-check each MD file.
+    Yields a dict with everything pre-extracted for full_check / mass_report.
+    Increments stats['skipped'] and sub-keys on skip.
+    """
+    for md_file in md_files:
+        try:
+            entity = TelegramEntity.from_file(md_file)
+            LOG.info()
+            LOG.info(f"\\[[{md_file.name}\\]]", EMOJI["file"])
+
+            # Type filter
+            try:
+                entity_type = entity.get_type()
+            except (InvalidTypeError, MissingFieldError):
+                entity_type = None
+            except Exception as e:
+                LOG.error(f"{EMOJI['error']} Error: {e}")
+                entity_type = None
+
+            if args.type and entity_type not in args.type:
+                stats['skipped'] += 1
+                stats['skipped_type'] += 1
+                LOG.info(
+                    f"Skipping entity with type {entity_type} not {', neither '.join(args.type)}",
+                    emoji=EMOJI['skip']
+                )
+                continue
+
+            # Identifiers
+            try:
+                expected_id = entity.get_id()
+            except InvalidFieldError:
+                expected_id = None
+            except Exception as e:
+                LOG.error(f"{EMOJI['error']} Error: {e}")
+                expected_id = None
+
+            identifiers, is_invite = extract_telegram_identifiers(entity)
+
+            if not expected_id and not identifiers:
+                LOG.info(f"  {EMOJI['skip']} Skipped: No identifier found")
+                stats['skipped'] += 1
+                stats['skipped_no_identifier'] += 1
+                continue
+
+            # Skip logic
+            should_skip, skip_reason = should_skip_entity(
+                entity,
+                skip_time_seconds,
+                args.skip,
+                args.no_skip_unknown,
+                skip_field
+            )
+            if should_skip:
+                LOG.info(f"Skipped: ({skip_reason})", padding=2, emoji=EMOJI['skip'])
+                stats['skipped'] += 1
+                if isinstance(skip_reason, SkipReason):
+                    if skip_reason.type == SkipReasonType.STATUS_TIME:
+                        stats['skipped_time'] += 1
+                    elif skip_reason.type == SkipReasonType.STATUS:
+                        stats['skipped_status'] += 1
+                    elif skip_reason.type == SkipReasonType.FIELD_TIME:
+                        stats['skipped_field'] += 1
+                continue
+            elif skip_reason:
+                LOG.info(f"Not skipping: {skip_reason}", padding=2, emoji=EMOJI['info'])
+
+            last_status, last_datetime, has_status_block = get_last_status(entity)
+
+            yield {
+                'md_file':          md_file,
+                'entity':           entity,
+                'expected_id':      expected_id,
+                'identifiers':      ['+' + ident for ident in identifiers] if is_invite else identifiers,
+                'is_invite':        is_invite,
+                'last_status':      last_status,
+                'last_datetime':    last_datetime,
+                'has_status_block': has_status_block,
+            }
+
+        except FileNotFoundError:
+            stats['skipped'] += 1
+            stats['skipped_error'] = stats.get('skipped_error', 0) + 1
+            LOG.error("File not found.", EMOJI['error'])
+        except TelegramMDMLError:
+            stats['skipped'] += 1
+            stats['skipped_error'] = stats.get('skipped_error', 0) + 1
+            LOG.error("Parsing failed.", EMOJI['error'])
+        except Exception as e:
+            stats['skipped'] += 1
+            stats['skipped_error'] = stats.get('skipped_error', 0) + 1
+            LOG.error("Failed to read MDML entity from file.", EMOJI['error'])
+            print_debug(e, currentframe().f_code.co_name)

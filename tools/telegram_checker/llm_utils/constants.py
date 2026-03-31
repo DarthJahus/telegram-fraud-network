@@ -16,6 +16,10 @@ LLM_PARAMS = {
     "max_output_tokens": 4192,
     # "reasoning": "off"
 }
+LLM_DEFAULT = {
+    "endpoint": "http://localhost:1234/api/v1/chat",
+    "model": "openai/gpt-oss-20b"
+}
 FRAUD_LEXICON: dict[str, str] = {
     "aged account":     "Stolen bank account with transaction history, used to appear legitimate",
     "bin / BIN":        "Bank Identification Number — first digits of a credit card, used to identify issuer",

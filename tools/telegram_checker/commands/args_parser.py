@@ -237,6 +237,11 @@ def build_arg_parser():
         action='store_true',
         help='Bypass and reject any prompt with a NO (e.g. overwrite files)'
     )
+    parser.add_argument(
+        '--mass-report',
+        action='store_true',
+        help='Report all entities in a folder (use --path)'
+    )
     return parser
 
 
@@ -248,9 +253,9 @@ def validate_args(args):
     if args.continuous and args.sort_size:
         print(f"{EMOJI['warning']} --continuous cannot be used with --sort-size. Ignoring --continuous")
         args.continuous = False
-    if args.md and not args.get_identifiers and not args.report:
-        print(f"{EMOJI['warning']} --md can only be used with --get-identifiers")
-    if args.tg_list and not args.get_identifiers and not args.report:
+    if args.md and not (args.get_identifiers or args.report or args.mass_report):
+        print(f"{EMOJI['warning']} --md can only be used with --get-identifiers, --report or --mass-report")
+    if args.tg_list and not args.get_identifiers:
         print(f"{EMOJI['warning']} --tg-list can only be used with --get-identifiers")
     if args.md and args.tg_list:
         print(f"{EMOJI['warning']} --md-tasks cannot be used with --tg_list. Ignoring --md")
@@ -281,14 +286,26 @@ def validate_args(args):
         print(f"{EMOJI['warning']} --all-interactive can only be used with --report")
     if args.all_interactive and args.interactive:
         print(f"{EMOJI['warning']} --all-interactive supersedes --interactive")
-    if args.llm_url and not args.report:
-        print(f"{EMOJI['warning']} --llm-url has no effect without --report")
-    if args.llm_model and not args.report:
-        print(f"{EMOJI['warning']} --llm-model has no effect without --report")
-    if args.update and not args.report:
-        print(f"{EMOJI['warning']} --update has no effect without --report")
+    if args.llm_url and not (args.report or args.mass_report):
+        print(f"{EMOJI['warning']} --llm-url has no effect without --report or --mass-report")
+    if args.llm_model and not (args.report or args.mass_report):
+        print(f"{EMOJI['warning']} --llm-model has no effect without --report or --mass-report")
+    if args.update and not (args.report or args.mass_report):
+        print(f"{EMOJI['warning']} --update has no effect without --report or --mass-report")
+    if args.report and args.mass_report:
+        print(f"{EMOJI['warning']} --report and --mass-report should not be used at the same time")
+        if args.path:
+            args.report = None  # Suppress --report
+            print(f"{EMOJI['info']} --path provided; --mass-report will be kept")
+        else:
+            args.mass_report = None
+            print(f"{EMOJI['info']} no --path provided; --report will be kept")
+    if args.mass_report and not args.path:
+        raise ValidationException('--path needed for --mass-report')
     if args.update_file and not args.report:
         print(f"{EMOJI['warning']} --update-file has no effect without --report")
+        if args.mass_report:
+            args.update_file = None
     if args.no and args.yes:
         print(f"{EMOJI['warning']} --yes and --no used at the same time. Assuming --no only.")
         args.yes = False
@@ -298,6 +315,8 @@ def validate_args(args):
         if args.get_info == FROM_CLIPBOARD and args.from_clipboard:
             get_info = paste().strip()
             args.no_exit = True
+            if not get_info:
+                raise ValidationException('Clipboard is empty or contains an empty string.')
             if len(get_info) > 32:
                 raise ValidationException('Clipboard content is too large for this operation.')
             args.get_info = get_info

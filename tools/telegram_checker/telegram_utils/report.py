@@ -41,6 +41,9 @@ def resolve_entity(client, identifier: str):
     Returns the entity object, or raises ValueError if resolution fails.
     Mirrors the resolution logic of entity_fetcher.fetch_entity_info.
     """
+    if isinstance(identifier, int):
+        identifier = str(identifier)
+
     if identifier.lstrip('+').isdecimal() or (identifier.lstrip('-').isdecimal()):
         numeric_id = int(identifier)
         LOG.info(f"Resolving entity by ID: {numeric_id}", EMOJI['id'])

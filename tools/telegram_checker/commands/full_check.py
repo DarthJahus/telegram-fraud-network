@@ -1,22 +1,14 @@
 from inspect import currentframe
 from time import sleep
-from datetime import datetime
 from telegram_checker.config.constants import (
     EMOJI,
-    STATS_INIT
+    STATS_INIT_CHECKER
 )
 from telegram_checker.config.api import SLEEP_BETWEEN_CHECKS
-from telegram_mdml.telegram_mdml import TelegramEntity
-from telegram_mdml.telegram_mdml import (
-    TelegramMDMLError,
-    MissingFieldError,
-    InvalidFieldError,
-    InvalidTypeError
-)
-from telegram_checker.utils.helpers import get_date_time, print_debug, seconds_to_time
+from telegram_checker.telegram_utils.entity_fetcher import iter_md_entities
+from telegram_checker.utils.helpers import get_date_time, print_debug
 from telegram_checker.mdml_utils.mdml_file import write_id_to_md
 from telegram_checker.mdml_utils.mdml_file import process_and_update_file
-from telegram_checker.mdml_utils.mdml_parser import get_last_status, extract_telegram_identifiers
 from telegram_checker.utils.output_display import (
     print_stats,
     print_no_status_block,
@@ -31,46 +23,9 @@ from telegram_checker.utils.logger import get_logger
 LOG = get_logger()
 
 
-def should_skip_entity(entity, skip_time_seconds, skip_statuses, no_skip_unknown=False):
-    """
-    Determines if an entity should be skipped based on its last status.
-
-    Args:
-        entity (TelegramEntity): Telegram MDML entity
-        skip_time_seconds (int or None): Skip if checked within this many seconds
-        skip_statuses (list or None): Skip if last status is in this list
-        no_skip_unknown (default: False): Don't skip when last_stats is Unknown
-
-    Returns:
-        tuple: (should_skip, reason) where reason explains why it was skipped
-    """
-    last_status, last_datetime, has_status_block = get_last_status(entity)
-
-    if last_status is None:
-        # No previous status, don't skip
-        return False, None
-
-    # Check if we should skip based on status
-    if skip_statuses and last_status in skip_statuses:
-        return True, f"last status ('{last_status}') in skip list"
-
-    # Exceptions with unknown
-    if last_status == "unknown" and no_skip_unknown:
-        # explicitly don't skip unknown (by user)
-        return False, f"last status is 'unknown', but --no-skip-unknown is used"
-
-    # last check is time
-    if skip_time_seconds:
-        time_since_check = datetime.now() - last_datetime
-        if time_since_check.total_seconds() < skip_time_seconds:
-            return True, f"checked {seconds_to_time(time_since_check.total_seconds())} ago (status: {last_status})"
-
-    return False, None
-
-
 def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
     # Statistics
-    stats = STATS_INIT.copy()
+    stats = STATS_INIT_CHECKER.copy()
     # Store results for dry-run summary
     results = []
     status_changed_files = []
@@ -78,184 +33,91 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
     recovered_ids = []  # List of {file, id, method, written}
     discovered_usernames = []  # List of {file, old_username, new_username, status}
     try:
-        for md_file in md_files:
-            # parsing the file through MDML
+        for item in iter_md_entities(args, md_files, stats, skip_time_seconds):
+            md_file          = item['md_file']
+            entity           = item['entity']
+            expected_id      = item['expected_id']
+            identifiers      = item['identifiers']
+            is_invite        = item['is_invite']
+            last_status      = item['last_status']
+            has_status_block = item['has_status_block']
+
             try:
-                entity = TelegramEntity.from_file(md_file)
-                LOG.info()
-                LOG.info(f"\\[[{md_file.name}\\]]", EMOJI["file"])
+                status, restriction_details, actual_id, actual_username, method_used, display_id = \
+                    check_entity_with_fallback(client, expected_id, identifiers, is_invite, stats)
 
-                # Check type filter
-                try:
-                    entity_type = entity.get_type()
-                except (InvalidTypeError, MissingFieldError):
-                    entity_type = None
-                except Exception as e:
-                    LOG.error(f"{EMOJI['error']} Error: {e}")
-                    entity_type = None
-
-                if args.type and entity_type not in args.type:
-                    stats['skipped'] += 1
-                    stats['skipped_type'] += 1
-                    LOG.info(f"Skipping entity with type {entity_type} not {', neither '.join(args.type)}", emoji=EMOJI['skip'])
-                    continue
-
-                # Extract ALL identifiers upfront
-                try:
-                    expected_id = entity.get_id()
-                except InvalidFieldError:
-                    expected_id = None
-                except Exception as e:
-                    LOG.error(f"{EMOJI['error']} Error: {e}")
-                    expected_id = None
-
-                identifiers, is_invite = extract_telegram_identifiers(entity)
-
-                # If no ID AND no identifiers, skip entirely
-                if not expected_id and not identifiers:
-                    LOG.info(f"  {EMOJI["skip"]} Skipped: No identifier found")
-                    stats['skipped'] += 1
-                    stats['skipped_no_identifier'] += 1
-                    continue
-
-                # Get last status info
-                last_status, last_datetime, has_status_block = get_last_status(entity)
-
-                # Check if we should skip based on last status
-                should_skip, skip_reason = should_skip_entity(entity, skip_time_seconds, args.skip, args.no_skip_unknown)
-                if should_skip:
-                    LOG.info(f"Skipped: ({skip_reason})", padding=2, emoji=EMOJI['skip'])
-                    stats['skipped'] += 1
-                    if 'checked' in skip_reason and 'ago' in skip_reason:
-                        stats['skipped_time'] += 1
-                    elif 'last status' in skip_reason:
-                        stats['skipped_status'] += 1
-                    continue
-                elif skip_reason:
-                    # Not skipping, but reason provided
-                    LOG.info(f"Not skipping: {skip_reason}", padding=2, emoji=EMOJI['info'])
-
-                # Check entity status with priority fallback
-                status, restriction_details, actual_id, actual_username, method_used, display_id = check_entity_with_fallback(
-                    client, expected_id, identifiers, is_invite, stats
-                )
-
-                # Check and write the retrieved ID
                 if actual_id and not expected_id:
                     id_written = False
-
-                    # Write ID retrieved via invite, if --write-id
                     if method_used == 'invite' and args.write_id and not args.dry_run:
                         if write_id_to_md(md_file, actual_id):
                             LOG.info(f"  {EMOJI['saved']} ID written to file: `{actual_id}`")
                             id_written = True
                         else:
                             LOG.info(f"  {EMOJI['info']} ID already present in file.")
-
-                    # Add to list of retrieved ID
                     recovered_ids.append({
-                        'file': md_file.name,
-                        'id': actual_id,
-                        'method': method_used,
-                        'written': id_written
+                        'file': md_file.name, 'id': actual_id,
+                        'method': method_used, 'written': id_written
                     })
 
-                # Track discovered / changed usernames
                 if actual_username:
                     username = entity.get_username(allow_strikethrough=False)
-                    if username:
-                        existing_username = username.value  # username without @
-                    else:
-                        existing_username = None
-
-                    # Cas 1 : Discovered username not in MDML
+                    existing_username = username.value if username else None
                     if not existing_username:
                         LOG.info(f"  {EMOJI['handle']} Username discovered: @{actual_username}")
                         discovered_usernames.append({
-                            'file': md_file.name,
-                            'old_username': None,
-                            'new_username': actual_username,
-                            'status': 'discovered'
+                            'file': md_file.name, 'old_username': None,
+                            'new_username': actual_username, 'status': 'discovered'
                         })
-
-                    # Cas 2 : Username has changed AND is different from username in MDML
                     elif existing_username.lower() != actual_username.lower():
                         LOG.info(f"  {EMOJI['change']} Username changed: @{existing_username} → @{actual_username}")
                         discovered_usernames.append({
-                            'file': md_file.name,
-                            'old_username': existing_username,
-                            'new_username': actual_username,
-                            'status': 'changed'
+                            'file': md_file.name, 'old_username': existing_username,
+                            'new_username': actual_username, 'status': 'changed'
                         })
 
-                # Update statistics
                 stats['total'] += 1
-                if status in stats:
-                    stats[status] += 1
-                else:
-                    stats['error'] += 1
+                stats[status] = stats.get(status, 0) + 1
 
-                # Process result and update file if needed
                 should_ignore = ignore_statuses and status in ignore_statuses
                 if should_ignore:
                     stats['ignored'] += 1
 
                 should_track_change, _ = process_and_update_file(
                     md_file, status, restriction_details, actual_id,
-                    expected_id, last_status,
-                    should_ignore, args.dry_run
+                    expected_id, last_status, should_ignore, args.dry_run
                 )
 
-                # Store result for reports
                 result = {
-                    'file': md_file.name,
-                    'identifier': display_id,
-                    'status': status,
-                    'timestamp': get_date_time(),
+                    'file': md_file.name, 'identifier': display_id,
+                    'status': status, 'timestamp': get_date_time(),
                     'emoji': EMOJI.get(status, EMOJI["no_emoji"]),
                     'restriction_details': restriction_details
                 }
                 results.append(result)
 
-                # Track files without status block
                 if not has_status_block:
                     no_status_block_results.append(result)
-
-                # Track status changes
                 if should_track_change:
-                    status_changed_files.append({
-                        'file': md_file.name,
-                        'old': last_status,
-                        'new': status
-                    })
+                    status_changed_files.append({'file': md_file.name, 'old': last_status, 'new': status})
 
-                # Sleep between checks to avoid rate limiting
                 if md_file != md_files[-1]:
                     sleep(SLEEP_BETWEEN_CHECKS)
-            except FileNotFoundError:
-                LOG.error("File not found.", EMOJI['error'])
-            except TelegramMDMLError:
-                LOG.error("Parsing failed.", EMOJI['error'])
+
             except Exception as e:
-                LOG.error("Failed to read MDML entity from file.", EMOJI['error'])
-                print_debug(e,currentframe().f_code.co_name)
-    except KeyboardInterrupt:
-        client.disconnect()
-        if args.no_exit: input('Press Enter key to exit')
-        exit(0)
+                LOG.error("Error processing entity.", EMOJI['error'])
+                print_debug(e, currentframe().f_code.co_name)
+
     finally:
-        # Always disconnect, even if there's an error
-        client.disconnect()
-    # Final statistics
-    print_stats(stats)
-    # Dry-run summary
-    if args.dry_run:
-        print_dry_run_summary(results)
-    if status_changed_files:
-        print_status_changed_files(status_changed_files)
-    if no_status_block_results:
-        print_no_status_block(no_status_block_results)
-    if recovered_ids:
-        print_recovered_ids(recovered_ids)
-    if discovered_usernames:
-        print_discovered_usernames(discovered_usernames)
+        # Final statistics
+        print_stats(stats)
+        # Dry-run summary
+        if args.dry_run:
+            print_dry_run_summary(results)
+        if status_changed_files:
+            print_status_changed_files(status_changed_files)
+        if no_status_block_results:
+            print_no_status_block(no_status_block_results)
+        if recovered_ids:
+            print_recovered_ids(recovered_ids)
+        if discovered_usernames:
+            print_discovered_usernames(discovered_usernames)
