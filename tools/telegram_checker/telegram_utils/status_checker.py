@@ -292,7 +292,7 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
             for idx, invite_hash in enumerate(invite_list, 1):
                 status, restriction_details, actual_id, actual_username, method_used = check_and_display(
                     client, invite_hash, True, expected_id,
-                    label=f"\\[{idx}/{len(invite_list)}\\] +{invite_hash}",
+                    label=f"\\[{idx}/{len(invite_list)}\\] {invite_hash}",
                     padding=4,
                     emoji=EMOJI['invite'],
                     stats=stats
