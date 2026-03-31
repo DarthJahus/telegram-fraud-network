@@ -163,12 +163,12 @@ def resolve_llm_params(args) -> tuple[str, str]:
     return llm_url, llm_model
 
 
-def report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats):
+def report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats, padding=0):
     text = msg.text.strip()
     message_id = msg.id
 
-    LOG.info(LINE_THIN)
-    LOG.info(f"Analyzing message {message_id}…", EMOJI['llm'])
+    LOG.info(LINE_THIN, padding=padding)
+    LOG.info(f"Analyzing message {message_id}…", EMOJI['llm'], padding=padding)
 
     # Call LLM
     result = call_llm(text, message_id, llm_url, llm_model)
@@ -192,13 +192,13 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
     lv1_candidates = list(report_tree.keys())
     lv1_match = get_close_matches(lv1, lv1_candidates, n=1, cutoff=0.82)
     if lv1_match and lv1_match[0] != lv1:
-        LOG.info(f"lv1 corrected: {lv1!r} → {lv1_match[0]!r}", EMOJI['info'])
+        LOG.info(f"lv1 corrected: {lv1!r} → {lv1_match[0]!r}", EMOJI['info'], padding=padding)
         lv1 = lv1_match[0]
     if lv1 in report_tree:
         lv2_candidates = report_tree[lv1]
         lv2_match = get_close_matches(lv2, lv2_candidates, n=1, cutoff=0.82)
         if lv2_match and lv2_match[0] != lv2:
-            LOG.info(f"lv2 corrected: {lv2!r} → {lv2_match[0]!r}", EMOJI['info'])
+            LOG.info(f"lv2 corrected: {lv2!r} → {lv2_match[0]!r}", EMOJI['info'], padding=padding)
             lv2 = lv2_match[0]
     auto_report, ask_user = decide_action(lv1, confidence, interactive, all_interactive)
 
@@ -361,9 +361,9 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     for msg in filtered:
         n += 1
         try:
-            LOG.info(LINE_THIN)
+            LOG.info(LINE_THIN, padding=padding)
             LOG.info(f'Handling message {n:3} of {len(filtered):3}', emoji=EMOJI['file'], padding=padding)
-            report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats)
+            report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats, padding=padding)
         except (LLMRequestError, LLMResponseParseError, LLMUnexpectedStructureError) as e:
             LOG.error(str(e), EMOJI['error'], padding=padding)
             stats['errors'] += 1
