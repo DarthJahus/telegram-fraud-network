@@ -126,7 +126,8 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
 
                 LOG.debug(f"Options: {[f'{i}:{opt.text!r}' for i, opt in enumerate(current_result.options)]}")
                 label = lv2 if depth > 0 else lv1
-                chosen_index = choose_option(label, current_result.options)
+                chosen_index, choose_method = choose_option(label, current_result.options)
+                LOG.info(choose_method, padding=padding)
                 chosen = current_result.options[chosen_index].option
 
                 current_result = client(ReportRequest(
@@ -139,7 +140,7 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
                 depth += 1
 
             if isinstance(current_result, ReportResultReported):
-                LOG.info(f"Reported message {message_id} (no comment)", emoji=EMOJI['success'])
+                LOG.info(f"Reported message {message_id} (no comment)", emoji=EMOJI['success'], padding=padding)
                 return True
 
             if isinstance(current_result, ReportResultAddComment):
@@ -150,7 +151,7 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
                     message=report_text,
                 ))
                 if isinstance(final_result, (ReportResultReported, ReportResultAddComment)):
-                    LOG.info(f"Reported message {message_id}", emoji=EMOJI['success'])
+                    LOG.info(f"Reported message {message_id}", emoji=EMOJI['success'], padding=padding)
                     return True
                 raise TelegramUtilsReportError(
                     f"Unexpected result after comment submission for message {message_id}: {type(final_result).__name__}"
@@ -167,7 +168,7 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
         raise
 
     except FloodWaitError as e:
-        sleep_with_progress(e.seconds, dest=LOG.error, emoji=EMOJI['pause'])
+        sleep_with_progress(e.seconds, dest=LOG.error, emoji=EMOJI['pause'], padding=padding)
         return send_report(client, entity, message_id, lv1, lv2, report_text)
 
     except Exception as e:

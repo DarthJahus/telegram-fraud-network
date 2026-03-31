@@ -35,7 +35,7 @@ def get_system_prompt(categories='', tags=TAGS_STR, lexicon=LEXICON_STR):
     return SYSTEM_PROMPT % {'tags': tags, 'categories': categories or get_report_tree_str(), 'lexicon': lexicon}
 
 
-def call_llm(message_text: str, message_id: int, llm_url: str, llm_model: str) -> dict:
+def call_llm(message_text: str, message_id: int, llm_url: str, llm_model: str, padding=0) -> dict:
     """
     Send a single Telegram message to the LLM for classification.
 
@@ -65,7 +65,7 @@ def call_llm(message_text: str, message_id: int, llm_url: str, llm_model: str) -
         response.raise_for_status()
 
         elapsed = time.time() - t0
-        LOG.info(f"LLM responded in {elapsed:.2f}s", EMOJI['llm'])
+        LOG.info(f"LLM responded in {elapsed:.2f}s", EMOJI['llm'], padding=padding)
 
         output = response.json().get("output", [])
         message_items = [item for item in output if item.get("type") == "message"]
@@ -106,7 +106,7 @@ def call_llm(message_text: str, message_id: int, llm_url: str, llm_model: str) -
     return parsed
 
 
-def choose_option(category_lv: str, options: list) -> int:
+def choose_option(category_lv: str, options: list) -> (int, str):
     """
     Match a category label (lv1 or lv2) against live Telegram option texts.
     Uses exact match first, then difflib fallback.
@@ -120,15 +120,12 @@ def choose_option(category_lv: str, options: list) -> int:
     # Exact match
     for i, opt in enumerate(options):
         if opt.text.lower() == category_lv.lower():
-            LOG.info(f"Exact match option {i}: {opt.text!r}", EMOJI['info'])
-            return i
+            return i, f"Exact match option {i}: {opt.text!r}"
 
     # difflib fallback
     matches = get_close_matches(category_lv, candidates, n=1, cutoff=0.6)
     if matches:
         i = labels.index(matches[0])
-        LOG.info(f"Fuzzy match option {i}: {options[i].text!r} for {category_lv!r}", EMOJI['info'])
-        return i
+        return i, f"Fuzzy match option {i}: {options[i].text!r} for {category_lv!r}"
 
-    LOG.info(f"No match for {category_lv!r}, falling back to 0", EMOJI['info'])
-    return 0
+    return 0, f"No match for {category_lv!r}, falling back to 0"

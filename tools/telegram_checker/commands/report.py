@@ -171,7 +171,7 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
     LOG.info(f"Analyzing message {message_id}…", EMOJI['llm'], padding=padding)
 
     # Call LLM
-    result = call_llm(text, message_id, llm_url, llm_model)
+    result = call_llm(text, message_id, llm_url, llm_model, padding=padding)
 
     # Get tag
     tag = result.get('tag')
@@ -244,7 +244,7 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
         confirmed = True
 
     if confirmed:
-        success = send_report(client, entity, message_id, lv1, lv2, report_text)
+        success = send_report(client, entity, message_id, lv1, lv2, report_text, padding=padding)
         if success:
             if ask_user:
                 stats['reported_manual'] += 1
