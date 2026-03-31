@@ -12,7 +12,8 @@ from inspect import currentframe
 from datetime import datetime
 from time import time, sleep
 from telegram_checker.config.api import SLEEP_BETWEEN_REPORTS
-from telegram_checker.config.constants import EMOJI, STATS_INIT_REPORT, STATS_INIT_MASS_REPORT
+from telegram_checker.config.constants import EMOJI, STATS_INIT_REPORT, STATS_INIT_MASS_REPORT, AI_REPORT_FIELD, \
+    AI_REPORT_FIELD_NAME
 from telegram_checker.llm_utils.constants import LLM_DEFAULT
 from telegram_checker.llm_utils.interface import call_llm
 from telegram_checker.llm_utils.exceptions import (
@@ -387,8 +388,8 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     if args.md and total_reported:
         LOG.info('Generating Markdown report...')
         LOG.info('```')
-        LOG.output("reports.ai:")
-        LOG.output(f"- `{datetime.now().strftime('%Y-%m-%d %H:%M')}`")
+        LOG.output(f"{AI_REPORT_FIELD}:")
+        LOG.output(f"- {f'`{AI_REPORT_FIELD_NAME}`, ' if AI_REPORT_FIELD_NAME else ''}`{datetime.now().strftime('%Y-%m-%d %H:%M')}`")
         LOG.output(f"\t- account: `{args.user[0].upper()}`")
         LOG.output(f"\t- analyzed: `{stats['analyzed']}`")
         LOG.output(f"\t- reported: `{total_reported}`")
@@ -440,7 +441,7 @@ def mass_report(client, args, md_files, skip_time_seconds):
     stats = STATS_INIT_MASS_REPORT.copy()
 
     try:
-        for item in iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field='ai.reports'):
+        for item in iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=AI_REPORT_FIELD):
             md_file = item['md_file']
             try:
                 args.update_file = md_file

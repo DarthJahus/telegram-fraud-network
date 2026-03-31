@@ -5,7 +5,7 @@ from telegram_checker.config.constants import (
     REGEX_STATUS_BLOCK_PATTERN,
     REGEX_STATUS_SUB_ITEM,
     MAX_STATUS_ENTRIES,
-    REGEX_STATUS_BLOCK_START
+    REGEX_STATUS_BLOCK_START, AI_REPORT_FIELD, AI_REPORT_FIELD_NAME
 )
 from telegram_checker.utils.helpers import (
     get_date_time,
@@ -232,7 +232,7 @@ def append_report_to_md(file_path, account, analyzed, reported, tags):
     tags_str = " ; ".join(f"`{'' if tag.startswith('#') else '#'}{tag}`" for tag in tags)
 
     new_entry = [
-        f"- `{now}`\n",
+        f"- {f'`{AI_REPORT_FIELD_NAME}`, ' if AI_REPORT_FIELD_NAME else ''}`{now}`\n",
         f"\t- account: `{account.upper()}`\n",
         f"\t- analyzed: `{analyzed}`\n",
         f"\t- reported: `{reported}`\n",
@@ -243,7 +243,7 @@ def append_report_to_md(file_path, account, analyzed, reported, tags):
 
     if not path.exists():
         with path.open('w', encoding='utf-8') as f:
-            f.write("reports.ai:\n")
+            f.write(f"{AI_REPORT_FIELD}:\n")
             f.writelines(new_entry)
         return True
 
