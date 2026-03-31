@@ -351,7 +351,7 @@ def fetch_entity_info(client, identifier: str):
         return None
 
 
-def should_skip_entity(entity, skip_time_seconds, skip_statuses, no_skip_unknown=False, skip_field=None) -> (bool, SkipReason or None):
+def should_skip_entity(entity, skip_statuses, no_skip_unknown=False, skip_time_seconds=None, skip_by_check=True, skip_field=None) -> (bool, SkipReason or None):
     """
     Determines if an entity should be skipped based on its last status.
 
@@ -363,7 +363,6 @@ def should_skip_entity(entity, skip_time_seconds, skip_statuses, no_skip_unknown
 
     Returns:
         tuple: (should_skip, reason: SkipReason or None) where reason explains why it was skipped
-
     """
 
     last_state, last_datetime, has_state_block = get_last_status(entity)
@@ -382,7 +381,7 @@ def should_skip_entity(entity, skip_time_seconds, skip_statuses, no_skip_unknown
         return False, SkipReason(SkipReasonType.NO_SKIP, f"last status is 'unknown', but --no-skip-unknown is used")
 
     # last check is time
-    if skip_time_seconds:
+    if skip_by_check and skip_time_seconds:
         time_since_check = datetime.now() - last_datetime
         if time_since_check.total_seconds() < skip_time_seconds:
             return True, SkipReason(SkipReasonType.STATUS_TIME, f"checked {seconds_to_time(time_since_check.total_seconds())} ago (status: {last_state})")
@@ -450,10 +449,11 @@ def iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=None, 
             # Skip logic
             should_skip, skip_reason = should_skip_entity(
                 entity,
-                skip_time_seconds,
                 args.skip,
                 args.no_skip_unknown,
-                skip_field
+                skip_time_seconds=skip_time_seconds,
+                skip_by_check=(skip_field is None),
+                skip_field=skip_field
             )
             if should_skip:
                 LOG.info(f"Skipped: ({skip_reason})", padding=2, emoji=EMOJI['skip'])

@@ -309,6 +309,17 @@ def validate_args(args):
     if args.no and args.yes:
         print(f"{EMOJI['warning']} --yes and --no used at the same time. Assuming --no only.")
         args.yes = False
+    if args.mass_report:
+        if not args.skip or args.skip == []:
+            print(f"{EMOJI['warning']} --mass-report will, by default, use --skip banned unknown")
+            args.skip = ["banned", "unknown"]
+        if not args.type or args.type == []:
+            print(f"{EMOJI['warning']} --mass-report will, by default, use --type group channel bot")
+            args.type = ["group", "channel", "bot"]
+        if not args.skip_time:
+            print(f"{EMOJI['warning']} --mass-report will, by default, use --skip-time 48*60*60 (48 h).")
+            args.skip_time = "48*60*60"
+
 
     # Validate --get-info options
     if args.get_info:
