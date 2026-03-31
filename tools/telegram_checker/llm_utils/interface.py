@@ -93,9 +93,7 @@ def call_llm(message_text: str, message_id: int, llm_url: str, llm_model: str) -
         parsed = json.loads(raw)
     except json.JSONDecodeError as e:
         print_debug(e, currentframe().f_code.co_name)
-        raise LLMResponseParseError(
-            f"LLM returned invalid JSON for message {message_id}: {e}\nRaw: {raw[:300]}"
-        ) from e
+        raise LLMResponseParseError(f"LLM returned invalid JSON for message {message_id}: {e}\nRaw: {raw[:300]}") from e
 
     # Basic structure validation
     required_keys = {"lv1", "lv2", "confidence", "report_text", "tag"}

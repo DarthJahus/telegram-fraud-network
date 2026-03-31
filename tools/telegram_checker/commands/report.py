@@ -34,8 +34,8 @@ from telegram_checker.telegram_utils.report import load_report_tree
 LOG = get_logger()
 FETCH_LIMIT    = 100
 MIN_WORD_COUNT = 3
-LINE_THIN     = "─" * 64
-LINE_THICK    = "═" * 64
+LINE_THIN     = "─" * 32
+LINE_THICK    = "═" * 32
 
 
 def decide_action(lv1: str, confidence: float, interactive: bool, all_interactive: bool) -> tuple[bool, bool]:

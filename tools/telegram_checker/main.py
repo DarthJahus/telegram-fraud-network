@@ -187,7 +187,8 @@ def main():
 
     except Exception as e:
         print_debug(DebugException(e, e))
-        exit(3)
+        raise
+        #exit(3)
 
 
 if __name__ == '__main__':
