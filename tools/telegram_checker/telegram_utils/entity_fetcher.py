@@ -397,13 +397,16 @@ def should_skip_entity(entity, skip_time_seconds, skip_statuses, no_skip_unknown
     return False, None
 
 
-def iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=None):
+def iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=None, progress_bar=None):
     """
     Parse, filter, and skip-check each MD file.
     Yields a dict with everything pre-extracted for full_check / mass_report.
     Increments stats['skipped'] and sub-keys on skip.
     """
     for md_file in md_files:
+        if progress_bar:
+            progress_bar['bar'].update(progress_bar['task'], entity=md_file.stem)
+            progress_bar['bar'].advance(progress_bar['task'])
         try:
             entity = TelegramEntity.from_file(md_file)
             LOG.info()

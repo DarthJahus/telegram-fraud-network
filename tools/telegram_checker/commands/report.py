@@ -25,7 +25,7 @@ from telegram_checker.mdml_utils.mdml_file import append_report_to_md
 from telegram_checker.telegram_utils.entity_fetcher import iter_md_entities
 from telegram_checker.telegram_utils.exceptions import TelegramUtilsReportNoReport, TelegramUtilsReportSkippedByUser
 from telegram_checker.utils.helpers import print_debug
-from telegram_checker.utils.logger import get_logger
+from telegram_checker.utils.logger import get_logger, create_progress_bar
 from telegram_checker.telegram_utils.report import send_report
 from telegram_checker.commands.exceptions import ReportError, ReportLLMError
 from difflib import get_close_matches
@@ -440,8 +440,11 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
 def mass_report(client, args, md_files, skip_time_seconds):
     stats = STATS_INIT_MASS_REPORT.copy()
 
+    progress_bar = create_progress_bar(LOG, md_files, "Reporting")
+    progress_bar['bar'].start()
+
     try:
-        for item in iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=AI_REPORT_FIELD):
+        for item in iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=AI_REPORT_FIELD, progress_bar=progress_bar):
             md_file = item['md_file']
             try:
                 args.update_file = md_file
@@ -469,4 +472,6 @@ def mass_report(client, args, md_files, skip_time_seconds):
                 LOG.error(f"Report error: {e}", EMOJI['error'])
 
     finally:
+        progress_bar['bar'].stop()
+        LOG.set_progress(None)
         print_stats_report(stats)

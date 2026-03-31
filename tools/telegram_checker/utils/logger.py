@@ -36,6 +36,7 @@ class Logger:
             self.log_file = None
             self.error_file = None
             self.output_file = None
+            self._progress = None
 
     def update_settings(self, debug=None, quiet=None):
         """Update logger settings after initialization"""
@@ -43,6 +44,28 @@ class Logger:
             self.debug_mode = debug
         if quiet is not None:
             self.quiet_mode = quiet
+
+    def set_progress(self, progress):
+        """Route stdout through tqdm.write() when a progress bar is active."""
+        self._progress = progress
+
+    def _print_stdout(self, msg, end='\n', flush=False):
+        """Print to stdout, routing through tqdm.write() if active."""
+        if self._progress is not None:
+            self._progress.console.print(msg, end=end, markup=False, highlight=False)
+            if flush:
+                sys.stdout.flush()
+        else:
+            builtins.print(msg, end=end, flush=flush)
+
+    def _print_stderr(self, msg, end='\n', flush=False):
+        """Print to stdout, roting through tdqm.write() if active"""
+        if self._progress is not None:
+            self._progress.console.print(msg, end=end, markup=False, highlight=False)
+            if flush:
+                sys.stderr.flush()
+        else:
+            builtins.print(msg, file=sys.stderr, end=end, flush=flush)
 
     def open_files(self, log_path=None, error_path=None, output_path=None):
         """
@@ -96,7 +119,7 @@ class Logger:
             return text
         return text.replace('\\[[', '[[').replace('\\]]', ']]')
 
-    def log(self, message, level:LogLevel=LogLevel.INFO, emoji='', padding=0, end='\n', flush=False):
+    def log(self, message, level:LogLevel=LogLevel.INFO, emoji='', padding=0, end='\n', flush=True):
         """Generic log method"""
         padding = padding * ' '
         formatted = f"{padding}{emoji} {message}" if emoji else f"{padding}{message}"
@@ -106,20 +129,20 @@ class Logger:
         file_msg = self._format_file(formatted)
 
         if level == LogLevel.ERROR:
-            builtins.print(console_msg, file=sys.stderr, end=end, flush=flush)
+            self._print_stderr(console_msg, end=end, flush=flush)
             if self.log_file:
                 builtins.print(file_msg, file=self.log_file, end=end, flush=flush)
             if self.error_file:
                 builtins.print(file_msg, file=self.error_file, end=end, flush=flush)
 
         elif level == LogLevel.INFO:
-            builtins.print(console_msg, end=end, flush=flush)
+            self._print_stdout(console_msg, end=end, flush=flush)
             if self.log_file:
                 builtins.print(file_msg, file=self.log_file, end=end, flush=flush)
 
         elif level == LogLevel.OUTPUT:
             if not self.quiet_mode:
-                builtins.print(console_msg, end=end, flush=flush)
+                self._print_stdout(console_msg, end=end, flush=flush)
             if self.log_file:
                 builtins.print(file_msg, file=self.log_file, end=end, flush=flush)
             if self.output_file:
@@ -128,23 +151,23 @@ class Logger:
         elif level == LogLevel.DEBUG:
             # DEBUG does not use emoji and padding
             if self.debug_mode:
-                builtins.print(console_msg, file=sys.stderr, end=end, flush=flush)
+                self._print_stderr(console_msg, end=end, flush=flush)
                 if self.log_file:
                     builtins.print(file_msg, file=self.log_file, end=end, flush=flush)
 
-    def error(self, message = "", emoji='', padding=0, end='\n', flush=False):
+    def error(self, message = "", emoji='', padding=0, end='\n', flush=True):
         """Log error message"""
         self.log(message, level=LogLevel.ERROR, emoji=emoji, padding=padding, end=end, flush=flush)
 
-    def info(self, message = "", emoji='', padding=0, end='\n', flush=False):
+    def info(self, message = "", emoji='', padding=0, end='\n', flush=True):
         """Log info message"""
         self.log(message, LogLevel.INFO, emoji=emoji, padding=padding, end=end, flush=flush)
 
-    def output(self, message = "", emoji='', padding=0, end='\n', flush=False):
+    def output(self, message = "", emoji='', padding=0, end='\n', flush=True):
         """Log output data"""
         self.log(message, LogLevel.OUTPUT, emoji=emoji, padding=padding, end=end, flush=flush)
 
-    def debug(self, message = "", padding=0, end='\n', flush=False):
+    def debug(self, message = "", padding=0, end='\n', flush=True):
         """Log debug message"""
         self.log(message, LogLevel.DEBUG, emoji=choice(EMOJI["list_bugs"]), padding=padding, end=end, flush=flush)
 
@@ -164,6 +187,24 @@ def init_logger(debug=False, quiet=False):
     logger = get_logger()
     logger.update_settings(debug=debug, quiet=quiet)
     return logger
+
+
+def create_progress_bar(log, items, task):
+    from rich.progress import (
+        Progress, SpinnerColumn, BarColumn,
+        TextColumn, TimeElapsedColumn, MofNCompleteColumn, TaskProgressColumn
+    )
+    progress_bar = Progress(
+        SpinnerColumn(),
+        TextColumn("[bold cyan]{task.description}[/bold cyan] › [yellow]{task.fields[entity]}[/yellow]"),
+        BarColumn(bar_width=30, complete_style="green", pulse_style="yellow"),
+        MofNCompleteColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+    )
+    task_id = progress_bar.add_task(task, total=len(items), entity="")
+    log.set_progress(progress_bar)
+    return {'bar': progress_bar, 'task': task_id}
 
 
 if __name__ == '__main__':

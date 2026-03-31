@@ -1,9 +1,6 @@
 from inspect import currentframe
 from time import sleep
-from telegram_checker.config.constants import (
-    EMOJI,
-    STATS_INIT_CHECKER
-)
+from telegram_checker.config.constants import EMOJI, STATS_INIT_CHECKER
 from telegram_checker.config.api import SLEEP_BETWEEN_CHECKS
 from telegram_checker.telegram_utils.entity_fetcher import iter_md_entities
 from telegram_checker.utils.helpers import get_date_time, print_debug
@@ -18,7 +15,7 @@ from telegram_checker.utils.output_display import (
     print_status_changed_files
 )
 from telegram_checker.telegram_utils.status_checker import check_entity_with_fallback
-from telegram_checker.utils.logger import get_logger
+from telegram_checker.utils.logger import get_logger, create_progress_bar
 
 LOG = get_logger()
 
@@ -32,8 +29,12 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
     no_status_block_results = []
     recovered_ids = []  # List of {file, id, method, written}
     discovered_usernames = []  # List of {file, old_username, new_username, status}
+
+    progress_bar = create_progress_bar(LOG, md_files, "Checking")
+    progress_bar['bar'].start()
+
     try:
-        for item in iter_md_entities(args, md_files, stats, skip_time_seconds):
+        for item in iter_md_entities(args, md_files, stats, skip_time_seconds, progress_bar=progress_bar):
             md_file          = item['md_file']
             entity           = item['entity']
             expected_id      = item['expected_id']
@@ -108,6 +109,8 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                 print_debug(e, currentframe().f_code.co_name)
 
     finally:
+        progress_bar['bar'].stop()
+        LOG.set_progress(None)
         # Final statistics
         print_stats(stats)
         # Dry-run summary

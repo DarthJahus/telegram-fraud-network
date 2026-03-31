@@ -3,7 +3,7 @@ from time import sleep
 from telegram_checker.telegram_utils.entity_actions import join_entity, add_contact
 from telegram_checker.telegram_utils.exceptions import TelegramUtilsActionAddContactError, TelegramUtilsActionJoinEntityError
 from telegram_checker.utils.exceptions import DebugException
-from telegram_checker.utils.logger import get_logger
+from telegram_checker.utils.logger import get_logger, create_progress_bar
 from telegram_checker.config.constants import EMOJI, UI_HORIZONTAL_LINE
 from telegram_checker.config.api import SLEEP_BETWEEN_CHECKS
 from telegram_mdml.telegram_mdml import TelegramEntity
@@ -150,7 +150,14 @@ def print_identifiers_binned(identifiers_list, md_tasks=False, active_only=False
 
 def list_identifiers(client, md_files, args):
     identifiers_list = []
+
+    progress_bar = create_progress_bar(LOG, md_files, 'Listing...')
+    progress_bar['bar'].start()
+
     for md_file in md_files:
+        progress_bar['bar'].update(progress_bar['task'], entity=md_file.stem)
+        progress_bar['bar'].advance(progress_bar['task'])
+
         invite_entry = None
         username_entry = None
         LOG.debug(f'Handling file {md_file.name}...')
@@ -285,6 +292,8 @@ def list_identifiers(client, md_files, args):
         except Exception as e:
             print_debug(e, currentframe().f_code.co_name)
             continue
+
+    progress_bar['bar'].stop()
 
     # Print results and cleanup
     if not args.continuous:
