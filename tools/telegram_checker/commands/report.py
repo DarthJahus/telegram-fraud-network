@@ -83,7 +83,7 @@ def confidence_bar(confidence: float, width: int = 10) -> str:
     return "[" + "█" * filled + "░" * (width - filled) + "]"
 
 
-def display_result(result: dict, message_text: str, action_label: str) -> None:
+def display_result(result: dict, message_text: str, action_label: str, padding=0) -> None:
     """Pretty-print a single classification result via LOG.output."""
     confidence  = float(result.get("confidence", 0.0))
     category    = f"{result.get('lv1', '?')} / {result.get('lv2', '?')}"
@@ -93,15 +93,15 @@ def display_result(result: dict, message_text: str, action_label: str) -> None:
 
     preview = repr(message_text[:120] + ("…" if len(message_text) > 120 else ""))
 
-    LOG.info(LINE_THIN)
-    LOG.info(f"Message ID  : {msg_id}",                                       emoji=EMOJI['id'])
-    LOG.info(f"Content     : {preview}",                                      emoji=EMOJI['text'])
-    LOG.info(f"Category    : {category}",                                     emoji=EMOJI['analyzed'])
-    LOG.info(f"Tag         : {tag}",                                          emoji=EMOJI['tag'])
-    LOG.info(f"Confidence  : {confidence:.0%}  {confidence_bar(confidence)}", emoji=EMOJI['stats'])
-    LOG.info(f"Report text : {report_text}",                                  emoji=EMOJI['reason'])
-    LOG.info(f"Action      : {action_label}",                                 emoji=EMOJI['report'])
-    LOG.info(LINE_THIN)
+    LOG.info(LINE_THIN, padding=padding)
+    LOG.info(f"Message ID  : {msg_id}",                                       emoji=EMOJI['id'], padding=padding)
+    LOG.info(f"Content     : {preview}",                                      emoji=EMOJI['text'], padding=padding)
+    LOG.info(f"Category    : {category}",                                     emoji=EMOJI['analyzed'], padding=padding)
+    LOG.info(f"Tag         : {tag}",                                          emoji=EMOJI['tag'], padding=padding)
+    LOG.info(f"Confidence  : {confidence:.0%}  {confidence_bar(confidence)}", emoji=EMOJI['stats'], padding=padding)
+    LOG.info(f"Report text : {report_text}",                                  emoji=EMOJI['reason'], padding=padding)
+    LOG.info(f"Action      : {action_label}",                                 emoji=EMOJI['report'], padding=padding)
+    LOG.info(LINE_THIN, padding=padding)
 
 
 def print_stats_report(stats):
@@ -218,7 +218,7 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
     else:
         action_label = f"Awaiting your decision ({confidence:.0%})"
 
-    display_result(result, text, action_label)
+    display_result(result, text, action_label, padding=padding)
 
     # Short-circuit: nothing to report
     if not auto_report and not ask_user:
