@@ -381,7 +381,7 @@ def should_skip_entity(entity, skip_statuses, no_skip_unknown=False, skip_by_che
 
     # Check if we should skip based on status
     if skip_statuses and last_state in skip_statuses:
-        return True, SkipReason(SkipReasonType.STATUS, f"last status ('{last_state}') in skip list")
+        return True, SkipReason(SkipReasonType.STATUS, f"last status '{last_state}' in {skip_statuses!r}")
 
     # Exceptions with unknown
     if last_state == "unknown" and no_skip_unknown:
@@ -471,8 +471,9 @@ def iter_md_entities(args, md_files, stats, skip_time_seconds=None, skip_fields:
                 stats['skipped'] += 1
                 stats['skipped_type'] += 1
                 LOG.info(
-                    f"Skipping entity with type {entity_type} not {', neither '.join(args.type)}",
-                    emoji=EMOJI['skip']
+                    f"Skipped: entity type {entity_type} not {', neither '.join(args.type)}",
+                    emoji=EMOJI['skip'],
+                    padding=2
                 )
                 continue
 
@@ -503,7 +504,7 @@ def iter_md_entities(args, md_files, stats, skip_time_seconds=None, skip_fields:
                 skip_fields=skip_fields
             )
             if should_skip:
-                LOG.info(f"Skipped: ({skip_reason})", padding=2, emoji=EMOJI['skip'])
+                LOG.info(f"Skipped: {skip_reason}", padding=2, emoji=EMOJI['skip'])
                 stats['skipped'] += 1
                 if isinstance(skip_reason, SkipReason):
                     if skip_reason.type == SkipReasonType.STATUS_TIME:
