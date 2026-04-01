@@ -407,38 +407,22 @@ def should_skip_entity(entity, skip_statuses, no_skip_unknown=False, skip_by_che
                     if age < skip_field['check_value']:
                         return True, SkipReason(SkipReasonType.FIELD_TIME, f"{skip_field['field_name']} {seconds_to_time(age)} ago")
 
-            if fv:
+            if fv and skip_field["skip_reason"] in (SkipReasonType.FIELD_VALUE, SkipReasonType.FIELD_VALUE_INV):
                 fv_value_l = str(fv.value).lower().strip()
-
-                check_value_list_l = None
-                if isinstance(skip_field['check_value'], list):
-                    check_value_list_l = {str(v).lower().strip() for v in skip_field['check_value']}
-
-                if skip_field["skip_reason"] == SkipReasonType.FIELD_VALUE:
-                    if isinstance(skip_field['check_value'], bool):
-                        if skip_field['check_value'] is True and fv_value_l in MDML_BOOL_TRUE_SET:
-                            return True, SkipReason(skip_field["skip_reason"], f"{skip_field['field_name']} is True")
-                        if skip_field['check_value'] is False and fv_value_l in MDML_BOOL_FALSE_SET:
-                            return True, SkipReason(skip_field["skip_reason"], f"{skip_field['field_name']} is False")
-                    elif check_value_list_l is not None and fv_value_l in check_value_list_l:
-                            return True, SkipReason(skip_field["skip_reason"], f"{skip_field['field_name']} value in {repr(skip_field['check_value'])}")
-                    elif isinstance(skip_field['check_value'], str):
-                        check_value_l = skip_field['check_value'].lower().strip()
-                        if fv_value_l == check_value_l:
-                            return True, SkipReason(skip_field["skip_reason"], f"{skip_field['field_name']} value is {skip_field['check_value']}")
-
-                if skip_field["skip_reason"] == SkipReasonType.FIELD_VALUE_INV:
-                    if isinstance(skip_field['check_value'], bool):
-                        if skip_field['check_value'] is False and fv_value_l not in MDML_BOOL_FALSE_SET:
-                            return True, SkipReason(skip_field["skip_reason"], f"{skip_field['field_name']} is not False")
-                        if skip_field['check_value'] is True and fv_value_l not in MDML_BOOL_TRUE_SET:
-                            return True, SkipReason(skip_field["skip_reason"], f"{skip_field['field_name']} is not True")
-                    elif check_value_list_l is not None and fv_value_l not in check_value_list_l:
-                            return True, SkipReason(skip_field["skip_reason"], f"{skip_field['field_name']} value not in {repr(skip_field['check_value'])}")
-                    elif isinstance(skip_field['check_value'], str):
-                        check_value_l = skip_field['check_value'].lower().strip()
-                        if fv_value_l != check_value_l:
-                            return True, SkipReason(skip_field["skip_reason"], f"{skip_field['field_name']} value different from {skip_field['check_value']}")
+                check = skip_field['check_value']
+                match = None
+                if isinstance(check, bool):
+                    match = fv_value_l in (MDML_BOOL_TRUE_SET if check is True else MDML_BOOL_FALSE_SET)
+                elif isinstance(check, list):
+                    check_set = {str(v).lower().strip() for v in check}
+                    match = fv_value_l in check_set
+                elif isinstance(check, str):
+                    match = fv_value_l == check.lower().strip()
+                if match is not None:
+                    if skip_field["skip_reason"] == SkipReasonType.FIELD_VALUE_INV:
+                        match = not match
+                    if match:
+                        return True, SkipReason(skip_field["skip_reason"], f"{skip_field['field_name']} matched condition: {skip_field["skip_reason"].value} {check!r} (actual: {fv_value_l})")
 
     return False, None
 
