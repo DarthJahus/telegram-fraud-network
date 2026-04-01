@@ -15,6 +15,9 @@ THROTTLE_TIME = 0.2
 # CONSTANTS
 # ============================================
 
+MDML_BOOL_TRUE_SET = {"true", "yes", "1"}
+MDML_BOOL_FALSE_SET = {"false", "no", "0", "unknown"}
+
 EMOJI = {
     'active':      "🔥",
     'banned':      "🔨",
