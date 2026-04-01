@@ -7,6 +7,7 @@ from collections import Counter
 MAX_STATUS_ENTRIES = 10  # maximum number of status entries to keep
 UI_HORIZONTAL_LINE = f"{60 * "—"}"
 AI_REPORT_FIELD = "reports.ai"  # ToDo: Consider using field "reports" with name (value) "ai", and datetime obj as metadata instead of value
+AI_LEGIT_FIELD = "legit"
 AI_REPORT_FIELD_NAME = ''
 THROTTLE_TIME = 0.2
 

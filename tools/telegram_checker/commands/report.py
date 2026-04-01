@@ -18,7 +18,8 @@ from telegram_checker.config.constants import (
     STATS_INIT_MASS_REPORT,
     AI_REPORT_FIELD,
     AI_REPORT_FIELD_NAME,
-    UI_HORIZONTAL_LINE
+    UI_HORIZONTAL_LINE,
+    AI_LEGIT_FIELD
 )
 from telegram_checker.llm_utils.constants import LLM_DEFAULT, MIN_WORD_COUNT, FETCH_LIMIT
 from telegram_checker.llm_utils.interface import call_llm
@@ -28,7 +29,7 @@ from telegram_checker.llm_utils.exceptions import (
     LLMUnexpectedStructureError,
 )
 from telegram_checker.mdml_utils.mdml_file import append_report_to_md
-from telegram_checker.telegram_utils.entity_fetcher import iter_md_entities
+from telegram_checker.telegram_utils.entity_fetcher import iter_md_entities, SkipReasonType
 from telegram_checker.telegram_utils.exceptions import TelegramUtilsReportNoReport, TelegramUtilsReportSkippedByUser
 from telegram_checker.utils.helpers import print_debug, get_text_preview
 from telegram_checker.utils.logger import get_logger, create_progress_bar
@@ -420,8 +421,21 @@ def mass_report(client, args, md_files, skip_time_seconds):
     progress_bar = create_progress_bar(LOG, md_files, "Reporting")
     progress_bar['bar'].start()
 
+    skip_fields = [
+        {
+            "field_name": AI_REPORT_FIELD,
+            "skip_reason": SkipReasonType.FIELD_TIME,
+            "check_value": skip_time_seconds
+        },
+        {
+            "field_name": AI_LEGIT_FIELD,
+            "skip_reason": SkipReasonType.FIELD_EXISTS,
+            "check_value": None
+        }
+    ]
+
     try:
-        for item in iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=AI_REPORT_FIELD, progress_bar=progress_bar):
+        for item in iter_md_entities(args, md_files, stats, skip_fields=skip_fields, progress_bar=progress_bar):
             md_file = item['md_file']
             try:
                 args.update_file = md_file

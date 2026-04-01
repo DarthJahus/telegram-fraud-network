@@ -31,10 +31,12 @@ LOG = get_logger()
 
 
 class SkipReasonType(Enum):
-    STATUS      = 'status'
-    STATUS_TIME = 'check time'
-    FIELD_TIME  = 'field time'
-    NO_SKIP     = 'no_skip_unknown'
+    STATUS       = 'status'
+    STATUS_TIME  = 'check time'
+    FIELD_TIME   = 'field time'
+    FIELD_EXISTS = 'field exists'
+    FIELD_VALUE  = 'field has value'
+    NO_SKIP      = 'no_skip_unknown'
 
 
 @dataclass
@@ -352,15 +354,19 @@ def fetch_entity_info(client, identifier: str):
         return None
 
 
-def should_skip_entity(entity, skip_statuses, no_skip_unknown=False, skip_time_seconds=None, skip_by_check=True, skip_field=None) -> (bool, SkipReason or None):
+def should_skip_entity(entity, skip_statuses, no_skip_unknown=False, skip_by_check=True, skip_time_seconds=None, skip_fields:list[dict[str, (str or SkipReasonType or any)]]=None) -> (bool, SkipReason or None):
     """
     Determines if an entity should be skipped based on its last status.
 
     :param entity: (TelegramEntity): Telegram MDML entity
-    :param skip_time_seconds: (int or None): Skip if checked within this many seconds
     :param skip_statuses: (list or None): Skip if last status is in this list
     :param no_skip_unknown: (default: False): Don't skip when last_stats is Unknown
-    :param skip_field: additional field to check for skip reasons
+    :param skip_by_check:
+    :param skip_time_seconds:
+    :param skip_fields: additional fields for skip reasons
+        - field_name: str
+        - skip_reason: SkipReasonType
+        - check_value: value to check against
 
     Returns:
         tuple: (should_skip, reason: SkipReason or None) where reason explains why it was skipped
@@ -382,22 +388,41 @@ def should_skip_entity(entity, skip_statuses, no_skip_unknown=False, skip_time_s
         return False, SkipReason(SkipReasonType.NO_SKIP, f"last status is 'unknown', but --no-skip-unknown is used")
 
     # last check is time
-    if skip_by_check and skip_time_seconds:
+    if skip_by_check and skip_time_seconds and last_datetime:
         time_since_check = datetime.now() - last_datetime
         if time_since_check.total_seconds() < skip_time_seconds:
             return True, SkipReason(SkipReasonType.STATUS_TIME, f"checked {seconds_to_time(time_since_check.total_seconds())} ago (status: {last_state})")
 
-    if skip_field and skip_time_seconds:
-        fv = entity.get_field_last(skip_field)
-        if fv and fv.date:
-            age = (datetime.now() - fv.date).total_seconds()
-            if age < skip_time_seconds:
-                return True, SkipReason(SkipReasonType.FIELD_TIME, f"{skip_field} {seconds_to_time(age)} ago")
+    if skip_fields:
+        for skip_field in skip_fields:
+            fv = entity.get_field_last(skip_field['field_name'])
+
+            if skip_field['skip_reason'] is SkipReasonType.FIELD_EXISTS and fv:
+                return True, SkipReason(SkipReasonType.FIELD_EXISTS, f"{skip_field['field_name']} found in entity")
+
+            if skip_field["skip_reason"] is SkipReasonType.FIELD_TIME and isinstance(skip_field['check_value'], int):
+                if fv and fv.date:
+                    age = (datetime.now() - fv.date).total_seconds()
+                    if age < skip_field['check_value']:
+                        return True, SkipReason(SkipReasonType.FIELD_TIME, f"{skip_field['field_name']} {seconds_to_time(age)} ago")
+
+            if skip_field["skip_reason"] is SkipReasonType.FIELD_VALUE and fv:
+                if isinstance(skip_field['check_value'], bool):
+                    if fv.value.lower().strip() == "true" and skip_field['check_value'] is True:
+                        return True, SkipReason(SkipReasonType.FIELD_VALUE, f"{skip_field['field_name']} is True")
+                    if fv.value.lower().strip() == "false" and skip_field['check_value'] is False:
+                        return True, SkipReason(SkipReasonType.FIELD_VALUE, f"{skip_field['field_name']} is False")
+                if isinstance(skip_field['check_value'], list):
+                    if fv.value in skip_field['check_value']:
+                        return True, SkipReason(SkipReasonType.FIELD_VALUE, f"{skip_field['field_name']} has value in {repr(skip_field['check_value'])}")
+                if isinstance(skip_field['check_value'], str):
+                    if fv.value.lower().strip() == skip_field['check_value']:
+                        return True, SkipReason(SkipReasonType.FIELD_VALUE, f"{skip_field['field_name']} has value {skip_field['check_value']}")
 
     return False, None
 
 
-def iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=None, progress_bar=None):
+def iter_md_entities(args, md_files, stats, skip_time_seconds=None, skip_fields:list[dict[str, (str or SkipReasonType or any)]]=None, progress_bar=None):
     """
     Parse, filter, and skip-check each MD file.
     Yields a dict with everything pre-extracted for full_check / mass_report.
@@ -453,8 +478,8 @@ def iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=None, 
                 args.skip,
                 args.no_skip_unknown,
                 skip_time_seconds=skip_time_seconds,
-                skip_by_check=(skip_field is None),
-                skip_field=skip_field
+                skip_by_check=(skip_fields is None),
+                skip_fields=skip_fields
             )
             if should_skip:
                 LOG.info(f"Skipped: ({skip_reason})", padding=2, emoji=EMOJI['skip'])
@@ -464,7 +489,7 @@ def iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=None, 
                         stats['skipped_time'] += 1
                     elif skip_reason.type == SkipReasonType.STATUS:
                         stats['skipped_status'] += 1
-                    elif skip_reason.type == SkipReasonType.FIELD_TIME:
+                    elif skip_reason.type in (SkipReasonType.FIELD_TIME, SkipReasonType.FIELD_EXISTS, SkipReasonType.FIELD_VALUE):
                         stats['skipped_field'] += 1
                 continue
             elif skip_reason:
