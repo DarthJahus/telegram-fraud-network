@@ -121,3 +121,32 @@ def parse_time_expression(expr):
         return int(result)
     except Exception as e:
         raise ValueError(f"Invalid time expression '{expr}': {e}")
+
+
+def get_text_preview(text:str, initial_indent:int=0, initial_padding:int=0, padding:int=0, multiline:bool=False, max_lines=None, line_limit=120) -> str:
+    words = text.replace('\n', '\\n ').split()
+    lines = []
+    line = ''
+    truncate = False
+    for word in words:
+        if (initial_indent+initial_padding if not lines else padding) + len(line) + 1 + len(word) <= line_limit:
+            line += (' ' if line else '') + word
+        elif not multiline or (max_lines and len(lines) == max_lines-1):
+            truncate = True
+            break
+        else:
+            lines.append(((initial_padding if not lines else padding) * ' ') + line.strip())
+            line = word
+
+    if line:
+        lines.append(((initial_padding if not lines else padding) * ' ') + line.strip())
+
+    if truncate:
+        lines[-1] = lines[-1][:(None if len(lines[-1]) <= (line_limit - 3) else -3)] + '...'
+        return '\n'.join(lines)
+    elif len(lines) == 1:
+        return lines[0]
+    elif len(lines) > 1:
+        return '\n'.join(lines)
+    else:
+        raise ValueError('Text could not be previewed.')

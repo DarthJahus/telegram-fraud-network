@@ -24,7 +24,7 @@ from telegram_checker.llm_utils.exceptions import (
 from telegram_checker.mdml_utils.mdml_file import append_report_to_md
 from telegram_checker.telegram_utils.entity_fetcher import iter_md_entities
 from telegram_checker.telegram_utils.exceptions import TelegramUtilsReportNoReport, TelegramUtilsReportSkippedByUser
-from telegram_checker.utils.helpers import print_debug
+from telegram_checker.utils.helpers import print_debug, get_text_preview
 from telegram_checker.utils.logger import get_logger, create_progress_bar
 from telegram_checker.telegram_utils.report import send_report
 from telegram_checker.commands.exceptions import ReportError, ReportLLMError
@@ -91,7 +91,15 @@ def display_result(result: dict, message_text: str, action_label: str, padding=0
     report_text = result.get("report_text", "")
     msg_id      = result.get("message_id", "?")
 
-    preview = repr(message_text[:120] + ("…" if len(message_text) > 120 else ""))
+    preview = get_text_preview(
+        message_text,
+        initial_indent=17+padding,
+        initial_padding=0,
+        padding=17+padding,
+        multiline=True,
+        max_lines=3,
+        line_limit=80
+    )
 
     LOG.info(LINE_THIN, padding=padding)
     LOG.info(f"Message ID  : {msg_id}",                                       emoji=EMOJI['id'], padding=padding)
