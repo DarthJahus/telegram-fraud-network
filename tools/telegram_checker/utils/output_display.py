@@ -194,26 +194,40 @@ def print_stats_report(stats):
     LOG.info(UI_HORIZONTAL_LINE)
     LOG.info("Mass Report Statistics")
     LOG.info(UI_HORIZONTAL_LINE)
-    LOG.info(f"Processed      : {processed}")
+    LOG.info("ENTITIES")
+    LOG.info(UI_HORIZONTAL_LINE[:(len(UI_HORIZONTAL_LINE) // 2)])
+    LOG.info(f"Processed         : {processed}")
     LOG.info(
-        f"Skipped        : {stats['skipped']}"
-        f"  (type: {stats['skipped_type']}"
-        f"  |  last check: {stats['skipped_time']}"
-        f"  |  last report: {stats['skipped_field']}"
-        f"  |  status: {stats['skipped_status']}"
-        f"  |  no id: {stats['skipped_no_identifier']})"
-        f"  |  error: {stats['skipped_error']}"
-        f"  |  user: {stats['skipped_user']}"
+        f"Skipped           : {stats['skipped']}"
+        f"\n  └─ type         : {stats['skipped_type']}"
+        f"\n  └─ last check   : {stats['skipped_time']}"
+        f"\n  └─ last report  : {stats['skipped_field']}"
+        f"\n  └─ status       : {stats['skipped_status']}"
+        f"\n  └─ no id        : {stats['skipped_no_identifier']}"
+        f"\n  └─ error        : {stats['skipped_error']}"
+        f"\n  └─ by user      : {stats['skipped_user']}"
     )
-    LOG.info(f"Errors         : {stats['errors']}  |  LLM: {stats['llm_error']}  |  Report: {stats['report_error']}")
+    LOG.info(
+        f"Errors            : {stats['errors']}"
+        f"\n  └─ LLM          : {stats['llm_error']}"
+        f"\n  └─ Report       : {stats['report_error']}")
     LOG.info()
-    LOG.info(f"Analyzed       : {stats['analyzed']}  (avg {avg_analyzed:.1f} / entity)")
-    LOG.info(f"Reported       : {reported}  (avg {avg_reported:.1f} / entity)"
-             f"  [auto: {stats['reported_auto']}  |  manual: {stats['reported_manual']}]")
-    LOG.info(f"Skipped manual : {stats['skipped_manual']}")
-    LOG.info(f"Log only       : {stats['log_only']}")
-    LOG.info(f"Harmless       : {stats['harmless']}")
-    LOG.info(f"Low confidence : {stats['low_confidence']}")
+    LOG.info(
+        f"Analyzed          : {stats['analyzed']}"
+        f"\n  └─ avg          : {avg_analyzed:.1f}/entity"
+    )
+    LOG.info(UI_HORIZONTAL_LINE[:(len(UI_HORIZONTAL_LINE)//2)])
+    LOG.info('MESSAGES')
+    LOG.info(UI_HORIZONTAL_LINE[:(len(UI_HORIZONTAL_LINE)//2)])
+    LOG.info(
+        f"Reported          : {reported}"
+        f"\n  └─ avg          : {avg_reported:.1f}/entity"
+        f"\n  └─ auto         : {stats['reported_auto']}"
+        f"\n  └─ manual:      : {stats['reported_manual']}")
+    LOG.info(f"Ignored (user)    : {stats['skipped_manual']}")
+    LOG.info(f"Log only          : {stats['log_only']}")
+    LOG.info(f"Harmless          : {stats['harmless']}")
+    LOG.info(f"Low confidence    : {stats['low_confidence']}")
 
     if stats['tags']:
         LOG.info()
