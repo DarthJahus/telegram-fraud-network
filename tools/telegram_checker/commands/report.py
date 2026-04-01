@@ -12,9 +12,15 @@ from inspect import currentframe
 from datetime import datetime
 from time import time, sleep
 from telegram_checker.config.api import SLEEP_BETWEEN_REPORTS
-from telegram_checker.config.constants import EMOJI, STATS_INIT_REPORT, STATS_INIT_MASS_REPORT, AI_REPORT_FIELD, \
-    AI_REPORT_FIELD_NAME
-from telegram_checker.llm_utils.constants import LLM_DEFAULT
+from telegram_checker.config.constants import (
+    EMOJI,
+    STATS_INIT_REPORT,
+    STATS_INIT_MASS_REPORT,
+    AI_REPORT_FIELD,
+    AI_REPORT_FIELD_NAME,
+    UI_HORIZONTAL_LINE
+)
+from telegram_checker.llm_utils.constants import LLM_DEFAULT, MIN_WORD_COUNT, FETCH_LIMIT
 from telegram_checker.llm_utils.interface import call_llm
 from telegram_checker.llm_utils.exceptions import (
     LLMRequestError,
@@ -31,12 +37,9 @@ from telegram_checker.commands.exceptions import ReportError, ReportLLMError
 from difflib import get_close_matches
 from telegram_checker.telegram_utils.constants import REPORT_TREE_PATH
 from telegram_checker.telegram_utils.report import load_report_tree
+from telegram_checker.utils.output_display import print_stats_report
 
 LOG = get_logger()
-FETCH_LIMIT    = 100
-MIN_WORD_COUNT = 3
-LINE_THIN     = "─" * 32
-LINE_THICK    = "═" * 32
 
 
 def decide_action(lv1: str, confidence: float, interactive: bool, all_interactive: bool) -> tuple[bool, bool]:
@@ -101,7 +104,7 @@ def display_result(result: dict, message_text: str, action_label: str, padding=0
         line_limit=80
     )
 
-    LOG.info(LINE_THIN, padding=padding)
+    LOG.info(UI_HORIZONTAL_LINE, padding=padding)
     LOG.info(f"Message ID  : {msg_id}",                                       emoji=EMOJI['id'], padding=padding)
     LOG.info(f"Content     : {preview}",                                      emoji=EMOJI['text'], padding=padding)
     LOG.info(f"Category    : {category}",                                     emoji=EMOJI['analyzed'], padding=padding)
@@ -109,45 +112,7 @@ def display_result(result: dict, message_text: str, action_label: str, padding=0
     LOG.info(f"Confidence  : {confidence:.0%}  {confidence_bar(confidence)}", emoji=EMOJI['stats'], padding=padding)
     LOG.info(f"Report text : {report_text}",                                  emoji=EMOJI['reason'], padding=padding)
     LOG.info(f"Action      : {action_label}",                                 emoji=EMOJI['report'], padding=padding)
-    LOG.info(LINE_THIN, padding=padding)
-
-
-def print_stats_report(stats):
-    processed    = stats['processed']
-    avg_analyzed = (stats['analyzed'] / processed) if processed else 0
-    reported     = stats['reported_auto'] + stats['reported_manual']
-    avg_reported = (reported / processed) if processed else 0
-
-    LOG.info()
-    LOG.info(LINE_THIN)
-    LOG.info("Mass Report Statistics")
-    LOG.info(LINE_THIN)
-    LOG.info(f"Processed      : {processed}")
-    LOG.info(
-        f"Skipped        : {stats['skipped']}"
-        f"  (type: {stats['skipped_type']}"
-        f"  |  last check: {stats['skipped_time']}"
-        f"  |  last report: {stats['skipped_field']}"
-        f"  |  status: {stats['skipped_status']}"
-        f"  |  no id: {stats['skipped_no_identifier']})"
-        f"  |  error: {stats['skipped_error']}"
-        f"  |  user: {stats['skipped_user']}"
-    )
-    LOG.info(f"Errors         : {stats['errors']}  |  LLM: {stats['llm_error']}  |  Report: {stats['report_error']}")
-    LOG.info()
-    LOG.info(f"Analyzed       : {stats['analyzed']}  (avg {avg_analyzed:.1f} / entity)")
-    LOG.info(f"Reported       : {reported}  (avg {avg_reported:.1f} / entity)"
-             f"  [auto: {stats['reported_auto']}  |  manual: {stats['reported_manual']}]")
-    LOG.info(f"Skipped manual : {stats['skipped_manual']}")
-    LOG.info(f"Log only       : {stats['log_only']}")
-    LOG.info(f"Harmless       : {stats['harmless']}")
-    LOG.info(f"Low confidence : {stats['low_confidence']}")
-
-    if stats['tags']:
-        LOG.info()
-        LOG.info("Tags breakdown:")
-        for tag, count in stats['tags'].most_common():
-            LOG.info(f"  {tag:<30} {count}")
+    LOG.info(UI_HORIZONTAL_LINE, padding=padding)
 
 
 def resolve_llm_params(args) -> tuple[str, str]:
@@ -179,7 +144,7 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
     text = msg.text.strip()
     message_id = msg.id
 
-    LOG.info(LINE_THIN, padding=padding)
+    LOG.info(UI_HORIZONTAL_LINE, padding=padding)
     LOG.info(f"Analyzing message {message_id}…", EMOJI['llm'], padding=padding)
 
     # Call LLM
@@ -333,11 +298,11 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
         raise ReportError("No messages remaining after filtering.")
 
     # Header
-    LOG.info(LINE_THICK, padding=padding)
+    LOG.info(UI_HORIZONTAL_LINE, padding=padding)
     LOG.info(f"Analyzing {len(filtered)} messages from: {entity_title}", emoji=EMOJI['analyzed'], padding=padding)
     LOG.info(f"LLM  : {llm_model} @ {llm_url}", emoji=EMOJI['llm'], padding=padding)
     LOG.info(f"Mode : {'full interactive' if all_interactive else ('interactive' if interactive else 'automatic')}", emoji=EMOJI['info'], padding=padding)
-    LOG.info(LINE_THICK, padding=padding)
+    LOG.info(UI_HORIZONTAL_LINE, padding=padding)
 
     # Stats
     stats = STATS_INIT_REPORT.copy()
@@ -373,7 +338,7 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     for msg in filtered:
         n += 1
         try:
-            LOG.info(LINE_THIN, padding=padding)
+            LOG.info(UI_HORIZONTAL_LINE, padding=padding)
             LOG.info(f'Handling message {n:3} of {len(filtered):3}', emoji=EMOJI['file'], padding=padding)
             report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats, padding=padding)
         except (LLMRequestError, LLMResponseParseError, LLMUnexpectedStructureError) as e:
@@ -421,9 +386,9 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     if total_reported == 0:
         dest = LOG.info
 
-    dest(LINE_THICK, padding=padding)
+    dest(UI_HORIZONTAL_LINE, padding=padding)
     dest(f"Summary for {entity_title!r} — {entity.id}",        emoji=EMOJI['stats'], padding=padding)
-    dest(LINE_THIN, padding=padding)
+    dest(UI_HORIZONTAL_LINE, padding=padding)
     dest(f"Entity           : {entity.id:<16}",                emoji=EMOJI['id'], padding=padding)
     dest(f"Fetched          : {len(messages):.>5}",            emoji=EMOJI['info'], padding=padding)
     dest(f"Analyzed         : {stats['analyzed']:.>5}",        emoji=EMOJI['analyzed'], padding=padding)
@@ -442,9 +407,9 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     dest(f"Harmless         : {stats['harmless']:.>5}",        emoji=EMOJI['harmless'], padding=padding)
     dest(f"Low confidence   : {stats['low_confidence']:.>5}",  emoji=EMOJI['unknown'], padding=padding)
     dest(f"Errors           : {stats['errors']:.>5}",          emoji=EMOJI['error'], padding=padding)
-    dest(LINE_THIN, padding=padding)
+    dest(UI_HORIZONTAL_LINE, padding=padding)
     dest(f"Total reported   : {total_reported:.>5}",           emoji=EMOJI['success'], padding=padding)
-    dest(LINE_THICK, padding=padding)
+    dest(UI_HORIZONTAL_LINE, padding=padding)
 
     return stats
 

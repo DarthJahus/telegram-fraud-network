@@ -5,13 +5,10 @@ from collections import Counter
 # CONFIG
 # ============================================
 MAX_STATUS_ENTRIES = 10  # maximum number of status entries to keep
-
 UI_HORIZONTAL_LINE = f"{60 * "—"}"
-
 AI_REPORT_FIELD = "reports.ai"  # ToDo: Consider using field "reports" with name (value) "ai", and datetime obj as metadata instead of value
 AI_REPORT_FIELD_NAME = ''
-
-THROTTLE_TIME = 0.25
+THROTTLE_TIME = 0.2
 
 # ============================================
 # CONSTANTS
@@ -55,7 +52,6 @@ EMOJI = {
     'tag':         "🎫",
     'connection':  "📶"
 }
-
 STATS_INIT_REPORT = {
     'analyzed':        0,
     'reported_auto':   0,
@@ -68,7 +64,6 @@ STATS_INIT_REPORT = {
     'errors':          0,
     'tags':            Counter()
 }
-
 STATS_INIT_MASS_REPORT = {
     'processed': 0,
     'skipped': 0,
@@ -91,7 +86,6 @@ STATS_INIT_MASS_REPORT = {
     'report_error': 0,
     'tags': Counter()
 }
-
 STATS_INIT_CHECKER = {
     'total': 0,
     'active': 0,
@@ -121,27 +115,17 @@ STATS_INIT_CHECKER = {
 
 REGEX_ID = re.compile(pattern=r'^id:\s*`?(\d+)`?', flags=re.MULTILINE)
 REGEX_TYPE = re.compile(pattern=r'^type:\s*(\w+)', flags=re.MULTILINE)
-
 REGEX_USERNAME_INLINE = re.compile(pattern=r'^username:\s*`?@([a-zA-Z0-9_]{5,32})`?', flags=re.MULTILINE)
 REGEX_USERNAME_BLOCK_START = re.compile(pattern=r'^username:\s*$', flags=re.MULTILINE)
 REGEX_USERNAME_ENTRY = re.compile(pattern=r'-\s*`@([a-zA-Z0-9_]{5,32})`')
-
 REGEX_INVITE_INLINE = re.compile(pattern=r'^invite:\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)', flags=re.MULTILINE)
 REGEX_INVITE_BLOCK_START = re.compile(pattern=r'^invite:\s*$', flags=re.MULTILINE)
 REGEX_INVITE_LINK = re.compile(pattern=r'-\s*(?:~~)?https://t\.me/\+([a-zA-Z0-9_-]+)')
-
 REGEX_STATUS_BLOCK_START = re.compile(pattern=r'^status:\s*$', flags=re.MULTILINE)
-REGEX_STATUS_ENTRY_FULL = re.compile(pattern=r'^\s*-\s*`([^`]+)`\s*,\s*`(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})`',
-                                     flags=re.MULTILINE)
-REGEX_STATUS_BLOCK_PATTERN = re.compile(pattern=r'^\s*-\s*`[^`]+`,\s*`\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}`',
-                                        flags=re.MULTILINE)
+REGEX_STATUS_ENTRY_FULL = re.compile(pattern=r'^\s*-\s*`([^`]+)`\s*,\s*`(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})`', flags=re.MULTILINE)
+REGEX_STATUS_BLOCK_PATTERN = re.compile(pattern=r'^\s*-\s*`[^`]+`,\s*`\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}`', flags=re.MULTILINE)
 REGEX_STATUS_SUB_ITEM = re.compile(pattern=r'^\s{2,}-\s')
-
 REGEX_NEXT_FIELD = re.compile(pattern=r'^[a-z_]+:\s', flags=re.MULTILINE)
-
 REGEX_INVITE_LINK_RAW = re.compile(r"^https?://(t\.me|telegram\.me|telegram\.dog)/\+[a-zA-Z0-9_-]{10,32}$")
-
 REGEX_USERNAME_RAW = re.compile(r'^[a-zA-Z][a-zA-Z0-9_]{3,30}[a-zA-Z0-9]$')
-
 REGEX_INVITE_HASH = re.compile(r'^\+[a-zA-Z0-9_-]{10,32}$')
-

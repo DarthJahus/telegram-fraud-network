@@ -184,5 +184,39 @@ def print_discovered_usernames(discovered_usernames):
     LOG.output(UI_HORIZONTAL_LINE)
 
 
+def print_stats_report(stats):
+    processed    = stats['processed']
+    avg_analyzed = (stats['analyzed'] / processed) if processed else 0
+    reported     = stats['reported_auto'] + stats['reported_manual']
+    avg_reported = (reported / processed) if processed else 0
 
+    LOG.info()
+    LOG.info(UI_HORIZONTAL_LINE)
+    LOG.info("Mass Report Statistics")
+    LOG.info(UI_HORIZONTAL_LINE)
+    LOG.info(f"Processed      : {processed}")
+    LOG.info(
+        f"Skipped        : {stats['skipped']}"
+        f"  (type: {stats['skipped_type']}"
+        f"  |  last check: {stats['skipped_time']}"
+        f"  |  last report: {stats['skipped_field']}"
+        f"  |  status: {stats['skipped_status']}"
+        f"  |  no id: {stats['skipped_no_identifier']})"
+        f"  |  error: {stats['skipped_error']}"
+        f"  |  user: {stats['skipped_user']}"
+    )
+    LOG.info(f"Errors         : {stats['errors']}  |  LLM: {stats['llm_error']}  |  Report: {stats['report_error']}")
+    LOG.info()
+    LOG.info(f"Analyzed       : {stats['analyzed']}  (avg {avg_analyzed:.1f} / entity)")
+    LOG.info(f"Reported       : {reported}  (avg {avg_reported:.1f} / entity)"
+             f"  [auto: {stats['reported_auto']}  |  manual: {stats['reported_manual']}]")
+    LOG.info(f"Skipped manual : {stats['skipped_manual']}")
+    LOG.info(f"Log only       : {stats['log_only']}")
+    LOG.info(f"Harmless       : {stats['harmless']}")
+    LOG.info(f"Low confidence : {stats['low_confidence']}")
 
+    if stats['tags']:
+        LOG.info()
+        LOG.info("Tags breakdown:")
+        for tag, count in stats['tags'].most_common():
+            LOG.info(f"  {tag:<30} {count}")

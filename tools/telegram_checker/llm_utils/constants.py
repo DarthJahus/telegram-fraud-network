@@ -7,6 +7,8 @@ known cybercrime terminology.
 """
 
 LLM_REQUEST_TIMEOUT = 60
+MIN_WORD_COUNT = 3
+FETCH_LIMIT    = 100
 LLM_PARAMS = {
     "temperature": 0.1,
     "top_p": 1,
