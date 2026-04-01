@@ -361,9 +361,7 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     # Summary
     total_reported = stats['reported_auto'] + stats['reported_manual']
 
-    dest = LOG.output
-
-    if args.md and total_reported:
+    if args.md:  # and total_reported: (removed: better update files with 0 than re-process legit files unknowingly)
         LOG.info('Generating Markdown report...')
         LOG.info('```')
         LOG.output(f"{AI_REPORT_FIELD}:")
@@ -373,9 +371,8 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
         LOG.output(f"\t- reported: `{total_reported}`")
         LOG.output("\t- tags: { " + " ; ".join(f"`{tag}`" for tag in stats['tags']) + " }")
         LOG.info('```')
-        dest = LOG.info
 
-    if args.update_file and total_reported:
+    if args.update_file:  # and total_reported: (removed: better update files with 0 than re-process legit files unknowingly)
         append_report_to_md(
             args.update_file,
             account=args.user[0].upper(),
@@ -384,33 +381,30 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
             tags=stats['tags']
         )
 
-    if total_reported == 0:
-        dest = LOG.info
-
-    dest(UI_HORIZONTAL_LINE, padding=padding)
-    dest(f"Summary for {entity_title!r} — {entity.id}",        emoji=EMOJI['stats'], padding=padding)
-    dest(UI_HORIZONTAL_LINE, padding=padding)
-    dest(f"Entity           : {entity.id:<16}",                emoji=EMOJI['id'], padding=padding)
-    dest(f"Fetched          : {len(messages):.>5}",            emoji=EMOJI['info'], padding=padding)
-    dest(f"Analyzed         : {stats['analyzed']:.>5}",        emoji=EMOJI['analyzed'], padding=padding)
+    LOG.output(UI_HORIZONTAL_LINE, padding=padding)
+    LOG.output(f"Summary for {entity_title!r} — {entity.id}",        emoji=EMOJI['stats'], padding=padding)
+    LOG.output(UI_HORIZONTAL_LINE, padding=padding)
+    LOG.output(f"Entity           : {entity.id:<16}",                emoji=EMOJI['id'], padding=padding)
+    LOG.output(f"Fetched          : {len(messages):.>5}",            emoji=EMOJI['info'], padding=padding)
+    LOG.output(f"Analyzed         : {stats['analyzed']:.>5}",        emoji=EMOJI['analyzed'], padding=padding)
     if stats['tags']:
-        dest(
+        LOG.output(
             f"Used tags\n   " + "\n   ".join(
                 f"{'' if tag.startswith('#') else '#'}{tag:16}: {count:.>5}" for tag, count in stats['tags'].most_common()
             ),
             emoji=EMOJI['tag'],
             padding=padding
         )
-    dest(f"Reported (auto)  : {stats['reported_auto']:.>5}",   emoji=EMOJI['report'], padding=padding)
-    dest(f"Reported (manual): {stats['reported_manual']:.>5}", emoji=EMOJI['success'], padding=padding)
-    dest(f"Skipped (manual) : {stats['skipped_manual']:.>5}",  emoji=EMOJI['skip'], padding=padding)
-    dest(f"Logged only      : {stats['log_only']:.>5}",        emoji=EMOJI['log'], padding=padding)
-    dest(f"Harmless         : {stats['harmless']:.>5}",        emoji=EMOJI['harmless'], padding=padding)
-    dest(f"Low confidence   : {stats['low_confidence']:.>5}",  emoji=EMOJI['unknown'], padding=padding)
-    dest(f"Errors           : {stats['errors']:.>5}",          emoji=EMOJI['error'], padding=padding)
-    dest(UI_HORIZONTAL_LINE, padding=padding)
-    dest(f"Total reported   : {total_reported:.>5}",           emoji=EMOJI['success'], padding=padding)
-    dest(UI_HORIZONTAL_LINE, padding=padding)
+    LOG.output(f"Reported (auto)  : {stats['reported_auto']:.>5}",   emoji=EMOJI['report'], padding=padding)
+    LOG.output(f"Reported (manual): {stats['reported_manual']:.>5}", emoji=EMOJI['success'], padding=padding)
+    LOG.output(f"Skipped (manual) : {stats['skipped_manual']:.>5}",  emoji=EMOJI['skip'], padding=padding)
+    LOG.output(f"Logged only      : {stats['log_only']:.>5}",        emoji=EMOJI['log'], padding=padding)
+    LOG.output(f"Harmless         : {stats['harmless']:.>5}",        emoji=EMOJI['harmless'], padding=padding)
+    LOG.output(f"Low confidence   : {stats['low_confidence']:.>5}",  emoji=EMOJI['unknown'], padding=padding)
+    LOG.output(f"Errors           : {stats['errors']:.>5}",          emoji=EMOJI['error'], padding=padding)
+    LOG.output(UI_HORIZONTAL_LINE, padding=padding)
+    LOG.output(f"Total reported   : {total_reported:.>5}",           emoji=EMOJI['success'], padding=padding)
+    LOG.output(UI_HORIZONTAL_LINE, padding=padding)
 
     return stats
 
