@@ -11,6 +11,8 @@ from collections import Counter
 from inspect import currentframe
 from datetime import datetime
 from time import time, sleep
+from telethon.errors import FloodWaitError
+from telethon.tl.functions.messages import CheckChatInviteRequest
 from telegram_checker.config.api import SLEEP_BETWEEN_REPORTS
 from telegram_checker.config.constants import (
     EMOJI,
@@ -31,7 +33,7 @@ from telegram_checker.llm_utils.exceptions import (
 from telegram_checker.mdml_utils.mdml_file import append_report_to_md
 from telegram_checker.telegram_utils.entity_fetcher import iter_md_entities, SkipReasonType
 from telegram_checker.telegram_utils.exceptions import TelegramUtilsReportNoReport, TelegramUtilsReportSkippedByUser
-from telegram_checker.utils.helpers import print_debug, get_text_preview
+from telegram_checker.utils.helpers import print_debug, get_text_preview, seconds_to_time, sleep_with_progress
 from telegram_checker.utils.logger import get_logger, create_progress_bar
 from telegram_checker.telegram_utils.report import send_report
 from telegram_checker.commands.exceptions import ReportError, ReportLLMError
@@ -262,6 +264,12 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
         entity = resolve_entity(client, identifier)
     except ValueError as e:
         raise ReportError(str(e)) from e
+    except FloodWaitError as e:
+        if isinstance(e.request, CheckChatInviteRequest):
+            raise ReportError(f"FloodWait {seconds_to_time(e.seconds)} on CheckChatInviteRequest.")
+        else:
+            sleep_with_progress(e.seconds, emoji=EMOJI["pause"],padding=padding)
+            run_report(client, args, identifier, llm, padding)
     except Exception as e:
         raise ReportError(f"Could not resolve entity '{identifier}': {e}") from e
 
