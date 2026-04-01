@@ -11,6 +11,8 @@ UI_HORIZONTAL_LINE = f"{60 * "—"}"
 AI_REPORT_FIELD = "reports.ai"  # ToDo: Consider using field "reports" with name (value) "ai", and datetime obj as metadata instead of value
 AI_REPORT_FIELD_NAME = ''
 
+THROTTLE_TIME = 0.25
+
 # ============================================
 # CONSTANTS
 # ============================================

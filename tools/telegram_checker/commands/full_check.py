@@ -112,6 +112,7 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
         progress_bar['bar'].stop()
         LOG.set_progress(None)
         # Final statistics
+        LOG.throttle = False
         print_stats(stats)
         # Dry-run summary
         if args.dry_run:

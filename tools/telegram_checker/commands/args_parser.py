@@ -242,6 +242,11 @@ def build_arg_parser():
         action='store_true',
         help='Report all entities in a folder (use --path)'
     )
+    parser.add_argument(
+        '--no-tty-smoothing',
+        action='store_true',
+        help='Disable output smoothing (slight delay before each TTY output).'
+    )
     return parser
 
 

@@ -5,9 +5,10 @@ Logging system with multiple levels and file outputs
 
 import sys
 import builtins
+from time import sleep
 from enum import Enum
 from random import choice
-from telegram_checker.config.constants import EMOJI
+from telegram_checker.config.constants import EMOJI, THROTTLE_TIME
 
 
 class LogLevel(Enum):
@@ -37,13 +38,16 @@ class Logger:
             self.error_file = None
             self.output_file = None
             self._progress = None
+            self.throttle = None
 
-    def update_settings(self, debug=None, quiet=None):
+    def update_settings(self, debug=None, quiet=None, throttle=None):
         """Update logger settings after initialization"""
         if debug is not None:
             self.debug_mode = debug
         if quiet is not None:
             self.quiet_mode = quiet
+        if throttle is not None:
+            self.throttle = throttle
 
     def set_progress(self, progress):
         """Route stdout through tqdm.write() when a progress bar is active."""
@@ -119,8 +123,11 @@ class Logger:
             return text
         return text.replace('\\[[', '[[').replace('\\]]', ']]')
 
-    def log(self, message, level:LogLevel=LogLevel.INFO, emoji='', padding=0, end='\n', flush=True):
+    def log(self, message, level:LogLevel=LogLevel.INFO, emoji='', padding=0, end='\n', flush=True, no_throttle=False):
         """Generic log method"""
+        if self.throttle and not no_throttle:
+            sleep(THROTTLE_TIME)
+
         padding = padding * ' '
         formatted = f"{padding}{emoji} {message}" if emoji else f"{padding}{message}"
 
@@ -155,21 +162,21 @@ class Logger:
                 if self.log_file:
                     builtins.print(file_msg, file=self.log_file, end=end, flush=flush)
 
-    def error(self, message = "", emoji='', padding=0, end='\n', flush=True):
+    def error(self, message = "", emoji='', padding=0, end='\n', flush=True, no_throttle=False):
         """Log error message"""
-        self.log(message, level=LogLevel.ERROR, emoji=emoji, padding=padding, end=end, flush=flush)
+        self.log(message, level=LogLevel.ERROR, emoji=emoji, padding=padding, end=end, flush=flush, no_throttle=no_throttle)
 
-    def info(self, message = "", emoji='', padding=0, end='\n', flush=True):
+    def info(self, message = "", emoji='', padding=0, end='\n', flush=True, no_throttle=False):
         """Log info message"""
-        self.log(message, LogLevel.INFO, emoji=emoji, padding=padding, end=end, flush=flush)
+        self.log(message, LogLevel.INFO, emoji=emoji, padding=padding, end=end, flush=flush, no_throttle=no_throttle)
 
-    def output(self, message = "", emoji='', padding=0, end='\n', flush=True):
+    def output(self, message = "", emoji='', padding=0, end='\n', flush=True, no_throttle=False):
         """Log output data"""
-        self.log(message, LogLevel.OUTPUT, emoji=emoji, padding=padding, end=end, flush=flush)
+        self.log(message, LogLevel.OUTPUT, emoji=emoji, padding=padding, end=end, flush=flush, no_throttle=no_throttle)
 
-    def debug(self, message = "", padding=0, end='\n', flush=True):
+    def debug(self, message = "", padding=0, end='\n', flush=True, no_throttle=False):
         """Log debug message"""
-        self.log(message, LogLevel.DEBUG, emoji=choice(EMOJI["list_bugs"]), padding=padding, end=end, flush=flush)
+        self.log(message, LogLevel.DEBUG, emoji=choice(EMOJI["list_bugs"]), padding=padding, end=end, flush=flush, no_throttle=no_throttle)
 
 
 # Global singleton instance
@@ -182,10 +189,10 @@ def get_logger():
         _logger_instance = Logger()
     return _logger_instance
 
-def init_logger(debug=False, quiet=False):
+def init_logger(debug=False, quiet=False, throttle=False):
     """Initialize or reconfigure the global logger"""
     logger = get_logger()
-    logger.update_settings(debug=debug, quiet=quiet)
+    logger.update_settings(debug=debug, quiet=quiet, throttle=throttle)
     return logger
 
 

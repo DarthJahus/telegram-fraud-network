@@ -50,7 +50,7 @@ def main():
     client = None
     try:
         # logging
-        log = init_logger(debug=args.verbose, quiet=args.quiet)
+        log = init_logger(debug=args.verbose, quiet=args.quiet, throttle=(not args.no_tty_smoothing))
     except Exception as e:
         print(f'{EMOJI['info']} {str(e)}')
         input('Press Enter key to exit')

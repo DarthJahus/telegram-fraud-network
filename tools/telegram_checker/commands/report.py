@@ -482,4 +482,5 @@ def mass_report(client, args, md_files, skip_time_seconds):
     finally:
         progress_bar['bar'].stop()
         LOG.set_progress(None)
+        LOG.throttle = None
         print_stats_report(stats)

@@ -298,6 +298,7 @@ def list_identifiers(client, md_files, args):
     # Print results and cleanup
     if not args.continuous:
         LOG.output(UI_HORIZONTAL_LINE)
+        LOG.throttle = False
         if args.sort_size:
             print_identifiers_binned(identifiers_list, args.md, args.active_only, args.clean, args.tg_list)
         else:
