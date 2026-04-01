@@ -228,8 +228,8 @@ if __name__ == '__main__':
     my_logger.open_files('full.log', 'error.log', 'output.txt')
 
     # Usage examples
-    my_logger.error("This is an error", "❌")
-    my_logger.info("This is info", "ℹ️")
+    my_logger.error("This is an error", EMOJI['error'])
+    my_logger.info("This is info", EMOJI['info'])
     my_logger.output("This is output data")
     my_logger.debug("This is debug info")
 
