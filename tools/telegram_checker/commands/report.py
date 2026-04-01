@@ -233,6 +233,7 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
         confirmed = True
 
     if confirmed:
+        # ToDo: Get matched report options to use in statistics (counter stats['report_path'], with path being "Opt1/Opt2")
         success = send_report(client, entity, message_id, lv1, lv2, report_text, padding=padding)
         if success:
             if ask_user:

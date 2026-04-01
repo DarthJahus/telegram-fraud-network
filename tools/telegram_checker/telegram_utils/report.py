@@ -93,14 +93,10 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
       4. If AddComment: send final request with report_text as message
 
     Returns True on success, raises TelegramUtilsReportError on unexpected Telegram responses.
+    # ToDo: Return matched report options to use in statistics
     """
     try:
-        result = client(ReportRequest(
-            peer=entity,
-            id=[message_id],
-            option=b'',
-            message='',
-        ))
+        result = client(ReportRequest(peer=entity, id=[message_id], option=b'', message=''))
 
         if isinstance(result, ReportResultReported):
             LOG.info(f"Reported message {message_id}", emoji=EMOJI['success'])
@@ -115,7 +111,6 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
             from telethon.tl.types import ReportResultAddComment
 
             current_result = result
-            chosen = None
 
             # Navigate the option tree until Telegram is satisfied
             depth = 0
@@ -127,7 +122,7 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
                 LOG.debug(f"Options: {[f'{i}:{opt.text!r}' for i, opt in enumerate(current_result.options)]}")
                 label = lv2 if depth > 0 else lv1
                 chosen_index, choose_method = choose_option(label, current_result.options)
-                LOG.info(choose_method, padding=padding)
+                LOG.info(choose_method, padding=padding, emoji=EMOJI['tag'])
                 chosen = current_result.options[chosen_index].option
 
                 current_result = client(ReportRequest(
