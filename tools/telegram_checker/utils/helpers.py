@@ -125,6 +125,9 @@ def parse_time_expression(expr):
 
 def get_text_preview(text:str, initial_indent:int=0, initial_padding:int=0, padding:int=0, multiline:bool=False, max_lines=None, line_limit=120) -> str:
     words = text.replace('\n', '\\n ').split()
+    if not words:
+        return ''
+
     lines = []
     line = ''
     truncate = False
