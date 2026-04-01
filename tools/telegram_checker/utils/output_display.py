@@ -66,6 +66,8 @@ def print_stats(stats):
     LOG.output(f"{EMOJI.get("error")      } Errors:      {stats['error']      }")
     LOG.output()
     LOG.output(f"Skipped (total):      {stats['skipped']}", EMOJI["skip"])
+    if stats['skipped_user'] > 0:
+        LOG.output(f"   └─ User interruption: {stats['skipped_user']}")
     if stats['skipped_time'] > 0:
         LOG.output(f"   └─ Recently checked:  {stats['skipped_time']}")
     if stats['skipped_status'] > 0:

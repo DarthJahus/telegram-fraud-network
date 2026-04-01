@@ -293,6 +293,14 @@ def list_identifiers(client, md_files, args):
             print_debug(e, currentframe().f_code.co_name)
             continue
 
+        except KeyboardInterrupt:
+            LOG.info('CTRL+C detected. Entity skipped by user. Press CTRL+C again to quit.', emoji=EMOJI['skip'])
+            try:
+                sleep(2)
+            except KeyboardInterrupt:
+                raise
+            continue
+
     progress_bar['bar'].stop()
 
     # Print results and cleanup

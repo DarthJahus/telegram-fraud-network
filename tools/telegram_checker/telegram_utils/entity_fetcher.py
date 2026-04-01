@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from inspect import currentframe
+from time import sleep
 from telegram_checker.config.constants import EMOJI
 from telethon.errors import (
     InviteHashExpiredError,
@@ -495,3 +496,10 @@ def iter_md_entities(args, md_files, stats, skip_time_seconds, skip_field=None, 
             stats['skipped_error'] = stats.get('skipped_error', 0) + 1
             LOG.error("Failed to read MDML entity from file.", EMOJI['error'])
             print_debug(e, currentframe().f_code.co_name)
+        except KeyboardInterrupt:
+            LOG.info('CTRL+C detected. Entity skipped by user. Press CTRL+C again to quit.', emoji=EMOJI['skip'])
+            try:
+                sleep(2)
+            except KeyboardInterrupt:
+                raise
+            continue

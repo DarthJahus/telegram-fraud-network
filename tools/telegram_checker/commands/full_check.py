@@ -108,6 +108,16 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
                 LOG.error("Error processing entity.", EMOJI['error'])
                 print_debug(e, currentframe().f_code.co_name)
 
+            except KeyboardInterrupt:
+                stats['skipped'] += 1
+                stats['skipped_user'] += 1
+                LOG.info('CTRL+C detected. Entity skipped by user. Press CTRL+C again to quit.', emoji=EMOJI['skip'])
+                try:
+                    sleep(2)
+                except KeyboardInterrupt:
+                    raise
+                continue
+
     finally:
         progress_bar['bar'].stop()
         LOG.set_progress(None)

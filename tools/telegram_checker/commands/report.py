@@ -119,15 +119,19 @@ def print_stats_report(stats):
     avg_reported = (reported / processed) if processed else 0
 
     LOG.info()
-    LOG.info("=== Mass Report Statistics ===")
+    LOG.info(LINE_THIN)
+    LOG.info("Mass Report Statistics")
+    LOG.info(LINE_THIN)
     LOG.info(f"Processed      : {processed}")
     LOG.info(
         f"Skipped        : {stats['skipped']}"
         f"  (type: {stats['skipped_type']}"
-        f"  |  time: {stats['skipped_time']}"
+        f"  |  last check: {stats['skipped_time']}"
+        f"  |  last report: {stats['skipped_field']}"
         f"  |  status: {stats['skipped_status']}"
         f"  |  no id: {stats['skipped_no_identifier']})"
         f"  |  error: {stats['skipped_error']}"
+        f"  |  user: {stats['skipped_user']}"
     )
     LOG.info(f"Errors         : {stats['errors']}  |  LLM: {stats['llm_error']}  |  Report: {stats['report_error']}")
     LOG.info()
@@ -478,6 +482,15 @@ def mass_report(client, args, md_files, skip_time_seconds):
             except ReportError as e:
                 stats['report_error'] += 1
                 LOG.error(f"Report error: {e}", EMOJI['error'])
+            except KeyboardInterrupt:
+                stats['skipped'] += 1
+                stats['skipped_user'] += 1
+                LOG.info('CTRL+C detected. Entity skipped by user. Press CTRL+C again to quit.', emoji=EMOJI['skip'])
+                try:
+                    sleep(2)
+                except KeyboardInterrupt:
+                    raise
+                continue
 
     finally:
         progress_bar['bar'].stop()
