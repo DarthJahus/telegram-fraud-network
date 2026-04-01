@@ -82,7 +82,7 @@ def resolve_entity(client, identifier: str):
         return client.get_entity(identifier)
 
 
-def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text: str) -> bool:
+def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text: str, padding=0) -> bool:
     """
     Send a single-message report to Telegram.
 
