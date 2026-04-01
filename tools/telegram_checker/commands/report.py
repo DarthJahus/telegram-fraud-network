@@ -431,8 +431,8 @@ def mass_report(client, args, md_files, skip_time_seconds):
         },
         {
             "field_name": AI_LEGIT_FIELD,
-            "skip_reason": SkipReasonType.FIELD_EXISTS,
-            "check_value": None
+            "skip_reason": SkipReasonType.FIELD_VALUE_INV,
+            "check_value": False
         }
     ]
 
