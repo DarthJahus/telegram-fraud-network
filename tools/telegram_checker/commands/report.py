@@ -97,7 +97,7 @@ def display_result(result: dict, message_text: str, action_label: str, padding=0
     report_text = result.get("report_text", "")
     msg_id      = result.get("message_id", "?")
 
-    preview = get_text_preview(
+    content_preview = get_text_preview(
         message_text,
         initial_indent=17+padding,
         initial_padding=0,
@@ -107,13 +107,22 @@ def display_result(result: dict, message_text: str, action_label: str, padding=0
         line_limit=80
     )
 
+    report_preview = get_text_preview(
+        report_text,
+        initial_indent=17 + padding,
+        initial_padding=0,
+        padding=17 + padding,
+        multiline=True,
+        line_limit=80
+    )
+
     LOG.info(UI_HORIZONTAL_LINE, padding=padding)
     LOG.info(f"Message ID  : {msg_id}",                                       emoji=EMOJI['id'], padding=padding)
-    LOG.info(f"Content     : {preview}",                                      emoji=EMOJI['text'], padding=padding)
+    LOG.info(f"Content     : {content_preview}",                              emoji=EMOJI['text'], padding=padding)
     LOG.info(f"Category    : {category}",                                     emoji=EMOJI['analyzed'], padding=padding)
     LOG.info(f"Tag         : {tag}",                                          emoji=EMOJI['tag'], padding=padding)
     LOG.info(f"Confidence  : {confidence:.0%}  {confidence_bar(confidence)}", emoji=EMOJI['stats'], padding=padding)
-    LOG.info(f"Report text : {report_text}",                                  emoji=EMOJI['reason'], padding=padding)
+    LOG.info(f"Report text : {report_preview}",                               emoji=EMOJI['reason'], padding=padding)
     LOG.info(f"Action      : {action_label}",                                 emoji=EMOJI['report'], padding=padding)
     LOG.info(UI_HORIZONTAL_LINE, padding=padding)
 
