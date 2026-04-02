@@ -57,67 +57,33 @@ EMOJI = {
     'connection':  "📶"
 }
 
+STATS_INIT = {
+    'report': [
+        'analyzed', 'reported_auto', 'reported_manual', 'skipped_manual',
+        'skipped_error', 'log_only', 'harmless', 'low_confidence', 'errors'
+    ],
+    'mass_report': [
+        'processed', 'skipped', 'skipped_type', 'skipped_time', 'skipped_status',
+        'skipped_error', 'skipped_field', 'skipped_user', 'skipped_no_identifier',
+        'analyzed', 'reported_auto', 'reported_manual', 'skipped_manual',
+        'log_only', 'harmless', 'low_confidence', 'errors', 'llm_error', 'report_error'
+    ],
+    'check': [
+        'total', 'active', 'banned', 'deleted', 'id_mismatch', 'unknown',
+        'skipped', 'skipped_time', 'skipped_status', 'skipped_no_identifier',
+        'skipped_type', 'skipped_error', 'skipped_user', 'error', 'ignored'
+    ],
+}
+
+STATS_INIT_EXTRA = {
+    'report':      {'tags': Counter()},
+    'mass_report': {'tags': Counter()},
+    'check':       {'method': {'id': 0, 'username': 0, 'invite': 0}},
+}
+
+
 def make_stats(purpose):
-    if purpose == 'report':
-        STATS_INIT_REPORT = {
-            'analyzed': 0,
-            'reported_auto': 0,
-            'reported_manual': 0,
-            'skipped_manual': 0,
-            'skipped_error': 0,
-            'log_only': 0,
-            'harmless': 0,
-            'low_confidence': 0,
-            'errors': 0,
-        }
-        return {**STATS_INIT_REPORT, 'tags': Counter()}
-    elif purpose == 'mass_report':
-        STATS_INIT_MASS_REPORT = {
-            'processed': 0,
-            'skipped': 0,
-            'skipped_type': 0,
-            'skipped_time': 0,
-            'skipped_status': 0,
-            'skipped_error': 0,
-            'skipped_field': 0,
-            'skipped_user': 0,
-            'skipped_no_identifier': 0,
-            'analyzed': 0,
-            'reported_auto': 0,
-            'reported_manual': 0,
-            'skipped_manual': 0,
-            'log_only': 0,
-            'harmless': 0,
-            'low_confidence': 0,
-            'errors': 0,
-            'llm_error': 0,
-            'report_error': 0,
-        }
-        return {**STATS_INIT_MASS_REPORT, 'tags': Counter()}
-    elif purpose == 'check':
-        STATS_INIT_CHECKER = {
-            'total': 0,
-            'active': 0,
-            'banned': 0,
-            'deleted': 0,
-            'id_mismatch': 0,
-            'unknown': 0,
-            'skipped': 0,
-            'skipped_time': 0,
-            'skipped_status': 0,
-            'skipped_no_identifier': 0,
-            'skipped_type': 0,
-            'skipped_error': 0,
-            'skipped_user': 0,
-            'error': 0,
-            'ignored': 0,
-            'method': {
-                'id': 0,
-                'username': 0,
-                'invite': 0
-            }
-        }
-        return {**STATS_INIT_CHECKER}
+    return {k: 0 for k in STATS_INIT[purpose]} | STATS_INIT_EXTRA[purpose]
 
 # ============================================
 # REGEX
