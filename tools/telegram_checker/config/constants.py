@@ -76,14 +76,14 @@ STATS_INIT = {
 }
 
 STATS_INIT_EXTRA = {
-    'report':      {'tags': Counter()},
-    'mass_report': {'tags': Counter()},
-    'check':       {'method': {'id': 0, 'username': 0, 'invite': 0}},
+    'report':      lambda: {'tags': Counter()},
+    'mass_report': lambda: {'tags': Counter()},
+    'check':       lambda: {'method': {'id': 0, 'username': 0, 'invite': 0}},
 }
 
 
 def make_stats(purpose):
-    return {k: 0 for k in STATS_INIT[purpose]} | STATS_INIT_EXTRA[purpose]
+    return {k: 0 for k in STATS_INIT[purpose]} | STATS_INIT_EXTRA[purpose]()
 
 # ============================================
 # REGEX
