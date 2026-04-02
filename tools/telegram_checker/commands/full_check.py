@@ -1,6 +1,6 @@
 from inspect import currentframe
 from time import sleep
-from telegram_checker.config.constants import EMOJI, STATS_INIT_CHECKER
+from telegram_checker.config.constants import EMOJI, make_stats
 from telegram_checker.config.api import SLEEP_BETWEEN_CHECKS
 from telegram_checker.telegram_utils.entity_fetcher import iter_md_entities
 from telegram_checker.utils.helpers import get_date_time, print_debug
@@ -22,7 +22,7 @@ LOG = get_logger()
 
 def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
     # Statistics
-    stats = STATS_INIT_CHECKER.copy()
+    stats = make_stats('check')
     # Store results for dry-run summary
     results = []
     status_changed_files = []

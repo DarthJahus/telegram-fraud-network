@@ -16,12 +16,11 @@ from telethon.tl.functions.messages import CheckChatInviteRequest
 from telegram_checker.config.api import SLEEP_BETWEEN_REPORTS
 from telegram_checker.config.constants import (
     EMOJI,
-    STATS_INIT_REPORT,
-    STATS_INIT_MASS_REPORT,
     AI_REPORT_FIELD,
     AI_REPORT_FIELD_NAME,
     UI_HORIZONTAL_LINE,
-    AI_LEGIT_FIELD
+    AI_LEGIT_FIELD,
+    make_stats
 )
 from telegram_checker.llm_utils.constants import LLM_DEFAULT, MIN_WORD_COUNT, FETCH_LIMIT
 from telegram_checker.llm_utils.interface import call_llm
@@ -324,7 +323,7 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     LOG.info(UI_HORIZONTAL_LINE, padding=padding)
 
     # Stats
-    stats = STATS_INIT_REPORT.copy()
+    stats = make_stats('report')
 
     report_tree = load_report_tree()
     if getattr(args, 'update', False) and filtered:
@@ -428,7 +427,7 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
 
 
 def mass_report(client, args, md_files, skip_time_seconds):
-    stats = STATS_INIT_MASS_REPORT.copy()
+    stats = make_stats('mass_report')
 
     progress_bar = create_progress_bar(LOG, md_files, "Reporting")
     progress_bar['bar'].start()
