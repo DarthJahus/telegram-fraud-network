@@ -126,7 +126,7 @@ def display_result(result: dict, message_text: str, action_label: str, padding=0
     LOG.info(UI_HORIZONTAL_LINE, padding=padding)
 
 
-def resolve_llm_params(args) -> tuple[str, str]:
+def resolve_llm_params(args) -> dict[str, str]:
     """Return (llm_url, llm_model), prompting the user if either is not set."""
     llm_url   = getattr(args, 'llm_url',   None) or ""
     llm_model = getattr(args, 'llm_model', None) or ""
@@ -136,8 +136,6 @@ def resolve_llm_params(args) -> tuple[str, str]:
         llm_url = input(
             f"  LLM endpoint ({default}): "
         ).strip()
-        if not llm_url:
-            llm_url = default
 
     if not llm_model.strip():
         default = LLM_DEFAULT['model']
@@ -145,11 +143,11 @@ def resolve_llm_params(args) -> tuple[str, str]:
             f"  LLM model ({default}): "
         ).strip()
         print()
-        if not llm_model:
-            llm_model = default
 
-    return llm_url, llm_model
-
+    return {
+        "endpoint": llm_url or LLM_DEFAULT['endpoint'],
+        "model": llm_model or LLM_DEFAULT['model']
+    }
 
 def report_message(client, entity, msg, llm_url, llm_model, report_tree, interactive, all_interactive, stats, padding=0):
     text = msg.text.strip()
