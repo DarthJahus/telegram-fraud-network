@@ -215,7 +215,7 @@ def process_and_update_file(md_file, status, restriction_details, actual_id, exp
 
 def append_report_to_md(file_path, account, analyzed, reported, tags):
     """
-    Appends a new report entry to the 'reports.ai:' block in a markdown file.
+    Appends a new report entry to the reports block in a markdown file.
     Creates the block at end of file if it doesn't exist.
 
     Args:
@@ -250,10 +250,10 @@ def append_report_to_md(file_path, account, analyzed, reported, tags):
     with path.open('r', encoding='utf-8') as f:
         lines = f.readlines()
 
-    # Find 'reports.ai:' block
+    # Find reports block
     block_line_idx = None
     for i, line in enumerate(lines):
-        if line.strip() == 'reports.ai:':
+        if line.strip() == f'{AI_REPORT_FIELD}:':
             block_line_idx = i
             break
 
@@ -262,7 +262,7 @@ def append_report_to_md(file_path, account, analyzed, reported, tags):
         with path.open('a', encoding='utf-8') as f:
             if lines and not lines[-1].endswith('\n'):
                 f.write('\n')
-            f.write('\nreports.ai:\n')
+            f.write(f"\n{AI_REPORT_FIELD}:\n")
             f.writelines(new_entry)
         return True
 
