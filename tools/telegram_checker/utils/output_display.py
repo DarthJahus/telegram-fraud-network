@@ -191,9 +191,9 @@ def print_stats_report(stats):
     avg_reported = (reported / processed) if processed else 0
 
     LOG.info()
-    LOG.info(UI_HORIZONTAL_LINE)
+    LOG.info(UI_HORIZONTAL_LINE[:(len(UI_HORIZONTAL_LINE) // 2)])
     LOG.info("Mass Report Statistics")
-    LOG.info(UI_HORIZONTAL_LINE)
+    LOG.info(UI_HORIZONTAL_LINE[:(len(UI_HORIZONTAL_LINE) // 2)])
     LOG.info("ENTITIES")
     LOG.info(UI_HORIZONTAL_LINE[:(len(UI_HORIZONTAL_LINE) // 2)])
     LOG.info(f"Processed         : {processed}")
