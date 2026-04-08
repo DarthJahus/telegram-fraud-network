@@ -209,8 +209,13 @@ def print_stats_report(stats):
     )
     LOG.info(
         f"Errors            : {stats['errors']}"
+        f"\n  └─ Entity       : {stats['report_error_resolution']}"
+        f"\n  └─ Fetch msg    : {stats['report_error_fetch']}"
+        f"\n  └─ Filter msg   : {stats['report_error_filter']}"
+        f"\n  └─ Flood        : {stats['report_error_flood']}"
+        f"\n  └─ Report       : {stats['report_error']}"
         f"\n  └─ LLM          : {stats['llm_error']}"
-        f"\n  └─ Report       : {stats['report_error']}")
+    )
     LOG.info()
     LOG.info(
         f"Analyzed          : {stats['analyzed']}"

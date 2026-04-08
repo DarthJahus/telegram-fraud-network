@@ -19,6 +19,26 @@ class ReportError(DebugException):
     pass
 
 
+class ReportErrorEntityResolution(ReportError):
+    """Raised when the report command fails to resolve Telegram entity"""
+    pass
+
+
+class ReportErrorFloodWait(ReportError):
+    """Raised when the report command receives a FloodWait from Telegram AND the identifier is an invite"""
+    pass
+
+
+class ReportErrorFetch(ReportError):
+    """Raised when the report command fails to fetch messages from the entity"""
+    pass
+
+
+class ReportErrorFilter(ReportError):
+    """Raised when there's no message left to report"""
+    pass
+
+
 class ReportLLMError(ReportError):
     """Raised when the LLM is unreachable or returns unrecoverable errors across all messages."""
     pass

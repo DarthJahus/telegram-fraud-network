@@ -66,7 +66,8 @@ STATS_INIT = {
         'processed', 'skipped', 'skipped_type', 'skipped_time', 'skipped_status',
         'skipped_error', 'skipped_field', 'skipped_user', 'skipped_no_identifier',
         'analyzed', 'reported_auto', 'reported_manual', 'skipped_manual',
-        'log_only', 'harmless', 'low_confidence', 'errors', 'llm_error', 'report_error'
+        'log_only', 'harmless', 'low_confidence', 'errors', 'llm_error',
+        'report_error', "report_error_resolution", "report_error_fetch", "report_error_filter", "report_error_flood"
     ],
     'check': [
         'total', 'active', 'banned', 'deleted', 'id_mismatch', 'unknown',

@@ -35,7 +35,10 @@ from telegram_checker.telegram_utils.exceptions import TelegramUtilsReportNoRepo
 from telegram_checker.utils.helpers import print_debug, get_text_preview, seconds_to_time, sleep_with_progress
 from telegram_checker.utils.logger import get_logger, create_progress_bar
 from telegram_checker.telegram_utils.report import send_report
-from telegram_checker.commands.exceptions import ReportError, ReportLLMError
+from telegram_checker.commands.exceptions import (
+    ReportError, ReportLLMError, ReportErrorFloodWait,
+    ReportErrorEntityResolution, ReportErrorFetch, ReportErrorFilter
+)
 from difflib import get_close_matches
 from telegram_checker.telegram_utils.constants import REPORT_TREE_PATH
 from telegram_checker.telegram_utils.report import load_report_tree
@@ -270,15 +273,15 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
         from telegram_checker.telegram_utils.report import resolve_entity
         entity = resolve_entity(client, identifier)
     except ValueError as e:
-        raise ReportError(str(e)) from e
+        raise ReportErrorEntityResolution(str(e)) from e
     except FloodWaitError as e:
         if isinstance(e.request, CheckChatInviteRequest):
-            raise ReportError(f"FloodWait {seconds_to_time(e.seconds)} on CheckChatInviteRequest.")
+            raise ReportErrorFloodWait(f"FloodWait {seconds_to_time(e.seconds)} on CheckChatInviteRequest.")
         else:
             sleep_with_progress(e.seconds, emoji=EMOJI["pause"],padding=padding)
             run_report(client, args, identifier, llm, padding)
     except Exception as e:
-        raise ReportError(f"Could not resolve entity '{identifier}': {e}") from e
+        raise ReportErrorEntityResolution(f"Could not resolve entity '{identifier}': {e}") from e
 
     entity_title = (
         getattr(entity, 'title', None)
@@ -293,7 +296,7 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
         messages = list(client.iter_messages(entity, limit=FETCH_LIMIT))
     except Exception as e:
         LOG.error(f"Failed to fetch messages: {e}", EMOJI['error'])
-        raise ReportError(f"Failed to fetch messages from '{entity_title}': {e}") from e
+        raise ReportErrorFetch(f"Failed to fetch messages from '{entity_title}': {e}") from e
 
     LOG.info(f"Fetched {len(messages)} messages.", EMOJI['info'])
 
@@ -311,7 +314,7 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     )
 
     if not filtered:
-        raise ReportError("No messages remaining after filtering.")
+        raise ReportErrorFilter("No messages remaining after filtering.")
 
     # Header
     LOG.info(UI_HORIZONTAL_LINE, padding=padding)
@@ -468,7 +471,11 @@ def mass_report(client, args, md_files, skip_time_seconds):
                 stats['llm_error'] += 1
                 LOG.error(f"LLM error: {e}", EMOJI['error'])
             except ReportError as e:
-                stats['report_error'] += 1
+                if isinstance(e, ReportErrorEntityResolution): stats['report_error_resolution'] += 1
+                elif isinstance(e, ReportErrorFetch): stats['report_error_fetch'] += 1
+                elif isinstance(e, ReportErrorFilter): stats['report_error_filter'] += 1
+                elif isinstance(e, ReportErrorFloodWait): stats['report_error_flood'] += 1
+                else: stats['report_error'] += 1
                 LOG.error(f"Report error: {e}", EMOJI['error'])
             except KeyboardInterrupt:
                 stats['skipped'] += 1
