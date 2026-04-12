@@ -103,7 +103,7 @@ def call_llm(message_text: str, message_id: int, llm_url: str, llm_model: str, p
             f"LLM JSON is missing required keys {missing} for message {message_id}"
         )
 
-    return parsed
+    return parsed | {"llm_time": elapsed}
 
 
 def choose_option(category_lv: str, options: list) -> (int, str):

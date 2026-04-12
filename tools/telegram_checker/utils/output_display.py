@@ -185,6 +185,8 @@ def print_discovered_usernames(discovered_usernames):
 
 
 def print_stats_report(stats):
+    from statistics import mean
+
     processed    = stats['processed']
     avg_analyzed = (stats['analyzed'] / processed) if processed else 0
     reported     = stats['reported_auto'] + stats['reported_manual']
@@ -228,11 +230,13 @@ def print_stats_report(stats):
         f"Reported          : {reported}"
         f"\n  └─ avg          : {avg_reported:.1f}/entity"
         f"\n  └─ auto         : {stats['reported_auto']}"
-        f"\n  └─ manual:      : {stats['reported_manual']}")
+        f"\n  └─ manual:      : {stats['reported_manual']}"
+    )
     LOG.info(f"Ignored (user)    : {stats['skipped_manual']}")
     LOG.info(f"Log only          : {stats['log_only']}")
     LOG.info(f"Harmless          : {stats['harmless']}")
     LOG.info(f"Low confidence    : {stats['low_confidence']}")
+    LOG.info(f"LLM time          : {mean(stats['llm_time']):.3} s/msg")
 
     if stats['tags']:
         LOG.info()

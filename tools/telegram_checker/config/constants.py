@@ -77,8 +77,8 @@ STATS_INIT = {
 }
 
 STATS_INIT_EXTRA = {
-    'report':      lambda: {'tags': Counter()},
-    'mass_report': lambda: {'tags': Counter()},
+    'report':      lambda: {'tags': Counter(), 'llm_time': []},
+    'mass_report': lambda: {'tags': Counter(), 'llm_time': []},
     'check':       lambda: {'method': {'id': 0, 'username': 0, 'invite': 0}},
 }
 

@@ -7,6 +7,7 @@ Fetches the last 100 messages from a Telegram channel/group, passes each one
 to a local LLM for classification, then reports flagged messages to Telegram
 via the Telethon API — one report per message.
 """
+from statistics import mean
 from collections import Counter
 from inspect import currentframe
 from datetime import datetime
@@ -161,6 +162,8 @@ def report_message(client, entity, msg, llm_url, llm_model, report_tree, interac
 
     # Call LLM
     result = call_llm(text, message_id, llm_url, llm_model, padding=padding)
+
+    stats['llm_time'].append(result['llm_time'])
 
     # Get tag
     tag = result.get('tag')
@@ -405,6 +408,7 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     LOG.output(f"Entity           : {entity.id:<16}",                emoji=EMOJI['id'], padding=padding)
     LOG.output(f"Fetched          : {len(messages):.>5}",            emoji=EMOJI['info'], padding=padding)
     LOG.output(f"Analyzed         : {stats['analyzed']:.>5}",        emoji=EMOJI['analyzed'], padding=padding)
+    LOG.output(f"LLM time         : {mean(stats['llm_time']):>5.3} s/msg", emoji=EMOJI['time'], padding=padding)
     if stats['tags']:
         LOG.output(
             f"Used tags\n   " + "\n   ".join(
@@ -468,6 +472,7 @@ def mass_report(client, args, md_files, skip_time_seconds):
                 stats['low_confidence'] += run_stats.get('low_confidence', 0)
                 stats['errors'] += run_stats.get('errors', 0)
                 stats['tags'] += run_stats.get('tags', Counter())
+                stats['llm_time'].append(mean(run_stats.get('llm_time', [])))
 
             except ReportLLMError as e:
                 stats['llm_error'] += 1
