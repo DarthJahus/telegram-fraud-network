@@ -430,6 +430,8 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
 def mass_report(client, args, md_files, skip_time_seconds):
     stats = make_stats('mass_report')
 
+    llm_params = resolve_llm_params(args)
+
     progress_bar = create_progress_bar(LOG, md_files, "Reporting")
     progress_bar['bar'].start()
 
@@ -452,7 +454,7 @@ def mass_report(client, args, md_files, skip_time_seconds):
             try:
                 args.update_file = md_file
                 t_start = time()
-                run_stats = run_report(client, args, identifier=item['expected_id'] or item['identifiers'][0], padding=2)
+                run_stats = run_report(client, args, identifier=item['expected_id'] or item['identifiers'][0], llm=llm_params, padding=2)
                 duration = time() - t_start
                 LOG.info(f"Done in {duration:.1f}s", padding=2, emoji=EMOJI['time'])
 
