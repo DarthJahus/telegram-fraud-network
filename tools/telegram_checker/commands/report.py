@@ -431,8 +431,13 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     return stats
 
 
-def try_identifiers_and_report(client, args, identifier=(None, None), llm=LLM_DEFAULT, padding=0):
+def try_identifiers_and_report(client, args, identifier:tuple[list, list]=(None, None), llm=LLM_DEFAULT, padding=0):
+    # ToDo: Identifier exploration should be tried inside run_report() or farther down in resolve_entity()
+
     error = None
+
+    assert isinstance(identifier[0], list) or identifier[0] is None
+    assert isinstance(identifier[1], list) or identifier[1] is None
 
     if identifier[0]:
         try:
