@@ -25,7 +25,7 @@ from pathlib import Path
 from telegram_checker.config.constants import EMOJI
 from telegram_checker.telegram_utils.exceptions import TelegramUtilsClientError
 from telegram_checker.utils.exceptions import GracefullyExit, DebugException
-from telegram_checker.utils.helpers import copy_to_clipboard, parse_time_expression, print_debug
+from telegram_checker.utils.helpers import copy_to_clipboard, parse_time_expression, print_debug, seconds_to_time
 from telegram_checker.telegram_utils.client import connect_to_telegram
 from telegram_checker.commands.full_check import full_check
 from telegram_checker.commands.list_identifiers import list_identifiers
@@ -81,22 +81,26 @@ def main():
                 client.disconnect()
             raise GracefullyExit('Done with the entity!')
 
+        # Parse skip-time if provided
+        skip_time_seconds = None
+        if args.skip_time:
+            skip_time_seconds = parse_time_expression(args.skip_time)
+            log.info(f"Skip time: {skip_time_seconds}s ({seconds_to_time(skip_time_seconds)})", EMOJI["time"])
+
         # Handle --report mode
         if args.report:
             from telegram_checker.commands.report import run_report, resolve_llm_params
             client = connect_to_telegram(args.user)
             try:
-                run_report(client, args, llm=resolve_llm_params(args))
+                if Path(args.report).is_file():
+                    # ToDo: Oui, c'est du bricolage
+                    from telegram_checker.commands.report import mass_report
+                    mass_report(client, args, [Path(args.report)], skip_time_seconds)
+                else:
+                    run_report(client, args, llm=resolve_llm_params(args))
             finally:
                 client.disconnect()
             raise GracefullyExit('Done with reporting!')
-
-        # Parse skip-time if provided
-        skip_time_seconds = None
-        if args.skip_time:
-            skip_time_seconds = parse_time_expression(args.skip_time)
-            hours = skip_time_seconds / 3600
-            log.info(f"Skip time: {skip_time_seconds}s ({hours:.1f} hours)", EMOJI["time"])
 
         # Parse skip statuses
         if args.skip:
