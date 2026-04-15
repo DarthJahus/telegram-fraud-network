@@ -431,6 +431,32 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     return stats
 
 
+def try_identifiers_and_report(client, args, identifier=(None, None), llm=LLM_DEFAULT, padding=0):
+    error = None
+
+    if identifier[0]:
+        try:
+            return run_report(client, args, identifier=identifier[0], llm=llm, padding=padding)
+        except ReportErrorEntityResolution as e:
+            error = e
+
+    if identifier[1]:
+        if error and "PeerUser" in str(error):
+            LOG.info(f"Could not resolve entity by ID {identifier[0]}", emoji=EMOJI['info'], padding=padding)
+        for ident in identifier[1]:
+            LOG.info(f"Trying identifier {ident}...", emoji=EMOJI['info'], padding=padding+2)
+            try:
+                return run_report(client, args, identifier=ident, llm=llm, padding=padding+2)
+            except ReportErrorEntityResolution as e:
+                error = e
+                LOG.info(f"Failed to resolve entity with identifier {ident}: {str(e)}", emoji=EMOJI['info'], padding=padding+2)
+
+    if error is None:
+        raise ReportErrorEntityResolution('No usable identifier to resolve entity.')
+
+    raise error
+
+
 def mass_report(client, args, md_files, skip_time_seconds):
     stats = make_stats('mass_report')
 
@@ -458,7 +484,7 @@ def mass_report(client, args, md_files, skip_time_seconds):
             try:
                 args.update_file = md_file
                 t_start = time()
-                run_stats = run_report(client, args, identifier=item['expected_id'] or item['identifiers'][0], llm=llm_params, padding=2)
+                run_stats = try_identifiers_and_report(client, args, identifier=(item['expected_id'], item['identifiers']), llm=llm_params, padding=2)
                 duration = time() - t_start
                 LOG.info(f"Done in {duration:.1f}s", padding=2, emoji=EMOJI['time'])
 
