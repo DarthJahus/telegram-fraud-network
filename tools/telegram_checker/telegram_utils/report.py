@@ -35,7 +35,7 @@ def get_report_tree_str():
     return json.dumps(load_report_tree(), ensure_ascii=False, indent=2)
 
 
-def resolve_entity(client, identifier: str):
+def resolve_entity(client, identifier: str, padding: int = 0):
     """
     Resolve a Telegram entity from an identifier (ID, invite, username).
     Returns the entity object, or raises ValueError if resolution fails.
@@ -46,7 +46,7 @@ def resolve_entity(client, identifier: str):
 
     if identifier.lstrip('+').isdecimal() or (identifier.lstrip('-').isdecimal()):
         numeric_id = int(identifier)
-        LOG.info(f"Resolving entity by ID: {numeric_id}", EMOJI['id'])
+        LOG.info(f"Resolving entity by ID: {numeric_id}", EMOJI['id'], padding=padding)
         for peer_type in (PeerChannel, PeerUser, PeerChat):
             try:
                 return client.get_entity(peer_type(numeric_id))
@@ -59,7 +59,7 @@ def resolve_entity(client, identifier: str):
 
     elif '+' in identifier:
         invite_hash = identifier.split('+')[-1]
-        LOG.info(f"Resolving entity by invite: {identifier}", EMOJI['invite'])
+        LOG.info(f"Resolving entity by invite: {identifier}", EMOJI['invite'], padding=padding)
         try:
             return client.get_entity(f'https://t.me/+{invite_hash}')
         except ValueError as e:
@@ -78,7 +78,7 @@ def resolve_entity(client, identifier: str):
     else:
         if not identifier.startswith('@'):
             identifier = '@' + identifier
-        LOG.info(f"Resolving entity by username: {identifier}", EMOJI['handle'])
+        LOG.info(f"Resolving entity by username: {identifier}", EMOJI['handle'], padding=padding)
         return client.get_entity(identifier)
 
 

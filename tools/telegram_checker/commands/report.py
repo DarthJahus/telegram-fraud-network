@@ -271,10 +271,10 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     llm_model = llm['model']
 
     # 1. Resolve entity
-    LOG.info(f"Resolving entity: {identifier}", EMOJI['connecting'])
+    LOG.info(f"Resolving entity: {identifier}", EMOJI['connecting'], padding=padding)
     try:
         from telegram_checker.telegram_utils.report import resolve_entity
-        entity = resolve_entity(client, identifier)
+        entity = resolve_entity(client, identifier, padding)
     except ValueError as e:
         raise ReportErrorEntityResolution(str(e)) from e
     except FloodWaitError as e:
