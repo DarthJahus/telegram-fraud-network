@@ -431,16 +431,20 @@ def run_report(client, args, identifier=None, llm=LLM_DEFAULT, padding=0):
     return stats
 
 
-def try_identifiers_and_report(client, args, identifier=(None, None), llm=LLM_DEFAULT, padding=0):
+def try_identifiers_and_report(client, args, identifier:tuple[str, list]=(None, None), llm=LLM_DEFAULT, padding=0):
+    # ToDo: Identifier exploration should be tried inside run_report() or farther down in resolve_entity()
+
     error = None
 
     if identifier[0]:
+        assert isinstance(identifier[0], str) or isinstance(identifier[0], int)
         try:
             return run_report(client, args, identifier=identifier[0], llm=llm, padding=padding)
         except ReportErrorEntityResolution as e:
             error = e
 
     if identifier[1]:
+        assert isinstance(identifier[1], list)
         if error and "PeerUser" in str(error):
             LOG.info(f"Could not resolve entity by ID {identifier[0]}", emoji=EMOJI['info'], padding=padding)
         for ident in identifier[1]:

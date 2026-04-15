@@ -44,8 +44,14 @@ def full_check(client, args, ignore_statuses, md_files, skip_time_seconds):
             has_status_block = item['has_status_block']
 
             try:
-                status, restriction_details, actual_id, actual_username, method_used, display_id = \
-                    check_entity_with_fallback(client, expected_id, identifiers, is_invite, stats)
+                (
+                    status,
+                    restriction_details,
+                    actual_id,
+                    actual_username,
+                    method_used,
+                    display_id
+                ) = check_entity_with_fallback(client, expected_id, identifiers, is_invite, stats)
 
                 if actual_id and not expected_id:
                     id_written = False

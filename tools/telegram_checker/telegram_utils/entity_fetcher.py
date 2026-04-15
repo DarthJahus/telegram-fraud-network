@@ -503,11 +503,21 @@ def iter_md_entities(args, md_files, stats, skip_time_seconds=None, skip_fields:
 
             last_status, last_datetime, has_status_block = get_last_status(entity)
 
+            identifiers_list = None
+            if is_invite:
+                identifiers_list = ['+' + ident if ident[0] != '+' else ident for ident in identifiers]
+            elif isinstance(identifiers, list):
+                # Not invite. List of usernames
+                identifiers_list = identifiers
+            elif isinstance(identifiers, str):
+                # Not invite, one username as string
+                identifiers_list = [identifiers]
+
             yield {
                 'md_file':          md_file,
                 'entity':           entity,
                 'expected_id':      expected_id,
-                'identifiers':      ['+' + ident for ident in identifiers] if is_invite else identifiers,
+                'identifiers':      identifiers_list,
                 'is_invite':        is_invite,
                 'last_status':      last_status,
                 'last_datetime':    last_datetime,

@@ -266,6 +266,8 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
 
     Returns:
         tuple: (status, restriction_details, actual_id, actual_username, method_used, display_id)
+
+    # ToDo: Handle list() identifiers in all cases, and try multiple usernames (like actual multiple invites)
     """
     status = None
     restriction_details = None
@@ -315,8 +317,13 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
     # PRIORITY 3: Fallback to username (last resort)
     if status is None or status == 'unknown':
         if not is_invite and identifiers:
+            username = identifiers[0] if isinstance(identifiers, list) else identifiers
+
             status, restriction_details, actual_id, actual_username, method_used = check_and_display(
-                client, identifiers, False, expected_id,
+                client,
+                identifier=username,
+                is_invite=False,
+                expected_id=expected_id,
                 label=f"Fallback: Checking @{identifiers}",
                 padding=2,
                 emoji=EMOJI['handle'],
