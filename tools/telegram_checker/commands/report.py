@@ -64,7 +64,7 @@ def decide_action(lv1: str, confidence: float, interactive: bool, all_interactiv
       otherwise                           → skip
     """
     # ToDo: Store confidence levels in constants
-    
+
     if lv1 == "Harmless":
         if confidence < 0.80 and (interactive or all_interactive):
             return False, True
@@ -109,7 +109,7 @@ def display_result(result: dict, message_text: str, action_label: str, padding=0
         padding=17+padding,
         multiline=True,
         max_lines=3,
-        line_limit=80
+        line_limit=70
     )
 
     report_preview = get_text_preview(
@@ -118,7 +118,7 @@ def display_result(result: dict, message_text: str, action_label: str, padding=0
         initial_padding=0,
         padding=17 + padding,
         multiline=True,
-        line_limit=80
+        line_limit=70
     )
 
     LOG.info(UI_HORIZONTAL_LINE, padding=padding)
