@@ -63,21 +63,23 @@ def decide_action(lv1: str, confidence: float, interactive: bool, all_interactiv
       confidence < 0.70 AND --interactive → ask (might be misclassified)
       otherwise                           → skip
     """
+    # ToDo: Store confidence levels in constants
+    
     if lv1 == "Harmless":
-        if confidence < 0.70 and (interactive or all_interactive):
+        if confidence < 0.80 and (interactive or all_interactive):
             return False, True
         return False, False
 
     if all_interactive:
         return False, True
 
-    if confidence >= 0.90:
+    if confidence >= 0.95:
         return True, False
 
-    if confidence >= 0.80:
+    if confidence >= 0.90:
         return (False, True) if interactive else (True, False)
 
-    if confidence >= 0.70:
+    if confidence >= 0.80:
         return (False, True) if interactive else (False, False)
 
     return False, False
