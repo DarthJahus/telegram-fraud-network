@@ -324,7 +324,7 @@ def check_entity_with_fallback(client, expected_id, identifiers, is_invite, stat
                 identifier=username,
                 is_invite=False,
                 expected_id=expected_id,
-                label=f"Fallback: Checking @{identifiers}",
+                label=f"Fallback: Checking @{username}",
                 padding=2,
                 emoji=EMOJI['handle'],
                 stats=stats
