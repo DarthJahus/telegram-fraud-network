@@ -2,6 +2,7 @@ from telegram_checker.config.constants import (
     EMOJI,
     UI_HORIZONTAL_LINE
 )
+from telegram_checker.utils.helpers import get_date_time
 from telegram_checker.utils.logger import get_logger
 LOG = get_logger()
 
@@ -170,13 +171,13 @@ def print_discovered_usernames(discovered_usernames):
     if discovered:
         LOG.output(f"\n✨ DISCOVERED (new usernames):")
         for item in discovered:
-            LOG.output(f"  • \\[[{item['file']}\\]] → @{item['new_username']}")
+            LOG.output(f"  • \\[[{item['file']}\\]] → `@{item['new_username']}` ([link](https://t.me/{item['new_username']}), `{get_date_time()}`")
         LOG.output(f"\n  {EMOJI["info"]}  {len(discovered)} username(s) discovered")
 
     if changed:
         LOG.output(f"\n🔄 CHANGED (username updates):")
         for item in changed:
-            LOG.output(f"  • \\[[{item['file']}\\]] : @{item['old_username']} → @{item['new_username']}")
+            LOG.output(f"  • \\[[{item['file']}\\]] : @{item['old_username']} → `@{item['new_username']}` ([link](https://t.me/{item['new_username']}), `{get_date_time()}`")
         LOG.output(f"\n  ⚠️  {len(changed)} username(s) changed")
 
     LOG.output(f"{EMOJI['warning']} Usernames can change frequently - verify before updating files!")
