@@ -11,6 +11,7 @@ from telegram_checker.telegram_utils.exceptions import TelegramUtilsReportError
 from telethon.tl.functions.messages import ReportRequest
 from telethon.tl.types import ReportResultChooseOption, ReportResultAddComment, ReportResultReported
 from telegram_checker.telegram_utils.constants import REPORT_TREE_PATH
+from asyncio import CancelledError
 
 LOG = get_logger()
 
@@ -165,6 +166,12 @@ def send_report(client, entity, message_id: int, lv1: str, lv2: str, report_text
     except FloodWaitError as e:
         sleep_with_progress(e.seconds, dest=LOG.error, emoji=EMOJI['pause'], padding=padding)
         return send_report(client, entity, message_id, lv1, lv2, report_text)
+
+    except CancelledError as e:
+        # ToDo: why does this happen? Should we retry like with floodwait?
+        LOG.error(f"Failed to report message {message_id}: {e}", EMOJI['error'])
+        print(e, currentframe().f_code.co_name)
+        return False
 
     except Exception as e:
         LOG.error(f"Failed to report message {message_id}: {e}", EMOJI['error'])
